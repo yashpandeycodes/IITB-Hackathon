@@ -61,11 +61,11 @@ export const ProblemSection: React.FC = () => {
   ];
 
   return (
-    <section id="problem-narrative" className="relative py-20 lg:py-32 scroll-mt-20 border-t border-[rgba(148,163,184,0.12)]">
+    <section id="problem-narrative" className="relative py-20 lg:py-32 scroll-mt-20 border-t border-[rgba(255, 255, 255, 0.08)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="max-w-3xl mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(148,163,184,0.18)] mb-4 text-xs font-mono font-semibold text-[#EF4444] shadow-sm">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(255, 255, 255, 0.08)] mb-4 text-xs font-mono font-semibold text-[#EF4444] shadow-sm">
             <AlertCircle className="w-3.5 h-3.5 text-[#EF4444]" />
             <span>THE CAMPUS LOGISTICS CHALLENGE</span>
           </div>
@@ -86,14 +86,14 @@ export const ProblemSection: React.FC = () => {
             const Icon = p.icon;
             return (
               <Card3D key={p.num} glowColor={p.glowColor} depth={10}>
-                <div className="p-6 sm:p-8 rounded-2xl bg-[#0D1426] border border-[rgba(148,163,184,0.16)] hover:border-[#6366F1]/50 transition-all duration-300 flex flex-col justify-between h-full shadow-lg backdrop-blur-xl">
+                <div className="p-6 sm:p-8 rounded-2xl bg-[#0D1426] border border-[rgba(255, 255, 255, 0.08)] hover:border-[#6366F1]/50 transition-all duration-300 flex flex-col justify-between h-full shadow-lg backdrop-blur-xl">
                   <div>
                     <div className="flex items-center justify-between mb-5">
                       <span className="font-mono text-2xl font-black text-[#A7B3C9]/40">
                         {p.num}
                       </span>
                       <div
-                        className="p-2.5 rounded-xl bg-[#111B30] border border-[rgba(148,163,184,0.14)] shadow-sm"
+                        className="p-2.5 rounded-xl bg-[#111B30] border border-[rgba(255, 255, 255, 0.08)] shadow-sm"
                         style={{ color: p.accentColor }}
                       >
                         <Icon className="w-5 h-5" />
@@ -115,7 +115,7 @@ export const ProblemSection: React.FC = () => {
                   </div>
 
                   {/* Impact pill */}
-                  <div className="pt-4 border-t border-[rgba(148,163,184,0.12)] flex items-center gap-2 text-xs font-mono text-[#F8FAFC]">
+                  <div className="pt-4 border-t border-[rgba(255, 255, 255, 0.08)] flex items-center gap-2 text-xs font-mono text-[#F8FAFC]">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#EF4444]" />
                     <span className="text-[#A7B3C9]">{p.impact}</span>
                   </div>
@@ -126,7 +126,7 @@ export const ProblemSection: React.FC = () => {
         </div>
 
         {/* Contrast Transition Banner */}
-        <div className="mt-12 p-6 sm:p-8 rounded-2xl bg-[#0D1426] border border-[rgba(148,163,184,0.18)] flex flex-col sm:flex-row sm:items-center justify-between gap-5 shadow-xl">
+        <div className="mt-12 p-6 sm:p-8 rounded-2xl bg-[#0D1426] border border-[rgba(255, 255, 255, 0.08)] flex flex-col sm:flex-row sm:items-center justify-between gap-5 shadow-xl">
           <div className="flex items-center gap-3.5">
             <div className="p-2.5 rounded-xl bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 shrink-0">
               <CheckCircle2 className="w-6 h-6" />

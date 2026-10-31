@@ -15,11 +15,11 @@ export const RolesSection: React.FC = () => {
   const roleIcons = [ShieldCheck, Network, GraduationCap, Layers];
 
   return (
-    <section className="relative py-20 lg:py-32 scroll-mt-20 border-t border-[rgba(148,163,184,0.12)]">
+    <section className="relative py-20 lg:py-32 scroll-mt-20 border-t border-[rgba(255, 255, 255, 0.08)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(148,163,184,0.18)] mb-4 text-xs font-mono font-semibold text-[#6366F1] shadow-sm">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(255, 255, 255, 0.08)] mb-4 text-xs font-mono font-semibold text-[#6366F1] shadow-sm">
             <ShieldCheck className="w-3.5 h-3.5 text-[#6366F1]" />
             <span>ROLE-BASED GOVERNANCE</span>
           </div>
@@ -40,13 +40,13 @@ export const RolesSection: React.FC = () => {
             const Icon = roleIcons[idx % roleIcons.length];
             return (
               <Card3D key={role.role} glowColor="rgba(99, 102, 241, 0.2)" depth={8}>
-                <div className="p-6 rounded-2xl bg-[#0D1426] border border-[rgba(148,163,184,0.14)] hover:border-[#6366F1]/50 hover:bg-[#111B30]/70 transition-all flex flex-col justify-between h-full backdrop-blur-xl shadow-lg">
+                <div className="p-6 rounded-2xl bg-[#0D1426] border border-[rgba(255, 255, 255, 0.08)] hover:border-[#6366F1]/50 hover:bg-[#111B30]/70 transition-all flex flex-col justify-between h-full backdrop-blur-xl shadow-lg">
                   <div>
                     <div className="flex items-center justify-between mb-4">
-                      <div className="p-2.5 rounded-xl bg-[#111B30] border border-[rgba(148,163,184,0.14)] text-[#22D3EE]">
+                      <div className="p-2.5 rounded-xl bg-[#111B30] border border-[rgba(255, 255, 255, 0.08)] text-[#22D3EE]">
                         <Icon className="w-5 h-5" />
                       </div>
-                      <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#111B30] text-[#A7B3C9] border border-[rgba(148,163,184,0.14)]">
+                      <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#111B30] text-[#A7B3C9] border border-[rgba(255, 255, 255, 0.08)]">
                         {role.badge}
                       </span>
                     </div>

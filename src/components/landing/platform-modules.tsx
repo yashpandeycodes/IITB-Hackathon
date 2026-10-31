@@ -9,13 +9,9 @@ import {
   RotateCcw,
   Bot,
   CheckCircle2,
-  Shield,
   Layers,
-  Sparkles,
   ArrowRight,
-  Cpu,
 } from 'lucide-react';
-import { CORE_MODULES } from '@/lib/mock-data';
 
 export const PlatformModules: React.FC = () => {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
@@ -25,13 +21,13 @@ export const PlatformModules: React.FC = () => {
       id: 'timetabling',
       title: 'Automated Timetable Matrix',
       subtitle: 'Multi-Cohort Constraint Optimizer',
-      desc: 'Schedules 189 weekly sessions without cohort overlaps. Solves faculty availability, lab equipment requirements, and student break constraints concurrently.',
+      desc: 'Schedules 189 weekly sessions without cohort overlaps. Concurrently solves faculty bandwidth, lab equipment requirements, transit buffers, and pedagogy needs.',
       icon: CalendarDays,
       badge: 'CORE ENGINE',
       accent: '#6366F1',
       colSpan: 'lg:col-span-8',
       bullets: [
-        'Hard constraint validation (zero double bookings)',
+        'Deterministic validation (zero double bookings)',
         'Cohort-specific travel time buffer between blocks',
         'Automatic lab vs lecture hall capacity matching',
       ],
@@ -89,7 +85,7 @@ export const PlatformModules: React.FC = () => {
       id: 'assistant',
       title: 'Intelligence Proposes. Constraints Decide.',
       subtitle: 'Constraint-Governed Operational Assistant',
-      desc: 'Staff can ask: "Find an open auditorium for 200 people on Thursday after 3 PM". The assistant checks all 14 hard constraints before suggesting the venue.',
+      desc: 'Staff can ask: "Find an open auditorium for 200 people on Thursday after 3 PM". The assistant checks all 14 hard constraints before proposing the venue.',
       icon: Bot,
       badge: 'GOVERNED AI',
       accent: '#818CF8',
@@ -104,11 +100,11 @@ export const PlatformModules: React.FC = () => {
   ];
 
   return (
-    <section id="platform-modules" className="relative py-20 lg:py-32 scroll-mt-20 border-t border-[rgba(148,163,184,0.12)]">
+    <section id="platform-modules" className="relative py-20 lg:py-32 scroll-mt-20 border-t border-white/[0.08]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(148,163,184,0.18)] mb-4 text-xs font-mono font-semibold text-[#6366F1] shadow-sm">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-white/[0.08] mb-4 text-xs font-mono font-semibold text-[#6366F1] shadow-sm">
             <Layers className="w-3.5 h-3.5 text-[#6366F1]" />
             <span>PLATFORM CAPABILITIES</span>
           </div>
@@ -132,30 +128,44 @@ export const PlatformModules: React.FC = () => {
             return (
               <motion.div
                 key={item.id}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-50px' }}
+                transition={{ duration: 0.5, delay: idx * 0.08 }}
                 onMouseEnter={() => setHoveredIdx(idx)}
                 onMouseLeave={() => setHoveredIdx(null)}
-                className={`${item.colSpan} relative rounded-2xl bg-[#0D1426] border border-[rgba(148,163,184,0.16)] p-6 sm:p-7 flex flex-col justify-between transition-all duration-300 hover:border-[#6366F1]/50 hover:bg-[#111B30]/90 hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] group`}
+                className={`${item.colSpan} relative rounded-3xl bg-[#0D1426] border ${
+                  isHovered ? 'border-[#6366F1]/80 shadow-[0_12px_40px_rgba(99,102,241,0.25)]' : 'border-white/[0.08]'
+                } p-6 sm:p-8 flex flex-col justify-between transition-all duration-300 hover:bg-[#111B30]/90 group overflow-hidden`}
               >
+                {/* Subtle Hover Radial Bloom */}
+                <div
+                  style={{
+                    background: `radial-gradient(400px circle at 50% 0%, ${item.accent}18, transparent 70%)`,
+                  }}
+                  className="pointer-events-none absolute -inset-px opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-0"
+                />
+
                 {/* Top Row: Icon & Badge */}
-                <div>
-                  <div className="flex items-center justify-between mb-4">
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between mb-5">
                     <div
                       style={{ backgroundColor: `${item.accent}15`, borderColor: `${item.accent}35` }}
-                      className="w-10 h-10 rounded-xl border flex items-center justify-center transition-transform group-hover:scale-105"
+                      className="w-12 h-12 rounded-2xl border flex items-center justify-center transition-transform group-hover:scale-105 shadow-sm"
                     >
-                      <Icon style={{ color: item.accent }} className="w-5 h-5" />
+                      <Icon style={{ color: item.accent }} className="w-6 h-6" />
                     </div>
 
                     <span
                       style={{ color: item.accent, backgroundColor: `${item.accent}12` }}
-                      className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase border border-[rgba(148,163,184,0.12)]"
+                      className="px-3 py-1 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase border border-white/[0.08]"
                     >
                       {item.badge}
                     </span>
                   </div>
 
                   {/* Title & Subtitle */}
-                  <h3 className="text-lg sm:text-xl font-bold text-[#F8FAFC] tracking-tight mb-1 group-hover:text-white">
+                  <h3 className="text-xl sm:text-2xl font-bold text-[#F8FAFC] tracking-tight mb-1 group-hover:text-white">
                     {item.title}
                   </h3>
                   <div className="text-xs font-mono text-[#22D3EE] font-medium mb-3">
@@ -163,17 +173,17 @@ export const PlatformModules: React.FC = () => {
                   </div>
 
                   {/* Description */}
-                  <p className="text-xs sm:text-sm text-[#A7B3C9] leading-relaxed mb-5">
+                  <p className="text-xs sm:text-sm text-[#A7B3C9] leading-relaxed mb-6">
                     {item.desc}
                   </p>
 
                   {/* Feature Checklist */}
-                  <ul className="space-y-2 mb-6">
+                  <ul className="space-y-2.5 mb-6">
                     {item.bullets.map((bullet, bIdx) => (
-                      <li key={bIdx} className="flex items-start gap-2 text-xs text-[#A7B3C9]">
+                      <li key={bIdx} className="flex items-start gap-2.5 text-xs text-[#A7B3C9]">
                         <CheckCircle2
                           style={{ color: item.accent }}
-                          className="w-3.5 h-3.5 shrink-0 mt-0.5"
+                          className="w-4 h-4 shrink-0 mt-0.5"
                         />
                         <span>{bullet}</span>
                       </li>
@@ -182,16 +192,16 @@ export const PlatformModules: React.FC = () => {
                 </div>
 
                 {/* Bottom Metric Footer */}
-                <div className="pt-4 border-t border-[rgba(148,163,184,0.12)] flex items-center justify-between text-xs">
+                <div className="pt-4 border-t border-white/[0.08] flex items-center justify-between text-xs relative z-10">
                   <span className="font-mono text-[#F8FAFC] font-semibold text-[11px]">
                     {item.metrics}
                   </span>
                   <a
                     href="#product-preview"
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#A7B3C9] group-hover:text-[#22D3EE] transition-colors"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#A7B3C9] group-hover:text-[#22D3EE] transition-colors"
                   >
                     <span>View in Console</span>
-                    <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
+                    <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                   </a>
                 </div>
               </motion.div>

@@ -3,21 +3,23 @@
 import React from 'react';
 import Link from 'next/link';
 import { ArrowRight, Sparkles, ShieldCheck } from 'lucide-react';
+import { Button as MovingBorderButton } from '@/components/ui/moving-border';
+import { MagneticButton } from '@/components/ui/magnetic-button';
 
 export const FinalCTA: React.FC = () => {
   return (
-    <section className="relative py-24 lg:py-36 overflow-hidden border-t border-[rgba(148,163,184,0.12)]">
+    <section className="relative py-24 lg:py-36 overflow-hidden border-t border-white/[0.08]">
       {/* Subtle Indigo/Cyan Ambient Lighting Glow */}
       <div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] rounded-full blur-[130px] pointer-events-none opacity-30"
         style={{
-          background: 'radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, rgba(34, 211, 238, 0.15) 60%, transparent 80%)',
+          background: 'radial-gradient(circle, rgba(99, 102, 241, 0.35) 0%, rgba(34, 211, 238, 0.18) 60%, transparent 80%)',
         }}
       />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
         {/* Brand Pill */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(148,163,184,0.18)] mb-6 text-xs font-mono font-semibold text-[#22D3EE] shadow-sm">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-white/[0.08] mb-6 text-xs font-mono font-semibold text-[#22D3EE] shadow-sm">
           <Sparkles className="w-3.5 h-3.5 text-[#22D3EE]" />
           <span>CHILIKA INSTITUTE OF TECHNOLOGY</span>
         </div>
@@ -37,29 +39,32 @@ export const FinalCTA: React.FC = () => {
 
         {/* CTAs */}
         <div className="flex flex-wrap items-center justify-center gap-4">
-          <Link
-            href="/signup"
-            className="relative inline-flex items-center justify-center p-[1px] overflow-hidden rounded-xl group focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/50 shadow-[0_4px_24px_rgba(99,102,241,0.3)]"
-          >
-            <span className="absolute inset-0 bg-gradient-to-r from-[#6366F1] via-[#22D3EE] to-[#6366F1] rounded-xl transition-all duration-300 opacity-90 group-hover:opacity-100" />
-            <span className="relative flex items-center justify-center gap-2.5 px-7 py-3.5 text-sm font-bold text-[#F8FAFC] bg-[#0D1426] rounded-[11px] transition-all duration-200 group-hover:bg-[#111B30]">
-              <span>Request Institutional Access</span>
-              <ArrowRight className="w-4 h-4 text-[#22D3EE] transition-transform duration-200 group-hover:translate-x-1" />
-            </span>
-          </Link>
+          <MagneticButton strength={0.3}>
+            <Link href="/signup">
+              <MovingBorderButton
+                borderRadius="0.875rem"
+                className="px-7 py-3.5 text-sm font-bold bg-[#0D1426] text-white hover:bg-[#111B30] transition-colors gap-2.5 shadow-xl shadow-[#6366F1]/20"
+              >
+                <span>Request Institutional Access</span>
+                <ArrowRight className="w-4 h-4 text-[#22D3EE]" />
+              </MovingBorderButton>
+            </Link>
+          </MagneticButton>
 
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-sm text-[#F8FAFC] bg-[#111B30] hover:bg-[#16233E] border border-[rgba(148,163,184,0.18)] hover:border-[#6366F1]/50 transition-all duration-200 shadow-sm"
-          >
-            <span>Sign In to Console</span>
-          </Link>
+          <MagneticButton strength={0.25}>
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-sm text-[#F8FAFC] bg-[#111B30] hover:bg-[#16233E] border border-white/[0.1] hover:border-[#6366F1]/50 transition-all duration-200 shadow-sm"
+            >
+              <span>Sign In to Console</span>
+            </Link>
+          </MagneticButton>
         </div>
 
         {/* Security / Verification Pill */}
         <div className="mt-10 flex items-center justify-center gap-2 text-xs font-mono text-[#A7B3C9]">
           <ShieldCheck className="w-4 h-4 text-[#10B981]" />
-          <span>Role-Based Governance • Constraint-Checked Scheduling</span>
+          <span>Enterprise-grade RBAC & End-to-End Cryptographic Security</span>
         </div>
       </div>
     </section>

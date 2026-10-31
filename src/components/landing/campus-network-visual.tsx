@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { Building2, Cpu, CheckCircle2, Clock } from 'lucide-react';
+import { Building2, Cpu, CheckCircle2 } from 'lucide-react';
 
 interface CampusNode {
   id: string;

@@ -294,8 +294,8 @@ export const SignupForm: React.FC = () => {
 
   return (
     <div className="w-full max-w-xl mx-auto">
-      {/* Container */}
-      <div className="relative rounded-2xl bg-[#0D1426]/90 border border-[rgba(148,163,184,0.18)] p-6 sm:p-9 shadow-2xl backdrop-blur-xl overflow-hidden">
+      {/* Container with Glassmorphic styling */}
+      <div className="relative rounded-3xl bg-[#0D1426]/90 border border-white/[0.08] p-6 sm:p-9 shadow-2xl backdrop-blur-2xl overflow-hidden">
         {/* Decorative Ambient Glow */}
         <div className="absolute -top-16 -right-16 w-44 h-44 bg-[#6366F1]/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-16 -left-16 w-44 h-44 bg-[#22D3EE]/10 rounded-full blur-3xl pointer-events-none" />
@@ -324,7 +324,7 @@ export const SignupForm: React.FC = () => {
             >
               {/* Header */}
               <div className="text-center mb-6">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#111B30] border border-[rgba(148,163,184,0.18)] mb-3 text-[11px] font-mono font-semibold text-[#22D3EE]">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#111B30] border border-white/[0.08] mb-3 text-[11px] font-mono font-semibold text-[#22D3EE]">
                   <KeyRound className="w-3.5 h-3.5 text-[#22D3EE]" />
                   <span>STEP 2 OF 2 • IDENTITY VERIFICATION</span>
                 </div>
@@ -338,7 +338,7 @@ export const SignupForm: React.FC = () => {
                 </p>
 
                 {/* Email Chip */}
-                <div className="inline-flex items-center gap-2 mt-3 px-3.5 py-1 rounded-full bg-[#111B30] border border-[rgba(148,163,184,0.18)] text-xs font-mono font-medium text-[#22D3EE]">
+                <div className="inline-flex items-center gap-2 mt-3 px-3.5 py-1 rounded-full bg-[#111B30] border border-white/[0.08] text-xs font-mono font-medium text-[#22D3EE]">
                   <Mail className="w-3.5 h-3.5 text-[#6366F1]" />
                   <span>{formData.email}</span>
                 </div>
@@ -357,7 +357,7 @@ export const SignupForm: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 6 Individual Segmented Boxes */}
+                  {/* 6 Individual Segmented Cyber Boxes */}
                   <div className="grid grid-cols-6 gap-2 sm:gap-3">
                     {otpDigits.map((digit, index) => (
                       <input
@@ -372,8 +372,8 @@ export const SignupForm: React.FC = () => {
                         onKeyDown={(e) => handleDigitKeyDown(index, e)}
                         className={`h-12 sm:h-14 text-center font-mono text-xl sm:text-2xl font-bold rounded-xl bg-[#111B30] border transition-all focus:outline-none ${
                           digit
-                            ? 'border-[#22D3EE] text-[#22D3EE] shadow-sm'
-                            : 'border-[rgba(148,163,184,0.2)] text-[#F8FAFC] focus:border-[#6366F1]'
+                            ? 'border-[#22D3EE] text-[#22D3EE] shadow-sm shadow-[#22D3EE]/20'
+                            : 'border-white/[0.1] text-[#F8FAFC] focus:border-[#6366F1]'
                         }`}
                       />
                     ))}
@@ -395,7 +395,7 @@ export const SignupForm: React.FC = () => {
                 <button
                   type="submit"
                   disabled={otpLoading}
-                  className="w-full py-3.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-[#6366F1] to-[#22D3EE] hover:opacity-95 transition-all flex items-center justify-center gap-2 shadow-md hover:-translate-y-0.5 active:translate-y-0 cursor-pointer disabled:opacity-60"
+                  className="w-full py-3.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-[#6366F1] to-[#22D3EE] hover:opacity-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#6366F1]/20 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer disabled:opacity-60"
                 >
                   {otpLoading ? (
                     <span className="font-mono text-xs">Verifying Security Code...</span>
@@ -408,7 +408,7 @@ export const SignupForm: React.FC = () => {
                 </button>
 
                 {/* Sub Actions Bar */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-mono pt-3 border-t border-[rgba(148,163,184,0.12)]">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-mono pt-3 border-t border-white/[0.08]">
                   <button
                     type="button"
                     onClick={handleResendOtp}
@@ -453,7 +453,7 @@ export const SignupForm: React.FC = () => {
             >
               {/* Header */}
               <div className="text-center mb-6">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#111B30] border border-[rgba(148,163,184,0.18)] mb-3 text-[11px] font-mono font-semibold text-[#22D3EE]">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#111B30] border border-white/[0.08] mb-3 text-[11px] font-mono font-semibold text-[#22D3EE]">
                   <Sparkles className="w-3.5 h-3.5 text-[#22D3EE]" />
                   <span>STEP 1 OF 2 • SECURE ENROLLMENT</span>
                 </div>
@@ -489,7 +489,7 @@ export const SignupForm: React.FC = () => {
                       className={`w-full bg-[#111B30] border rounded-xl pl-10 pr-4 py-2.5 text-xs font-medium text-[#F8FAFC] placeholder-[#A7B3C9]/40 transition-all focus:outline-none ${
                         errors.fullName
                           ? 'border-red-400 focus:ring-1 focus:ring-red-400'
-                          : 'border-[rgba(148,163,184,0.18)] focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]'
+                          : 'border-white/[0.1] focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]'
                       }`}
                     />
                   </div>
@@ -522,7 +522,7 @@ export const SignupForm: React.FC = () => {
                       className={`w-full bg-[#111B30] border rounded-xl pl-10 pr-4 py-2.5 text-xs font-medium text-[#F8FAFC] placeholder-[#A7B3C9]/40 transition-all focus:outline-none ${
                         errors.email
                           ? 'border-red-400 focus:ring-1 focus:ring-red-400'
-                          : 'border-[rgba(148,163,184,0.18)] focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]'
+                          : 'border-white/[0.1] focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]'
                       }`}
                     />
                   </div>
@@ -550,8 +550,8 @@ export const SignupForm: React.FC = () => {
                           onClick={() => setFormData((prev) => ({ ...prev, role: r.value }))}
                           className={`p-3 rounded-xl border text-left transition-all cursor-pointer relative overflow-hidden group ${
                             isSelected
-                              ? 'bg-[#111B30] border-[#22D3EE] shadow-sm'
-                              : 'bg-[#111B30]/70 border-[rgba(148,163,184,0.18)] hover:border-[#6366F1]/50'
+                              ? 'bg-[#111B30] border-[#22D3EE] shadow-sm shadow-[#22D3EE]/20'
+                              : 'bg-[#111B30]/70 border-white/[0.08] hover:border-[#6366F1]/50'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
@@ -563,7 +563,7 @@ export const SignupForm: React.FC = () => {
                               className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-all ${
                                 isSelected
                                   ? 'bg-[#22D3EE] text-[#080D1B]'
-                                  : 'border border-[rgba(148,163,184,0.3)]'
+                                  : 'border border-white/20'
                               }`}
                             >
                               {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
@@ -599,7 +599,7 @@ export const SignupForm: React.FC = () => {
                       className={`w-full bg-[#111B30] border rounded-xl pl-10 pr-10 py-2.5 text-xs font-medium text-[#F8FAFC] placeholder-[#A7B3C9]/40 transition-all focus:outline-none ${
                         errors.password
                           ? 'border-red-400 focus:ring-1 focus:ring-red-400'
-                          : 'border-[rgba(148,163,184,0.18)] focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]'
+                          : 'border-white/[0.1] focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]'
                       }`}
                     />
                     <button
@@ -624,7 +624,7 @@ export const SignupForm: React.FC = () => {
                           <div
                             key={lvl}
                             className={`rounded-full transition-all duration-300 ${
-                              strengthCount >= lvl ? strengthColors[strengthCount] : 'bg-[#111B30] border border-[rgba(148,163,184,0.15)]'
+                              strengthCount >= lvl ? strengthColors[strengthCount] : 'bg-white/10'
                             }`}
                           />
                         ))}
@@ -680,7 +680,7 @@ export const SignupForm: React.FC = () => {
                       className={`w-full bg-[#111B30] border rounded-xl pl-10 pr-10 py-2.5 text-xs font-medium text-[#F8FAFC] placeholder-[#A7B3C9]/40 transition-all focus:outline-none ${
                         errors.confirmPassword
                           ? 'border-red-400 focus:ring-1 focus:ring-red-400'
-                          : 'border-[rgba(148,163,184,0.18)] focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]'
+                          : 'border-white/[0.1] focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]'
                       }`}
                     />
                     <button
@@ -709,7 +709,7 @@ export const SignupForm: React.FC = () => {
                       type="checkbox"
                       checked={formData.agreedToTerms}
                       onChange={handleChange}
-                      className="mt-0.5 w-4 h-4 rounded border-[rgba(148,163,184,0.3)] bg-[#111B30] text-[#6366F1] focus:ring-[#6366F1] cursor-pointer"
+                      className="mt-0.5 w-4 h-4 rounded border-white/20 bg-[#111B30] text-[#6366F1] focus:ring-[#6366F1] cursor-pointer"
                     />
                     <span className="text-xs text-[#A7B3C9] leading-relaxed font-normal">
                       I agree to the CIT Nexus platform security policies and consent to receive a 6-digit verification code via Brevo.
@@ -727,7 +727,7 @@ export const SignupForm: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-3 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-[#6366F1] to-[#22D3EE] hover:opacity-95 transition-all flex items-center justify-center gap-2 shadow-md hover:-translate-y-0.5 active:translate-y-0 cursor-pointer disabled:opacity-60"
+                  className="w-full py-3 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-[#6366F1] to-[#22D3EE] hover:opacity-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#6366F1]/25 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer disabled:opacity-60"
                 >
                   {isSubmitting ? (
                     <span className="font-mono">Dispatching Brevo Security Code...</span>
@@ -744,7 +744,7 @@ export const SignupForm: React.FC = () => {
         </AnimatePresence>
 
         {/* Switch to Login Link */}
-        <div className="mt-6 pt-5 border-t border-[rgba(148,163,184,0.12)] text-center text-xs font-mono text-[#A7B3C9]">
+        <div className="mt-6 pt-5 border-t border-white/[0.08] text-center text-xs font-mono text-[#A7B3C9]">
           Already registered?{' '}
           <Link href="/login" className="text-[#22D3EE] hover:underline font-semibold">
             Sign in to your account &rarr;

@@ -7,11 +7,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  Sparkles,
-  Info,
   Clock,
   Users,
-  Navigation,
   ArrowRight,
   Cpu,
 } from 'lucide-react';
@@ -35,11 +32,11 @@ export const DisruptionDemo: React.FC = () => {
   };
 
   return (
-    <section id="disruption-demo" className="relative py-20 lg:py-32 scroll-mt-20 border-t border-[rgba(148,163,184,0.12)]">
+    <section id="disruption-demo" className="relative py-20 lg:py-32 scroll-mt-20 border-t border-[rgba(255, 255, 255, 0.08)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(148,163,184,0.18)] mb-4 text-xs font-mono font-semibold text-[#F59E0B] shadow-sm">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(255, 255, 255, 0.08)] mb-4 text-xs font-mono font-semibold text-[#F59E0B] shadow-sm">
             <RotateCcw className="w-3.5 h-3.5 text-[#F59E0B]" />
             <span>INTERACTIVE DISRUPTION SIMULATOR</span>
           </div>
@@ -55,9 +52,9 @@ export const DisruptionDemo: React.FC = () => {
         </div>
 
         {/* Interactive Sandbox Card */}
-        <div className="max-w-4xl mx-auto rounded-2xl bg-[#0D1426] border border-[rgba(148,163,184,0.18)] p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
+        <div className="max-w-4xl mx-auto rounded-2xl bg-[#0D1426] border border-[rgba(255, 255, 255, 0.08)] p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
           {/* Top Bar with Controller Button & State Label */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-[rgba(148,163,184,0.12)] gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-[rgba(255, 255, 255, 0.08)] gap-4">
             <div className="flex items-center gap-3.5">
               <span
                 className={`w-3.5 h-3.5 rounded-full transition-all ${
@@ -121,7 +118,7 @@ export const DisruptionDemo: React.FC = () => {
                   exit={{ opacity: 0, y: -10 }}
                   className="space-y-4"
                 >
-                  <div className="p-5 rounded-xl bg-[#111B30] border border-[rgba(148,163,184,0.14)] flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="p-5 rounded-xl bg-[#111B30] border border-[rgba(255, 255, 255, 0.08)] flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                       <div className="p-3 rounded-lg bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30">
                         <CheckCircle2 className="w-6 h-6" />
@@ -151,7 +148,7 @@ export const DisruptionDemo: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="text-center py-8 text-xs text-[#A7B3C9] border border-dashed border-[rgba(148,163,184,0.15)] rounded-xl bg-white/[0.01]">
+                  <div className="text-center py-8 text-xs text-[#A7B3C9] border border-dashed border-[rgba(255, 255, 255, 0.08)] rounded-xl bg-white/[0.01]">
                     Click <strong className="text-[#EF4444]">&ldquo;Trigger Outage&rdquo;</strong> above to simulate an unexpected HVAC fault and observe automatic constraint reallocation.
                   </div>
                 </motion.div>
@@ -183,7 +180,7 @@ export const DisruptionDemo: React.FC = () => {
                   </div>
 
                   {/* Proposed Relocation Card */}
-                  <div className="p-5 rounded-xl bg-[#111B30] border border-[rgba(148,163,184,0.18)]">
+                  <div className="p-5 rounded-xl bg-[#111B30] border border-[rgba(255, 255, 255, 0.08)]">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#22D3EE]">
                         <Cpu className="w-4 h-4 text-[#22D3EE]" />

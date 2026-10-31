@@ -4,9 +4,9 @@ import { CITLogo } from '../brand/logo';
 
 export const Footer: React.FC = () => {
   return (
-    <footer className="relative border-t border-[rgba(148,163,184,0.18)] bg-[#080D1B] py-16 z-10">
+    <footer className="relative border-t border-[rgba(255, 255, 255, 0.08)] bg-[#080D1B] py-16 z-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-12 pb-12 border-b border-[rgba(148,163,184,0.12)]">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-12 pb-12 border-b border-[rgba(255, 255, 255, 0.08)]">
           {/* Brand & Mission Column */}
           <div className="md:col-span-5 flex flex-col justify-between">
             <div>
@@ -81,7 +81,7 @@ export const Footer: React.FC = () => {
               </li>
             </ul>
 
-            <div className="p-4 rounded-xl bg-[#0D1426] border border-[rgba(148,163,184,0.18)] text-xs text-[#A7B3C9] leading-relaxed">
+            <div className="p-4 rounded-xl bg-[#0D1426] border border-[rgba(255, 255, 255, 0.08)] text-xs text-[#A7B3C9] leading-relaxed">
               <strong className="text-[#F8FAFC] block mb-1 font-semibold">Institutional Notice:</strong>
               CIT Nexus is the operational demonstrator for Chilika Institute of Technology. All scheduling constraints, room allocations, and role permissions are deterministically validated.
             </div>

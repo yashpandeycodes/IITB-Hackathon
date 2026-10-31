@@ -7,8 +7,6 @@ import {
   Cpu,
   UserCheck2,
   CalendarCheck2,
-  AlertOctagon,
-  ShieldAlert,
   CheckCircle,
 } from 'lucide-react';
 
@@ -74,11 +72,11 @@ export const ValidationPrinciple: React.FC = () => {
   ];
 
   return (
-    <section id="validation-principle" className="relative py-20 lg:py-32 scroll-mt-20 border-t border-[rgba(148,163,184,0.12)]">
+    <section id="validation-principle" className="relative py-20 lg:py-32 scroll-mt-20 border-t border-[rgba(255, 255, 255, 0.08)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="max-w-3xl mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(148,163,184,0.18)] mb-4 text-xs font-mono font-semibold text-[#10B981] shadow-sm">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(255, 255, 255, 0.08)] mb-4 text-xs font-mono font-semibold text-[#10B981] shadow-sm">
             <CheckCircle className="w-3.5 h-3.5 text-[#10B981]" />
             <span>FOUNDATIONAL ARCHITECTURE PRINCIPLE</span>
           </div>
@@ -105,7 +103,7 @@ export const ValidationPrinciple: React.FC = () => {
                 className={`p-5 rounded-2xl border cursor-pointer transition-all duration-200 flex flex-col justify-between ${
                   isHighlighted
                     ? 'bg-[#111B30] border-[#22D3EE] shadow-[0_4px_24px_rgba(34,211,238,0.2)]'
-                    : 'bg-[#0D1426] border-[rgba(148,163,184,0.14)] hover:border-[#6366F1]/50 hover:bg-[#111B30]/60'
+                    : 'bg-[#0D1426] border-[rgba(255, 255, 255, 0.08)] hover:border-[#6366F1]/50 hover:bg-[#111B30]/60'
                 }`}
               >
                 <div>
@@ -162,7 +160,7 @@ export const ValidationPrinciple: React.FC = () => {
         {(() => {
           const sel = steps[activeStep];
           return (
-            <div className="p-6 rounded-2xl bg-[#0D1426] border border-[rgba(148,163,184,0.18)] shadow-lg">
+            <div className="p-6 rounded-2xl bg-[#0D1426] border border-[rgba(255, 255, 255, 0.08)] shadow-lg">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-start gap-4">
                   <div

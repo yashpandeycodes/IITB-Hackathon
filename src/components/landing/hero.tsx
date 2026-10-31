@@ -3,147 +3,120 @@
 import React from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ArrowRight, ShieldCheck, CheckCircle2, Sparkles, Cpu } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { CampusNetworkVisual } from './campus-network-visual';
+import { TextGenerateEffect } from '@/components/ui/text-generate-effect';
+import { Button as MovingBorderButton } from '@/components/ui/moving-border';
+import { MagneticButton } from '@/components/ui/magnetic-button';
 
 export const HeroSection: React.FC = () => {
-  const headlineWords = ['Every', 'campus', 'resource.', 'One', 'intelligent', 'system.'];
-
   return (
     <section className="relative pt-32 pb-20 md:pt-44 md:pb-32 overflow-hidden">
       {/* Subtle Ambient Radial Lighting */}
-      <div
-        className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[850px] h-[500px] rounded-full blur-[140px] pointer-events-none opacity-40"
-        style={{
-          background: 'radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, rgba(34, 211, 238, 0.12) 60%, transparent 80%)',
-        }}
-      />
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[450px] bg-gradient-to-r from-[#6366F1]/15 to-[#22D3EE]/15 blur-[140px] pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
-          {/* Left Column: Institutional SaaS Typography & Messaging */}
-          <div className="lg:col-span-6 flex flex-col items-start text-left">
-            {/* Top Eyebrow Badge */}
+          {/* Left Column: Typography, Value Proposition & CTAs */}
+          <div className="lg:col-span-7 flex flex-col justify-center text-left">
+            {/* System Status Eyebrow Badge */}
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(148,163,184,0.18)] mb-6 shadow-sm"
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+              className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-white/[0.1] text-xs font-mono font-medium text-[#22D3EE] mb-6 w-fit shadow-sm"
             >
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#22D3EE] opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#22D3EE]" />
               </span>
-              <span className="text-[11px] font-mono font-bold tracking-wider text-[#22D3EE] uppercase">
-                CAMPUS OPERATIONS PROTOCOL
-              </span>
-              <span className="text-white/20">|</span>
-              <span className="text-[11px] text-[#A7B3C9] font-medium hidden sm:inline">
-                Chilika Institute of Technology
-              </span>
+              <span>Chilika Institute of Technology • Operations Topology v2.4</span>
             </motion.div>
 
             {/* Word-by-Word Revealed Headline */}
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight text-[#F8FAFC] leading-[1.08] mb-6">
-              {headlineWords.map((word, index) => {
-                const isHighlight = word === 'One' || word === 'intelligent' || word === 'system.';
-                return (
-                  <motion.span
-                    key={index}
-                    initial={{ opacity: 0, y: 15 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{
-                      duration: 0.45,
-                      delay: 0.08 + index * 0.06,
-                      ease: [0.21, 0.47, 0.32, 0.98],
-                    }}
-                    className={`inline-block mr-2.5 sm:mr-3 ${
-                      isHighlight
-                        ? 'text-transparent bg-clip-text bg-gradient-to-r from-[#6366F1] via-[#818CF8] to-[#22D3EE]'
-                        : ''
-                    }`}
-                  >
-                    {word}
-                  </motion.span>
-                );
-              })}
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-[#F8FAFC] leading-[1.1] mb-6">
+              <TextGenerateEffect
+                words="Every campus resource. One intelligent system."
+                highlightWord="system."
+                highlightClassName="text-transparent bg-clip-text bg-gradient-to-r from-[#6366F1] via-[#818CF8] to-[#22D3EE]"
+                duration={0.6}
+              />
             </h1>
 
-            {/* Supporting Explanation */}
+            {/* Supporting Copy */}
             <motion.p
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.45 }}
-              className="text-base sm:text-lg text-[#A7B3C9] leading-relaxed max-w-xl mb-8 font-normal"
+              transition={{ duration: 0.6, delay: 0.35, ease: 'easeOut' }}
+              className="text-base sm:text-lg text-[#A7B3C9] font-normal leading-relaxed max-w-2xl mb-8"
             >
-              CIT Nexus unifies timetables, examinations, 27 physical venues, and student cohorts into one continuous constraint-checked workspace—preventing schedule conflicts before they happen.
+              Centralize timetabling matrices, examination seatings, venue requisitions, and live disruption repair into one coordinated digital command center.
+              Intelligence proposes. Deterministic constraints decide.
             </motion.p>
 
-            {/* CTAs */}
+            {/* CTA Group with Moving Border and Magnetic Effects */}
             <motion.div
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.55 }}
-              className="flex flex-wrap items-center gap-3.5 w-full sm:w-auto mb-10"
+              transition={{ duration: 0.6, delay: 0.5, ease: 'easeOut' }}
+              className="flex flex-wrap items-center gap-4 mb-10"
             >
-              {/* Primary Moving Border / Accent Button */}
-              <a
-                href="#product-preview"
-                className="w-full sm:w-auto relative inline-flex items-center justify-center p-[1px] overflow-hidden rounded-xl group focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/50 shadow-[0_4px_20px_rgba(99,102,241,0.25)]"
-              >
-                <span className="absolute inset-0 bg-gradient-to-r from-[#6366F1] via-[#22D3EE] to-[#6366F1] rounded-xl transition-all duration-300 opacity-90 group-hover:opacity-100" />
-                <span className="relative flex items-center justify-center gap-2.5 px-6 py-3.5 text-sm font-bold text-[#F8FAFC] bg-[#0D1426] rounded-[11px] transition-all duration-200 group-hover:bg-[#111B30]">
-                  <span>Explore Live Console</span>
-                  <ArrowRight className="w-4 h-4 text-[#22D3EE] transition-transform duration-200 group-hover:translate-x-1" />
-                </span>
-              </a>
+              <MagneticButton strength={0.3}>
+                <Link href="/login">
+                  <MovingBorderButton
+                    borderRadius="0.875rem"
+                    className="px-6 py-3 text-sm font-bold bg-[#0D1426] text-white hover:bg-[#111B30] transition-colors gap-2.5 shadow-lg shadow-[#6366F1]/15"
+                  >
+                    <span>Launch Command Console</span>
+                    <ArrowRight className="w-4 h-4 text-[#22D3EE]" />
+                  </MovingBorderButton>
+                </Link>
+              </MagneticButton>
 
-              <Link
-                href="/signup"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-semibold text-sm text-[#F8FAFC] bg-[#111B30] hover:bg-[#16233E] border border-[rgba(148,163,184,0.18)] hover:border-[#6366F1]/50 transition-all duration-200 shadow-sm"
-              >
-                <span>Request Account</span>
-              </Link>
+              <MagneticButton strength={0.2}>
+                <a
+                  href="#platform-modules"
+                  className="px-6 py-3 rounded-xl border border-white/[0.12] bg-[#0D1426]/60 hover:bg-[#0D1426] text-sm font-semibold text-[#A7B3C9] hover:text-[#F8FAFC] transition-all"
+                >
+                  Explore Architecture &rarr;
+                </a>
+              </MagneticButton>
             </motion.div>
 
-            {/* Institutional Trust Matrix Metrics Row */}
+            {/* Institutional Trust Metrics Bar */}
             <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.65 }}
-              className="pt-6 border-t border-[rgba(148,163,184,0.12)] grid grid-cols-3 gap-4 w-full"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.7, delay: 0.65 }}
+              className="pt-6 border-t border-white/[0.08] flex flex-wrap items-center gap-6 text-xs font-mono text-[#A7B3C9]"
             >
-              <div>
-                <div className="text-xl sm:text-2xl font-black text-[#F8FAFC] font-mono">189</div>
-                <div className="text-[11px] text-[#A7B3C9] mt-0.5">Academic Sessions</div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
+                <span className="text-[#F8FAFC] font-semibold">189 Sessions</span>
+                <span className="text-[#A7B3C9]/70">Scheduled</span>
               </div>
-
-              <div>
-                <div className="text-xl sm:text-2xl font-black text-[#22D3EE] font-mono">27</div>
-                <div className="text-[11px] text-[#A7B3C9] mt-0.5">Monitored Venues</div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-[#22D3EE]" />
+                <span className="text-[#F8FAFC] font-semibold">27 Venues</span>
+                <span className="text-[#A7B3C9]/70">Mapped</span>
               </div>
-
-              <div>
-                <div className="text-xl sm:text-2xl font-black text-[#10B981] font-mono flex items-center gap-1">
-                  <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
-                  0
-                </div>
-                <div className="text-[11px] text-[#A7B3C9] mt-0.5">Week 7 Clashes</div>
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-[#6366F1]" />
+                <span className="text-[#F8FAFC] font-semibold">0 Clashes</span>
+                <span className="text-[#A7B3C9]/70">Week 7 Verified</span>
               </div>
             </motion.div>
           </div>
 
-          {/* Right Column: 3D Spatial Network Visual */}
-          <div className="lg:col-span-6 flex justify-center">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.94 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.7, delay: 0.3 }}
-              className="w-full"
-            >
-              <CampusNetworkVisual />
-            </motion.div>
-          </div>
+          {/* Right Column: 3D Campus Topology Radar */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.25, ease: 'easeOut' }}
+            className="lg:col-span-5 relative"
+          >
+            <CampusNetworkVisual />
+          </motion.div>
         </div>
       </div>
     </section>

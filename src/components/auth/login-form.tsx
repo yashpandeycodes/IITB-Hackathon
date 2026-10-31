@@ -19,7 +19,41 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { LoginFormData, ValidationErrors, validateLoginForm } from '@/lib/validation';
-import { DEMO_USERS } from '@/lib/dataset/cit-data';
+
+const DEMO_USERS = [
+  {
+    role: 'Admin',
+    name: 'Dr. Rajesh Verma',
+    email: 'admin@citnexus.edu',
+    title: 'Dean of Academic Planning & Timetabling',
+    description: 'Full privileges: solver generation, master approvals, disruption override, data export & validator audits.',
+    avatar: '👨‍💼',
+  },
+  {
+    role: 'Department Coordinator',
+    name: 'Prof. Arindam Das',
+    email: 'cse.coord@citnexus.edu',
+    title: 'CSE Department Timetable Coordinator',
+    description: 'Manage CSE cohorts (Y1-A, CSE-2, CSE-3), approve department lab bookings, submit faculty leaves.',
+    avatar: '🧑‍🏫',
+  },
+  {
+    role: 'Faculty',
+    name: 'Dr. Shalini Gupta',
+    email: 'f07.sharma@citnexus.edu',
+    title: 'Associate Professor (F07)',
+    description: 'Personal teaching timetable, lecture reschedule requests, mark leave unavailability, query AI assistant.',
+    avatar: '👩‍🔬',
+  },
+  {
+    role: 'Club Representative',
+    name: 'Kabir Mehta',
+    email: 'robotics.club@citnexus.edu',
+    title: 'President, CIT Robotics & Automations',
+    description: 'Book auditoriums, seminar halls & grounds for Spectra Week 7, track venue status & live approvals.',
+    avatar: '🚀',
+  },
+];
 
 export const LoginForm: React.FC = () => {
   const router = useRouter();
@@ -96,8 +130,8 @@ export const LoginForm: React.FC = () => {
 
       router.push('/dashboard');
       router.refresh();
-    } catch (err: any) {
-      setServerError(err.message || 'Demo login error');
+    } catch (err: unknown) {
+      setServerError(err instanceof Error ? err.message : 'Demo login error');
       setDemoLoadingRole(null);
     }
   };
