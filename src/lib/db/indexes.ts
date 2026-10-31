@@ -56,9 +56,11 @@ export const INDEXES: Partial<Record<CollectionName, IndexDescription[]>> = {
   [COLLECTIONS.booking_decisions]: [
     { key: { status: 1 }, name: "status_1" },
     { key: { room_id: 1, day: 1 }, name: "room_id_1_day_1" },
+    { key: { timetable_version: 1 }, name: "timetable_version_1" },
   ],
   [COLLECTIONS.session_overrides]: [
     { key: { displaced_by: 1 }, name: "displaced_by_1" },
+    { key: { timetable_version: 1 }, name: "timetable_version_1" },
   ],
   [COLLECTIONS.change_requests]: [
     { key: { status: 1 }, name: "status_1" },

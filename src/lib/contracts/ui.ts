@@ -255,7 +255,7 @@ export interface AssistantOptionCard {
   softPenaltyImpact: string;
   isVerified: boolean;
   explanation: string;
-  actionPayload: any;
+  actionPayload: unknown;
 }
 
 export interface ChatMessage {
@@ -282,3 +282,48 @@ export const bookingDraftSchema = z.object({
   needs: z.array(z.string()).default([]),
   requestedRoom: z.string().optional(),
 });
+
+
+// ==========================================
+// 9. Reference Data Contracts (GET /api/reference)
+// ==========================================
+
+export const ReferenceRoomSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.string().optional(),
+  capacity: z.number().optional(),
+  building: z.string().optional(),
+  features: z.array(z.string()).optional(),
+}).passthrough();
+
+export const ReferenceFacultySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  department: z.string().optional(),
+  email: z.string().optional(),
+}).passthrough();
+
+export const ReferenceGroupSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  size: z.number().optional(),
+}).passthrough();
+
+export const ReferenceCourseSchema = z.object({
+  code: z.string(),
+  name: z.string(),
+}).passthrough();
+
+export const ReferenceDataSchema = z.object({
+  rooms: z.array(ReferenceRoomSchema).default([]),
+  faculty: z.array(ReferenceFacultySchema).default([]),
+  student_groups: z.array(ReferenceGroupSchema).default([]),
+  courses: z.array(ReferenceCourseSchema).default([]),
+  sessions: z.array(z.record(z.string(), z.unknown())).default([]),
+  exams: z.array(z.record(z.string(), z.unknown())).default([]),
+  booking_requests: z.array(z.record(z.string(), z.unknown())).default([]),
+  calendar_periods: z.array(z.record(z.string(), z.unknown())).default([]),
+}).passthrough();
+
+export type ReferenceData = z.infer<typeof ReferenceDataSchema>;

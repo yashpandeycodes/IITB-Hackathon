@@ -7,6 +7,7 @@ import { BookingRequestSchema } from "./dataset";
 import { Category, Day, Need, Period, RequestState, RoomType } from "./enums";
 import { BookingDecisionSchema, SessionOverrideSchema } from "./schedule";
 import { Id, Timestamp, type KnownFields } from "./util";
+import { BookingStatsSchema } from "./violation";
 
 /** Why a decision came out the way it did; rendered into `reason` from a template. */
 export const ReasonCode = z.enum([
@@ -33,10 +34,16 @@ export const StoredBookingDecisionSchema = BookingDecisionSchema.safeExtend({
   effective_category: Category,
   /** True when the claimed category was lowered to the role's cap. */
   category_capped: z.boolean(),
+  /** True when the decision moves sessions for Week 7 (an institute event displacing classes). */
+  requires_admin_approval: z.boolean(),
   /** True when the engine decided without an approver. */
   auto: z.boolean(),
   /** "engine" or the deciding user's id. */
   decided_by: Id,
+  /**
+   * Null for plain engine decisions. For a decision that moves sessions
+   * (`requires_admin_approval`), the admin whose Spectra run or activation approved the moves.
+   */
   approved_by: Id.nullable(),
   timetable_version: Id.nullable(),
   decided_at: Timestamp,
@@ -53,6 +60,23 @@ export const StoredSessionOverrideSchema = SessionOverrideSchema.extend({
   timetable_version: Id,
 }).strict();
 export type StoredSessionOverride = z.infer<typeof StoredSessionOverrideSchema>;
+
+/**
+ * Totals of one Spectra run (`POST /api/spectra/run`, activation): the validator's booking stats
+ * (same field names as `ValidatorReport.bookings`) plus the timetable version they belong to.
+ */
+export const SpectraRunSummarySchema = BookingStatsSchema.extend({
+  /** The active timetable version the decisions were computed against. */
+  timetable_version: Id,
+}).strict();
+export type SpectraRunSummary = z.infer<typeof SpectraRunSummarySchema>;
+
+/** `POST /api/spectra/run`: the summary plus every stored decision (dataset order) and Week-7 override. */
+export const SpectraRunResultSchema = SpectraRunSummarySchema.extend({
+  decisions: z.array(StoredBookingDecisionSchema),
+  overrides: z.array(StoredSessionOverrideSchema),
+}).strict();
+export type SpectraRunResult = z.infer<typeof SpectraRunResultSchema>;
 
 export const BookingSource = z.enum(["dataset", "nl", "form"]);
 export type BookingSource = z.infer<typeof BookingSource>;

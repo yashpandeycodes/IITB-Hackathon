@@ -4,6 +4,7 @@ import {
   TimetableVersionSchema,
   type TimetableVersion,
   type TimetableVersionStatus,
+  type TimetableVersionSummary,
 } from "@/lib/contracts";
 import { notFound } from "@/lib/errors";
 import { COLLECTIONS, type BaseDoc } from "../collections";
@@ -15,11 +16,6 @@ import { insertWithSequentialId, nowIso, stripMeta } from "./meta";
  * assignments embedded. A partial unique index keeps at most one `active` version.
  */
 export type TimetableVersionDoc = TimetableVersion & BaseDoc;
-
-/** A version without its assignments, for listings. */
-export type TimetableVersionSummary = Omit<TimetableVersion, "assignments"> & {
-  assignment_count: number;
-};
 
 const collection = (db: Db) =>
   db.collection<TimetableVersionDoc>(COLLECTIONS.timetable_versions);
@@ -105,4 +101,26 @@ export async function activateTimetableVersion(
   const updated = await getTimetableVersion(db, id);
   if (!updated) throw notFound(`Timetable version ${id} not found.`);
   return updated;
+}
+
+/**
+ * Deletes all but the newest `keep` non-active versions (the active one is always kept), so
+ * repeated runs can't grow the collection without bound. Returns how many were deleted.
+ */
+export async function pruneInactiveTimetableVersions(
+  db: Db,
+  keep: number,
+): Promise<number> {
+  // Newest first by creation time (ids sort as text, so TT-10000 would precede TT-9999).
+  const keepIds = await collection(db)
+    .find({ status: { $ne: "active" } }, { projection: { _id: 1 } })
+    .sort({ created_at: -1, _id: -1 })
+    .limit(keep)
+    .map((doc) => doc._id)
+    .toArray();
+  const result = await collection(db).deleteMany({
+    status: { $ne: "active" },
+    _id: { $nin: keepIds },
+  });
+  return result.deletedCount;
 }

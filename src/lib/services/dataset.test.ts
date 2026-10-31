@@ -48,6 +48,26 @@ describe("dataset helpers", () => {
     }
   });
 
+  it("rejects an exam that lists a group twice (validator.py would always report H3)", () => {
+    const bad = structuredClone(tinyDataset()) as {
+      exams: { groups: string[] }[];
+    };
+    bad.exams[0].groups = [bad.exams[0].groups[0], bad.exams[0].groups[0]];
+    try {
+      validateDataset(bad);
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toMatchObject({ code: "VALIDATION_ERROR", status: 400 });
+      const { issues } = (
+        err as { details: { issues: { path: string; message: string }[] } }
+      ).details;
+      expect(issues).toContainEqual({
+        path: "exams.0.groups",
+        message: "lists a group more than once",
+      });
+    }
+  });
+
   it("derives lab departments, request states and unique unavailability ids", () => {
     const dataset = validateDataset({
       ...tinyDataset(),

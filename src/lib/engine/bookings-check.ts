@@ -51,18 +51,20 @@ export function outranks(
   return a.submitted_at < b.submitted_at;
 }
 
-function weightOf(instance: Instance, request: BookingRequest): number {
+/** Booking-score weight of a request (by effective category). */
+export function weightOf(instance: Instance, request: BookingRequest): number {
   return CATEGORY_WEIGHT[effectiveCategory(instance.priority, request)] ?? 0;
 }
 
 /** Room features plus `accessible` when the room is accessible. */
-function roomFeatures(room: Room): Set<string> {
+export function roomFeatures(room: Room): Set<string> {
   const feats = new Set(room.features);
   if (room.accessible) feats.add("accessible");
   return feats;
 }
 
-function missingNeeds(request: BookingRequest, room: Room): string[] {
+/** Needs of `request` that `room` does not cover. */
+export function missingNeeds(request: BookingRequest, room: Room): string[] {
   const feats = roomFeatures(room);
   return [...new Set(request.needs)].filter((need) => !feats.has(need));
 }

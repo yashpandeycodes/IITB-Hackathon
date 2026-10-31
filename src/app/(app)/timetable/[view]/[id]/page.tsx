@@ -3,22 +3,24 @@
 import React, { useState, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/app-shell';
 import { TimetableGrid } from '@/components/timetable/timetable-grid';
 import { AgendaList } from '@/components/timetable/agenda-list';
 import { SessionDrawer } from '@/components/timetable/session-drawer';
+import { PageSkeleton } from '@/components/states/page-skeleton';
+import { ErrorState } from '@/components/states/error-state';
+import { EmptyState } from '@/components/states/empty-state';
+import { apiGet } from '@/lib/api-client';
+import { useReferenceData } from '@/hooks/use-reference-data';
 import {
-  REGULAR_ASSIGNMENTS,
-  SPECTRA_WEEK_ASSIGNMENTS,
-  TIMETABLE_SESSIONS,
-  SPECTRA_BOOKINGS,
-  CAMPUS_ROOMS,
-} from '@/lib/dataset/cit-data';
-import {
-  SessionItem,
-  TimetableAssignment,
-  BookingItem,
-  TimetableWeek,
+  TimetableViewSchema,
+  type SessionItem,
+  type TimetableAssignment,
+  type BookingItem,
+  type TimetableWeek,
+  type DayCode,
+  type PeriodId,
 } from '@/lib/contracts';
 import {
   Download,
@@ -54,14 +56,66 @@ export default function TimetableExplorerPage({ params, searchParams }: PageProp
   const [selectedSession, setSelectedSession] = useState<SessionItem | null>(null);
   const [selectedAssignment, setSelectedAssignment] = useState<TimetableAssignment | null>(null);
 
-  // Pick dataset based on week
-  const activeAssignments = week === 'spectra' ? SPECTRA_WEEK_ASSIGNMENTS : REGULAR_ASSIGNMENTS;
-  const activeBookings = week === 'spectra' ? SPECTRA_BOOKINGS : [];
+  // Lookups from reference data hook
+  const { roomName, facultyName, courseName } = useReferenceData();
+
+  // Query timetable view from the database via backend API
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['timetable', view, id, week],
+    queryFn: () =>
+      apiGet(
+        `/api/timetable?view=${encodeURIComponent(view)}&id=${encodeURIComponent(id)}&week=${encodeURIComponent(week)}`,
+        TimetableViewSchema
+      ),
+    staleTime: 10_000,
+  });
 
   const handleCellClick = (session: SessionItem, assignment: TimetableAssignment) => {
     setSelectedSession(session);
     setSelectedAssignment(assignment);
   };
+
+  // Convert backend cells into UI session & assignment contracts
+  const activeAssignments: TimetableAssignment[] = (data?.cells ?? []).map((cell) => ({
+    sessionId: cell.session_id,
+    day: cell.day as DayCode,
+    period: `P${cell.start_period}` as PeriodId,
+    roomId: cell.room_id,
+    roomName: roomName(cell.room_id),
+    isOverride: Boolean(cell.override),
+  }));
+
+  const activeSessions: SessionItem[] = (data?.cells ?? []).map((cell) => ({
+    id: cell.session_id,
+    courseCode: cell.course_id,
+    courseName: courseName(cell.course_id),
+    kind: cell.kind === 'lab' ? 'lab' : cell.kind === 'tutorial' ? 'tutorial' : 'lecture',
+    groups: cell.groups,
+    facultyId: cell.faculty_id,
+    facultyName: facultyName(cell.faculty_id),
+    durationPeriods: cell.duration,
+    studentCount: cell.size,
+  }));
+
+  const activeBookings: BookingItem[] = (data?.bookings ?? []).map((b) => ({
+    id: b.request_id,
+    title: b.title,
+    requesterId: '',
+    requesterName: '',
+    requesterRole: 'Club Representative',
+    requestedCategory: b.effective_category,
+    effectiveCategory: b.effective_category,
+    day: b.day as DayCode,
+    periodStart: `P${b.start_period}` as PeriodId,
+    periodEnd: `P${b.end_period}` as PeriodId,
+    durationHours: Math.max(1, b.end_period - b.start_period + 1),
+    assignedRoomId: b.room_id,
+    assignedRoomName: roomName(b.room_id),
+    expectedAttendance: 0,
+    requiredFeatures: [],
+    status: b.status === 'approved' ? 'approved' : b.status === 'rejected' ? 'rejected' : 'alternative',
+    decisionReason: '',
+  }));
 
   const handleExportIcs = () => {
     const icsContent = `BEGIN:VCALENDAR
@@ -218,37 +272,57 @@ END:VCALENDAR`;
           </div>
         )}
 
-        {/* Timetable View */}
-        <div className="hidden md:block">
-          <TimetableGrid
-            assignments={activeAssignments}
-            sessions={TIMETABLE_SESSIONS}
-            bookings={activeBookings}
-            week={week}
-            onCellClick={handleCellClick}
+        {/* Timetable Content Body */}
+        {isLoading ? (
+          <PageSkeleton kpis={false} />
+        ) : isError ? (
+          <ErrorState
+            title="Unable to load timetable"
+            message={error instanceof Error ? error.message : 'Failed to retrieve schedule from the database.'}
+            onRetry={() => refetch()}
           />
-        </div>
+        ) : !data || data.version_id === null || activeAssignments.length === 0 ? (
+          <EmptyState
+            icon={Calendar}
+            title="No Timetable Available"
+            description={`No active timetable version is currently stored in the database for ${view} "${id}". Run the constraint solver in the Admin Console to generate and publish an active schedule.`}
+            cta={{ label: 'Go to Admin Generator', href: '/admin' }}
+          />
+        ) : (
+          <>
+            {/* Timetable View */}
+            <div className="hidden md:block">
+              <TimetableGrid
+                assignments={activeAssignments}
+                sessions={activeSessions}
+                bookings={activeBookings}
+                week={week}
+                onCellClick={handleCellClick}
+              />
+            </div>
 
-        {/* Mobile View (Agenda List vs Grid) */}
-        <div className="md:hidden">
-          {mobileLayout === 'agenda' ? (
-            <AgendaList
-              assignments={activeAssignments}
-              sessions={TIMETABLE_SESSIONS}
-              bookings={activeBookings}
-              week={week}
-              onCellClick={handleCellClick}
-            />
-          ) : (
-            <TimetableGrid
-              assignments={activeAssignments}
-              sessions={TIMETABLE_SESSIONS}
-              bookings={activeBookings}
-              week={week}
-              onCellClick={handleCellClick}
-            />
-          )}
-        </div>
+            {/* Mobile View (Agenda List vs Grid) */}
+            <div className="md:hidden">
+              {mobileLayout === 'agenda' ? (
+                <AgendaList
+                  assignments={activeAssignments}
+                  sessions={activeSessions}
+                  bookings={activeBookings}
+                  week={week}
+                  onCellClick={handleCellClick}
+                />
+              ) : (
+                <TimetableGrid
+                  assignments={activeAssignments}
+                  sessions={activeSessions}
+                  bookings={activeBookings}
+                  week={week}
+                  onCellClick={handleCellClick}
+                />
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Slide-in Session Inspection Drawer */}
@@ -263,4 +337,3 @@ END:VCALENDAR`;
     </AppShell>
   );
 }
-

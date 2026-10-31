@@ -1,10 +1,9 @@
 import React from 'react';
 import Link from 'next/link';
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { verifySessionToken, COOKIE_NAME } from '@/lib/auth/jwt';
+import { getSessionUser, SESSION_EXPIRED_PATH } from '@/lib/auth/server-session';
 import { AppShell } from '@/components/layout/app-shell';
-import { Ticket, Sparkles, Building2, ArrowRight } from 'lucide-react';
+import { Ticket, Sparkles, Building2 } from 'lucide-react';
 
 export const metadata = {
   title: 'Club Representative Hub — CIT Nexus',
@@ -12,20 +11,18 @@ export const metadata = {
 };
 
 export default async function ClubPage() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(COOKIE_NAME)?.value;
-  if (!token) redirect('/login');
+  const user = await getSessionUser();
+  if (!user) redirect(SESSION_EXPIRED_PATH);
 
-  const session = await verifySessionToken(token);
-  if (!session || (session.role !== 'Club Representative' && session.role !== 'Admin')) {
-    redirect('/unauthorized?role=' + (session?.role || 'Guest') + '&attemptedSector=/club');
+  if (user.role !== 'club' && user.role !== 'admin') {
+    redirect('/unauthorized?role=' + user.role + '&attemptedSector=/club');
   }
 
   return (
     <AppShell
-      userRole={session.role}
-      userName={session.name}
-      userEmail={session.email}
+      userRole={user.role}
+      userName={user.name}
+      userEmail={user.email}
       pageTitle="Club & Societies Command"
       breadcrumbs={[{ label: 'Club Hub' }]}
     >

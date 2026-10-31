@@ -119,3 +119,9 @@ export const ScheduleAfterExportSchema = ScheduleExportSchema.extend({
   exams: z.array(ExamPlacementSchema).optional(),
 });
 export type ScheduleAfterExport = z.infer<typeof ScheduleAfterExportSchema>;
+
+/** `GET /api/export?file=…`. `schedule_after` arrives with rescheduling (Phase 5). */
+export const ExportQuerySchema = z.object({
+  file: z.enum(["schedule"]).default("schedule"),
+});
+export type ExportQuery = z.infer<typeof ExportQuerySchema>;

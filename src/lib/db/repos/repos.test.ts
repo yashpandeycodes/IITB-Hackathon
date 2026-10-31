@@ -105,6 +105,7 @@ const decision = (
     status === "rejected" ? "REJ_OUTRANKED" : "APPROVED_AS_REQUESTED",
   effective_category: "club_event",
   category_capped: false,
+  requires_admin_approval: false,
   auto: true,
   decided_by: "engine",
   approved_by: null,

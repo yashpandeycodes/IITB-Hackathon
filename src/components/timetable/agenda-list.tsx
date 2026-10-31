@@ -70,7 +70,7 @@ export const AgendaList: React.FC<AgendaListProps> = ({
             );
           }
 
-          const period = item as any;
+          const period = item as keyof typeof PERIOD_MAP;
           const pMeta = PERIOD_MAP[period as keyof typeof PERIOD_MAP];
           const assignment = assignments.find((a) => a.day === selectedDay && a.period === period);
           const session = assignment ? getSession(assignment.sessionId) : undefined;

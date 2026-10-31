@@ -85,3 +85,25 @@ export async function activateExamSchedule(
   if (!updated) throw notFound(`Exam schedule ${id} not found.`);
   return updated;
 }
+
+/**
+ * Deletes all but the newest `keep` non-active schedules (the active one is always kept), so
+ * repeated runs can't grow the collection without bound. Returns how many were deleted.
+ */
+export async function pruneInactiveExamSchedules(
+  db: Db,
+  keep: number,
+): Promise<number> {
+  // Newest first by creation time (ids sort as text, so TT-10000 would precede TT-9999).
+  const keepIds = await collection(db)
+    .find({ status: { $ne: "active" } }, { projection: { _id: 1 } })
+    .sort({ created_at: -1, _id: -1 })
+    .limit(keep)
+    .map((doc) => doc._id)
+    .toArray();
+  const result = await collection(db).deleteMany({
+    status: { $ne: "active" },
+    _id: { $nin: keepIds },
+  });
+  return result.deletedCount;
+}

@@ -6,7 +6,6 @@ import {
   Search,
   Calendar,
   Building,
-  User,
   CheckCircle2,
   Ticket,
   Sparkles,
@@ -14,23 +13,33 @@ import {
   FileText,
   X,
 } from 'lucide-react';
-import { CAMPUS_ROOMS } from '@/lib/dataset/cit-data';
+import { useReferenceData } from '@/hooks/use-reference-data';
 
 interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+const DEFAULT_ROOMS = [
+  { id: 'LH-1', name: 'Lecture Hall 1', type: 'Lecture Hall', capacity: 120 },
+  { id: 'LH-2', name: 'Lecture Hall 2', type: 'Lecture Hall', capacity: 120 },
+  { id: 'AUD', name: 'Main Auditorium', type: 'Auditorium', capacity: 500 },
+  { id: 'CS-LAB-1', name: 'CS Computing Lab 1', type: 'Computing Lab', capacity: 60 },
+  { id: 'CS-LAB-2', name: 'CS Advanced AI Lab', type: 'Computing Lab', capacity: 45 },
+  { id: 'SEMINAR-1', name: 'Executive Seminar Hall', type: 'Seminar Hall', capacity: 80 },
+  { id: 'OAT', name: 'Open Air Theatre', type: 'Open Air Theatre', capacity: 800 },
+];
+
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
   const router = useRouter();
   const [query, setQuery] = useState('');
+  const { referenceData } = useReferenceData();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        if (isOpen) onClose();
-        else onClose(); // trigger toggle from parent
+        onClose();
       }
       if (e.key === 'Escape' && isOpen) {
         onClose();
@@ -68,8 +77,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
     { title: 'Cohort ECE-2 (Second Year ECE)', path: '/timetable/group/ECE-2', icon: Calendar, cat: 'Cohorts' },
   ];
 
-  const roomItems = CAMPUS_ROOMS.slice(0, 8).map((r) => ({
-    title: `${r.id} · ${r.name} (${r.type}, cap ${r.capacity})`,
+  const availableRooms = referenceData.rooms.length > 0 ? referenceData.rooms : DEFAULT_ROOMS;
+  const roomItems = availableRooms.slice(0, 8).map((r) => ({
+    title: `${r.id} · ${r.name} (${r.type ?? 'Venue'}, cap ${r.capacity ?? 60})`,
     path: `/timetable/room/${r.id}`,
     icon: Building,
     cat: 'Venues',
@@ -99,15 +109,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
             onClick={onClose}
             className="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Results List */}
-        <div className="max-h-96 overflow-y-auto p-2 space-y-1">
+        <div className="max-h-96 overflow-y-auto p-2 divide-y divide-white/5">
           {filtered.length === 0 ? (
-            <div className="py-8 text-center text-xs font-mono text-[#cbd5e1]/60">
-              No matching rooms, cohorts, or commands found for &ldquo;{query}&rdquo;.
+            <div className="p-8 text-center text-xs font-mono text-white/40">
+              No results found for &quot;{query}&quot;. Try typing a room code or screen name.
             </div>
           ) : (
             filtered.map((item, idx) => {
@@ -116,17 +126,22 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
                 <button
                   key={idx}
                   onClick={() => navigateTo(item.path)}
-                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl hover:bg-[#1a083a] text-left transition-colors group"
+                  className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/10 text-left transition-colors group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-1.5 rounded-lg bg-white/5 text-[#c084fc] group-hover:text-[#fbbf24] group-hover:bg-[#fbbf24]/10 transition-colors">
+                    <div className="p-2 rounded-lg bg-white/5 group-hover:bg-[#a855f7]/20 text-[#fbbf24] transition-colors">
                       <Icon className="w-4 h-4" />
                     </div>
-                    <span className="text-xs font-mono font-medium text-white group-hover:text-[#fbbf24] transition-colors">
-                      {item.title}
-                    </span>
+                    <div>
+                      <div className="text-xs font-mono font-bold text-white group-hover:text-[#66E3F0] transition-colors">
+                        {item.title}
+                      </div>
+                      <div className="text-[10px] font-mono text-white/40">
+                        {item.path}
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 text-white/50 uppercase">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-white/60 border border-white/10">
                     {item.cat}
                   </span>
                 </button>
@@ -135,12 +150,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
           )}
         </div>
 
-        <div className="px-4 py-2.5 bg-[#080216] border-t border-white/5 flex items-center justify-between text-[11px] font-mono text-white/40">
-          <span>Navigate with ⌘K / Ctrl+K</span>
-          <span>CIT Nexus Quick Navigation</span>
+        {/* Footer Hint */}
+        <div className="px-4 py-2 bg-black/40 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-white/50">
+          <span>Navigate with mouse or keyboard</span>
+          <span className="flex items-center gap-2">
+            <kbd className="px-1.5 py-0.5 rounded bg-white/10 border border-white/10">ESC</kbd> to close
+          </span>
         </div>
       </div>
     </div>
   );
 };
-

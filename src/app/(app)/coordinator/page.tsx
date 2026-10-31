@@ -1,11 +1,9 @@
 import React from 'react';
 import Link from 'next/link';
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { verifySessionToken, COOKIE_NAME } from '@/lib/auth/jwt';
+import { getSessionUser, SESSION_EXPIRED_PATH } from '@/lib/auth/server-session';
 import { AppShell } from '@/components/layout/app-shell';
-import { Calendar, CheckCircle2, Shuffle, Building, ArrowRight } from 'lucide-react';
-import { MOCK_CHANGE_REQUESTS } from '@/lib/dataset/cit-data';
+import { Calendar, CheckCircle2, Shuffle } from 'lucide-react';
 
 export const metadata = {
   title: 'Coordinator Operations — CIT Nexus',
@@ -13,20 +11,18 @@ export const metadata = {
 };
 
 export default async function CoordinatorPage() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(COOKIE_NAME)?.value;
-  if (!token) redirect('/login');
+  const user = await getSessionUser();
+  if (!user) redirect(SESSION_EXPIRED_PATH);
 
-  const session = await verifySessionToken(token);
-  if (!session || (session.role !== 'Department Coordinator' && session.role !== 'Admin')) {
-    redirect('/unauthorized?role=' + (session?.role || 'Guest') + '&attemptedSector=/coordinator');
+  if (user.role !== 'department_coordinator' && user.role !== 'admin') {
+    redirect('/unauthorized?role=' + user.role + '&attemptedSector=/coordinator');
   }
 
   return (
     <AppShell
-      userRole={session.role}
-      userName={session.name}
-      userEmail={session.email}
+      userRole={user.role}
+      userName={user.name}
+      userEmail={user.email}
       pageTitle="Department Coordinator Hub"
       breadcrumbs={[{ label: 'Coordinator' }]}
     >
@@ -55,9 +51,9 @@ export default async function CoordinatorPage() {
             >
               <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#8279FF] mb-1">
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Pending Approvals (3)</span>
+                <span>Pending Approvals</span>
               </div>
-              <div className="text-[11px] text-[#98A6BB]">Review F07 leave and CS-LAB-2 booking</div>
+              <div className="text-[11px] text-[#98A6BB]">Review leave and lab booking requests</div>
             </Link>
 
             <Link
