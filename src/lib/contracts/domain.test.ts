@@ -289,6 +289,7 @@ describe("booking", () => {
     reason_code: "ROOM_SWAPPED_IN_WINDOW",
     effective_category: "club_event",
     category_capped: false,
+    requires_admin_approval: false,
     auto: true,
     decided_by: "engine",
     approved_by: null,

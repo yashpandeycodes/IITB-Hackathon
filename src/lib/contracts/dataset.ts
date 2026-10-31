@@ -263,7 +263,15 @@ export type Cancellation = KnownFields<z.infer<typeof CancellationSchema>>;
 export const ExamSchema = z.looseObject({
   id: Id,
   course_ids: z.array(Id),
-  groups: z.array(Id),
+  /**
+   * Each group at most once: `validator.py` lists an exam once per listed group, so a repeated
+   * group always reads as that group sitting two exams at once (H3), wherever it is placed.
+   */
+  groups: z
+    .array(Id)
+    .refine((groups) => new Set(groups).size === groups.length, {
+      message: "lists a group more than once",
+    }),
   size: Count,
   duration_hours: z.number().positive(),
 });
