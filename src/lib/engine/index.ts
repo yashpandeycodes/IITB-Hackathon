@@ -22,7 +22,12 @@ export {
   type TimetableCheck,
 } from "./checker";
 export { softScore, softScoreMap, type SoftScore } from "./soft";
-export { checkBookings, outranks, type BookingsCheck } from "./bookings-check";
+export {
+  checkBookings,
+  missingNeeds,
+  outranks,
+  type BookingsCheck,
+} from "./bookings-check";
 export { checkExams, examSeats, type ExamsCheck } from "./exams-check";
 export { applyDisruption, DisruptionError } from "./disruption";
 export {
@@ -31,3 +36,34 @@ export {
   validateSchedule,
 } from "./validate";
 export { mulberry32, pick, randomInt, shuffle, type Rng } from "./rng";
+export type { ModelIssue } from "./model";
+export {
+  DEFAULT_FEST_WEIGHT,
+  deriveFestDemands,
+  festSummaryFor,
+  type FestDemand,
+  type FestOption,
+  type FestSummary,
+} from "./fest";
+export {
+  DEFAULT_SOLVER_ITERATIONS,
+  SOLVER_ALGORITHM,
+  solve,
+  solveSteps,
+  type SolverOptions,
+  type SolverResult,
+  type SolverStopReason,
+} from "./solver";
+export {
+  scheduleExams,
+  type ExamSolveOptions,
+  type ExamSolveResult,
+} from "./exams";
+export {
+  decideBookings,
+  suggestRoom,
+  type BookingFacts,
+  type EngineBookingDecision,
+  type SpectraDecisionResult,
+  type SpectraOptions,
+} from "./bookings";
