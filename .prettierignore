@@ -27,11 +27,3 @@ src/app/club
 src/app/coordinator
 src/app/faculty
 src/app/unauthorized
-# auth backend merged from main; replaced on the shared backend stack in Phase 2
-src/app/api/auth
-src/middleware.ts
-src/lib/auth/jwt.ts
-src/lib/db/models
-src/lib/db/mongodb.ts
-src/lib/db/user-store.ts
-src/lib/services/brevo-mail.ts

@@ -13,7 +13,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:start": "mkdir -p .data/mongo && mongod --dbpath .data/mongo --bind_ip 127.0.0.1 --port 27017 --fork --logpath .data/mongod.log",
-    "validate": "tsx scripts/validate.ts"
+    "validate": "tsx scripts/validate.ts",
+    "seed": "tsx --conditions=react-server scripts/seed.ts",
+    "parity": "tsx scripts/parity.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^6.0.2",
@@ -26,7 +28,6 @@
     "jose": "^6.2.14",
     "lucide-react": "^1.66.0",
     "mongodb": "^7.8.0",
-    "mongoose": "^9.11.4",
     "next": "16.4.3",
     "next-themes": "^0.4.6",
     "nuqs": "^2.10.2",

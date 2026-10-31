@@ -15,10 +15,18 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
     env:
       NEXT_TELEMETRY_DISABLED: "1"
-      # Env is read lazily at request time, so lint, tests and the build need no credentials.
+      # Env is read lazily at request time, so lint and the build need no credentials.
+      # Database-backed tests use the mongo service container (throwaway databases).
       LLM_ENABLED: "false"
+      MONGODB_URI: "mongodb://127.0.0.1:27017"
+      MONGODB_DB: "cit_ci"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -47,6 +55,9 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+
+      - name: Validator parity (engine vs official validator.py)
+        run: npm run parity
 
       - name: Validate exports/schedule.json
         if: hashFiles('exports/schedule.json') != ''

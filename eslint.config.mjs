@@ -43,6 +43,79 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    // Route handlers: parse, authorise, call a service. Only getDb/pingDb from the db layer.
+    files: ["src/app/api/**/*.ts"],
+    ignores: ["**/*.test.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/lib/db",
+              importNames: [
+                "getCollection",
+                "getMongoClient",
+                "COLLECTIONS",
+                "COLLECTION_NAMES",
+              ],
+              message: "Routes reach data through services; only getDb/pingDb.",
+            },
+          ],
+          patterns: [
+            {
+              group: [
+                ...LANDING_ONLY_MODULES,
+                "@/lib/db/repos",
+                "@/lib/db/repos/*",
+                "@/lib/engine",
+                "@/lib/engine/*",
+                "mongodb",
+              ],
+              message:
+                "Routes call services; repositories, the engine and the driver sit behind them.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/lib/services/**/*.ts"],
+    ignores: ["**/*.test.ts", "**/test-*.ts"],
+    rules: {
+      "no-restricted-imports": restrict(
+        [...LANDING_ONLY_MODULES, "@/lib/api", "@/lib/api/*", "next", "next/*"],
+        "Services are framework-free: no route helpers or Next.js imports.",
+      ),
+    },
+  },
+  {
+    files: ["src/lib/db/**/*.ts"],
+    // user.model.ts is a type-only shim re-exporting the role label type for a frontend file.
+    ignores: [
+      "**/*.test.ts",
+      "**/test-*.ts",
+      "src/lib/db/models/user.model.ts",
+    ],
+    rules: {
+      "no-restricted-imports": restrict(
+        [
+          ...LANDING_ONLY_MODULES,
+          "@/lib/services",
+          "@/lib/services/*",
+          "@/lib/auth",
+          "@/lib/auth/*",
+          "@/lib/api",
+          "@/lib/api/*",
+          "@/lib/engine",
+          "@/lib/engine/*",
+        ],
+        "The db layer depends only on contracts, env and the driver.",
+      ),
+    },
+  },
+  {
     files: ["src/lib/contracts/**/*.ts"],
     rules: {
       "no-restricted-imports": restrict(
@@ -75,6 +148,25 @@ const eslintConfig = defineConfig([
           "node:*",
         ],
         "The engine is pure: it may import only @/lib/contracts and pure helpers.",
+      ),
+    },
+  },
+  {
+    // Engine tests may load the bundled dataset; engine modules may not.
+    files: ["src/lib/engine/**/*.test.ts", "src/lib/engine/test-fixtures.ts"],
+    rules: {
+      "no-restricted-imports": restrict(
+        [
+          ...SERVER_ONLY_MODULES.filter((m) => m !== "@/lib/dataset"),
+          ...LANDING_ONLY_MODULES,
+          "@/lib/validation",
+          "@/lib/api",
+          "@/lib/api/*",
+          "next",
+          "next/*",
+          "react",
+        ],
+        "Engine tests may use contracts, the bundled dataset and node built-ins only.",
       ),
     },
   },
