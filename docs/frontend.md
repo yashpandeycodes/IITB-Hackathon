@@ -61,7 +61,7 @@ Everything used goes into `THIRD_PARTY.md`.
 | Week-7 override | `--override` | violet outline, dashed | ⚡ "Week 7 only" |
 | Event booking (Spectra view) | `--booking` | pink, diagonal hatch | ticket icon |
 | Approved | `--status-approved` | green-600 | ✓ Approved |
-| Alternative offered | `--status-alt` | amber-600 | ↔ Alternative |
+| Alternative offered | `--status-alternative` | amber-600 | ↔ Alternative |
 | Rejected | `--status-rejected` | red-600 | ✕ Rejected |
 | Pending | `--status-pending` | blue-600 | ⏳ Pending |
 | Cancelled | `--status-cancelled` | zinc-500, strikethrough | ⊘ Cancelled |
@@ -293,7 +293,7 @@ Top bar: page title + breadcrumbs · week toggle (Regular / Spectra week / Exam 
 | `ConflictReport` | `conflicts[]` | Approvals, Changes, Assistant |
 | `RoomTimeline` | `rooms`, `items` (sessions + bookings), `days`, `periods` | Spectra, Find a room |
 | `KpiCard` | `label`, `value`, `tone`, `href` | Dashboard, Spectra |
-| `StatusBadge` · `CategoryChip` · `RuleChip` | enum values from contracts | everywhere |
+| `StatusBadge` · `CategoryChip` · `RuleChip` · `KindChip` (`src/components/semantic/`, mapping in `src/config/semantics.ts`) | enum values from contracts | everywhere |
 | `ReasonText` | `reason`, `reason_code`, `onExplain` | Bookings, Spectra |
 | `NLBookingInput` | `onParsed(draft)` (mic optional) | New booking |
 | `BookingDraftForm` | `defaultValues: BookingDraft`, `assumptions`, `followUp` | New booking |
@@ -331,7 +331,7 @@ All prop types import from `@/lib/contracts`. **No component defines its own cop
 
 | Breakpoint | Layout |
 |---|---|
-| `< 640` phone | Bottom tab bar (Dashboard, Timetable, Book, Approvals/Requests, More). Timetable = day tabs + agenda. Tables → stacked cards. Drawers → full-height sheets. Room timeline scrolls horizontally with a sticky first column. |
+| `< 640` phone | Bottom tab bar (Dashboard, Timetable, Rooms, Approvals — or Bookings for roles without approvals — and More). Timetable = day tabs + agenda. Tables → stacked cards. Drawers → full-height sheets. Room timeline scrolls horizontally with a sticky first column. |
 | `640–1024` tablet | Collapsible sidebar (icons). Grid with compact cards (code + room only). |
 | `≥ 1024` laptop | Full sidebar, full grid, side panels (live check, drawer) inline |
 
@@ -341,7 +341,7 @@ Test on 360×740 (Android), 390×844 (iPhone), 768×1024, 1366×768 (typical jud
 
 ## 9. Data fetching and state
 
-- **Typed client** `src/lib/api-client.ts`: `api.get(route, ResponseSchema)` / `api.post(route, body, ResponseSchema)` unwraps the `{ ok, data | error }` envelope and throws a typed `ApiError` (code from [architecture.md §4.5](./architecture.md#45-api-envelope-and-error-codes)).
+- **Typed client** `src/lib/api-client.ts`: `apiGet(path, Schema)`, `apiPost(path, body, Schema)`, `apiPatch`, `apiDelete` unwrap the `{ ok, data | error }` envelope and throw `ApiClientError` (code from [architecture.md §4.5](./architecture.md#45-api-envelope-and-error-codes), or `NETWORK_ERROR` / `BAD_RESPONSE`).
 - **Reads:** RSC pages fetch initial data on the server (fast first paint, no spinner on navigation). Client components hydrate into TanStack Query with `initialData`.
 - **Query keys:** `["timetable", view, id, week]`, `["bookings", filters]`, `["changes", status]`, `["dashboard"]`, `["spectra"]`, `["exams"]`, `["rooms", filters]`.
 - **Mutations invalidate:** approve change → `timetable`, `changes`, `dashboard`. Submit booking → `bookings`, `spectra`, `rooms`, `dashboard`. Generate → everything.
@@ -388,4 +388,4 @@ Test on 360×740 (Android), 390×844 (iPhone), 768×1024, 1366×768 (typical jud
 - [ ] Self-approval button is disabled with an explanation
 - [ ] Export is disabled with a reason when there are hard violations
 - [ ] No console errors. Lighthouse a11y ≥ 90 and performance ≥ 80 on `/dashboard` and `/timetable`.
-- [ ] Favicon, page titles (`CIT Scheduler · Timetable`), 404 page
+- [ ] Favicon, page titles (`Timetables · CIT Scheduler`), 404 page

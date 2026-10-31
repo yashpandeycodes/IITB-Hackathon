@@ -93,25 +93,33 @@ Anything right of `Z` is our code. Gemini can never reach the database, change a
 │   │   └── api/                          # Route Handlers (see §6)
 │   ├── components/
 │   │   ├── ui/                           # shadcn/ui primitives
+│   │   ├── layout/ providers/ states/    # app shell, providers, empty/error/loading states
+│   │   ├── semantic/                     # StatusBadge, CategoryChip, RuleChip, KindChip
 │   │   └── {timetable,booking,approvals,dashboard,assistant}/
-│   └── lib/
-│       ├── contracts/                    # ★ Zod schemas = single source of truth
-│       ├── engine/                       # ★ pure TS: checker, solver, exams, bookings, reschedule, explain
-│       ├── db/                           # Mongo client (cached), typed collections, repositories
-│       ├── services/                     # use-cases: generate, decideBookings, proposeChange, …
-│       ├── ai/                           # Gemini client, prompt loader, hinglish rules, fallbacks
-│       ├── auth/                         # jose session, RBAC guards
-│       └── api-client.ts                 # typed fetch wrapper used by the UI
+│   ├── config/                           # nav, roles, demo-account display data, semantic chip map
+│   ├── workers/                          # engine Web Worker (drag-and-drop checks)
+│   ├── lib/
+│   │   ├── contracts/                    # ★ Zod schemas = single source of truth
+│   │   ├── engine/                       # ★ pure TS: checker, solver, exams, bookings, reschedule, explain
+│   │   ├── db/                           # Mongo client (cached), typed collections, repositories
+│   │   ├── services/                     # use-cases: generate, decideBookings, proposeChange, …
+│   │   ├── ai/                           # Gemini client, prompt loader, hinglish rules, fallbacks
+│   │   ├── auth/                         # jose session, RBAC guards, server-only demo credentials
+│   │   ├── api/                          # route helpers: withHandler, parseJsonBody, ok/fail
+│   │   ├── errors.ts                     # ApiError (framework-free, thrown by services)
+│   │   ├── env.ts  dataset.ts  format.ts # server env, bundled dataset loader, display formatting
+│   │   └── api-client.ts                 # typed fetch wrapper used by the UI
+│   └── proxy.ts                          # auth gate (Next.js 16 replacement for middleware.ts)
 ├── prompts/                              # versioned prompt files (declared in AI_USAGE.md)
-├── scripts/                              # seed.ts, export.ts, parity.ts, ai-eval.ts
+├── scripts/                              # validate.ts, seed.ts, export.ts, parity.ts, ai-eval.ts
+│                                         # (DB scripts: npx tsx --conditions=react-server …)
 ├── data/                                 # copy of starter-pack cit_public.json + sample_disruption.json
 ├── exports/                              # schedule.json, schedule_after.json (from the app)
 ├── docs/
-├── middleware.ts                         # (proxy.ts on Next.js 16+) auth gate
 ├── AI_USAGE.md  THIRD_PARTY.md  README.md  .env.example
 ```
 
-**Dependency rule:** `app → services → (engine | ai | db) → contracts`. The engine imports only `contracts`. UI components import `contracts` and `api-client`, never `db` or `services`.
+**Dependency rule:** `app → services → (engine | ai | db) → contracts`. The engine imports only `contracts`. UI components import `contracts` and `api-client`, never `db` or `services`. ESLint enforces this with `no-restricted-imports` (`eslint.config.mjs`). Scripts that import `server-only` modules run with `npx tsx --conditions=react-server`.
 
 ---
 
@@ -238,7 +246,7 @@ export const SessionSchema = z.object({
   groups: z.array(z.string()).min(1),
   faculty_id: z.string(),
   size: z.number().int().positive(),
-  duration: z.number().int().min(1).max(3),
+  duration: z.number().int().min(1).max(9),
   room_types: z.array(RoomType).min(1),
   needs_accessible: z.boolean(),
   basket_slot: z.string().nullable(),
@@ -308,7 +316,10 @@ export const ScheduleExportSchema = z.object({
   }),
   exams: z.array(ExamPlacementSchema),
 });
+// ScheduleAfterExportSchema = the same with `fest_week` and `exams` optional (validator.py allows both).
 ```
+
+> **Import tolerance.** Dataset and change-file schemas are `z.looseObject` (unknown keys kept), apply the validator's own defaults (e.g. `max_hours_per_day` 4, `basket_slot`/`fixed_slot` null), and accept free strings wherever `validator.py` does (room types, booking roles/categories, preference types, change-file days). Our own records (users, versions, decisions, change requests) use strict schemas.
 
 ### 4.5 API envelope and error codes
 
@@ -330,9 +341,12 @@ type ApiErr = {
 | `NOT_FOUND`                     | 404       | Unknown id                                                                 |
 | `STALE_VERSION`                 | 409       | Proposal was built on a timetable that is no longer active                 |
 | `LLM_UNAVAILABLE`               | 503       | Gemini failed. UI switches to the manual form. Never blocks a booking.     |
+| `INTERNAL_ERROR`                | 500       | Unhandled error, or a server-side schema failure (bare `ZodError`). Generic message; details never exposed. |
+
+Request bodies must be `application/json` (else `VALIDATION_ERROR`) and are capped at 1 MB by default.
 
 `Violation` shape is shared by the engine, API and UI, and mirrors the validator output:
-`{ rule: "H4", where: "timetable" | "fest_week" | "exams", detail: string, refs: { session_ids?, room_id?, day?, periods?, request_id? } }`.
+`{ rule: "H4", where: "timetable" | "fest_week" | "exams", detail: string, refs: { session_ids?, room_id?, day?, periods?, request_id?, exam_id? } }`.
 
 ---
 
@@ -511,7 +525,7 @@ The `changes[]` items use the **exact starter-pack disruption format** (`faculty
 }
 ```
 
-**`settings`** (singleton `_id: "app"`): `team`, `priority_order` (editable copy, defaults to the dataset's), `llm_enabled`, `reference_date` (what "today/kal" resolves against, defaulting to the Monday before Week 7), `solver_seed`.
+**`settings`** (singleton `_id: "app"`): `team` (defaults to `TEAM_NAME`; the export reads `settings.team`), `priority_order` (editable copy, defaults to the dataset's), `llm_enabled`, `reference_date` (what "today/kal" resolves against, defaulting to the Monday before Week 7), `solver_seed`.
 
 **`audit_log`**: `{ actor, action, entity, entity_id, before?, after?, at }`. Every approve/reject/apply/reset is logged.
 
@@ -702,7 +716,7 @@ stateDiagram-v2
 
 ## 9. Auth and RBAC
 
-- **Session:** email + password (bcrypt) → `jose`-signed JWT in an httpOnly, `SameSite=Lax` cookie. `middleware.ts` (or `proxy.ts` on Next.js 16+) protects `(app)` routes, and every Route Handler re-checks with `requireRole(...)`.
+- **Session:** email + password (bcrypt) → `jose`-signed JWT in an httpOnly, `SameSite=Lax` cookie. `src/proxy.ts` (Next.js 16's replacement for `middleware.ts`) protects `(app)` routes, and every Route Handler re-checks with `requireRole(...)`.
 - **Demo login:** the login page shows 4 cards ("Login as Admin / Coordinator / Faculty / Club"), one click each. Credentials are also listed in the README.
 
 | Demo account         | Role                   | Linked to                                          | Password      |
@@ -736,6 +750,7 @@ stateDiagram-v2
 | ----------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
 | App         | Vercel (Hobby is fine)               | Set `maxDuration` on heavy routes. Solver budget stays ≤ 8 s. Region close to Atlas (e.g. `bom1` + Atlas Mumbai). |
 | DB          | MongoDB Atlas M0 (free)              | Allow-list `0.0.0.0/0` for Vercel. One DB per env (`cit_dev`, `cit_prod`).                                        |
+| Local DB    | `mongod` or Docker on `127.0.0.1`    | `npm run db:start` (local `mongod`, data in `.data/`) or `docker compose up -d` (`mongo:7`). URI `mongodb://127.0.0.1:27017`. |
 | LLM         | Gemini API (own key)                 | Model ids come from env, so they can be swapped without code changes                                              |
 | Determinism | Seeded RNG (`mulberry32(seed)`)      | Same seed gives the same timetable, so exports are reproducible in front of judges                                |
 | Uptime      | Deploy from `main` only, then freeze | No pushes or redeploys after the deadline (disqualification rule)                                                 |
@@ -759,8 +774,7 @@ SOLVER_TIME_BUDGET_MS="8000"
 SOLVER_SEED="42"
 # App
 TEAM_NAME="<Team name for schedule.json>"
-DATASET_PATH="data/cit_public.json"
-APP_REFERENCE_DATE="2027-02-07"    # the "today" that "kal"/"tomorrow" resolves against
+APP_REFERENCE_DATE="2027-02-08"    # Monday of fest week; the "today" that "kal"/"tomorrow" resolves against
 ```
 
 ---
@@ -776,7 +790,7 @@ APP_REFERENCE_DATE="2027-02-07"    # the "today" that "kal"/"tomorrow" resolves 
 | AI eval              | `scripts/ai-eval.ts`                               | 25 `raw_text` → compare parsed fields to the dataset's structured fields. 8 `sample_requests.md` plus an adversarial set. Accuracy is printed per field.                                                                                 |
 | Smoke (deployed)     | Manual checklist                                   | All 4 demo logins work, reset works, LLM-off booking works, export downloads                                                                                                                                                             |
 
-CI (GitHub Actions): `pnpm lint && pnpm typecheck && pnpm test && python CrunchWeek_StarterPack/validator.py --data … --schedule exports/schedule.json`.
+CI (GitHub Actions): `npm run lint && npm run typecheck && npm test && npm run validate` (`validate` runs the official `CrunchWeek_StarterPack/validator.py` on `exports/schedule.json`; add `-- --after` for `schedule_after.json`).
 
 ---
 
@@ -821,7 +835,7 @@ Everyone co-owns `lib/contracts/`. Changes after the H1 freeze need a 1-minute p
 | Hours   | A: Engine                                                                                                                                  | B: Backend and AI                                                                                        | C: Frontend and delivery                                                                                                  | ✅ Milestone                                                                |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | **0–1** | _All together:_ create repo, scaffold Next.js + Tailwind + shadcn, write `lib/contracts/*` from the starter pack, agree on API routes (§6) |                                                                                                          |                                                                                                                           | **Contract freeze.** Hello-world on Vercel + Atlas connected.               |
-| 1–5     | Checker H1–H14, S1–S6 + parity script vs `validator.py`                                                                                    | Mongo client, import/reset, seed users, auth + middleware, `/api/timetable` view, `/api/rooms/available` | App shell, login cards, design tokens, `TimetableGrid` on fixtures from `cit_public.json`                                 | Checker matches validator on the example file                               |
+| 1–5     | Checker H1–H14, S1–S6 + parity script vs `validator.py`                                                                                    | Mongo client, import/reset, seed users, auth + `proxy.ts`, `/api/timetable` view, `/api/rooms/available` | App shell, login cards, design tokens, `TimetableGrid` on fixtures from `cit_public.json`                                 | Checker matches validator on the example file                               |
 | 5–10    | Solver: domains → greedy → repair → **0 hard**                                                                                             | Booking decision engine (priority, caps, best-fit, reasons) + `/api/spectra/run`. Exam API wiring.       | Timetable explorer (group/faculty/room), session drawer, dashboard KPIs                                                   | **H10: `exports/schedule.json` with 0 hard (validator-checked), committed** |
 | 10–14   | Exam scheduler. SA optimiser on soft penalty.                                                                                              | Gemini client + parse prompt + Hinglish rules + fallback. `/api/bookings/parse`. Manual form API.        | Booking page (NL + editable draft + manual tab), Spectra board, find-a-room                                               | NL booking works end-to-end with LLM on **and off**                         |
 | 14–18   | Rescheduler (min moves, ejection chains) + conflict report. `schedule_after.json`.                                                         | Changes API + approval guards. Assistant (intent → engine → phrase). Explain API.                        | Approvals inbox + diff grid, changes page, assistant chat, exams grid, admin page                                         | **H16: `schedule_after.json` 0 hard, moved count logged**                   |
