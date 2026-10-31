@@ -7,7 +7,7 @@ The entire backend authentication architecture has been implemented for **CIT Ne
 
 ## 2. Environment Configuration (`.env` & `.env.local`)
 The `.env` and `.env.local` files were created with placeholder demo links:
-- `MONGODB_URI`: Demo MongoDB Atlas URI (`mongodb+srv://demoUser:demoPassword@cluster0.citnexus.mongodb.net/cit-nexus...`).
+- `MONGODB_URI`: Demo MongoDB Atlas URI (`mongodb+srv://<user>:<password>@<cluster>.mongodb.net/cit-nexus...`).
 - `JWT_SECRET`: 256-bit cryptographic signature key.
 - `BREVO_API_KEY`: API key slot for Brevo transactional email dispatch.
 - `BREVO_SENDER_EMAIL`: Configured with `yashpandey040709@gmail.com`.
