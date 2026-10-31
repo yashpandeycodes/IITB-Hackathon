@@ -2,10 +2,9 @@ import "server-only";
 import type { Db } from "mongodb";
 import {
   ScheduleExportSchema,
-  type BookingDecision,
+  toExportDecision,
   type Dataset,
   type ScheduleExport,
-  type StoredBookingDecision,
   type ValidatorReport,
 } from "@/lib/contracts";
 import { validateSchedule } from "@/lib/engine";
@@ -22,14 +21,6 @@ import { getSettings } from "./settings";
  * the dataset as the official validator sees it (dataset-origin requests only) and gated on the
  * validator port reporting zero hard violations.
  */
-
-/** The export shape of a stored decision: rejections carry no slot, metadata is dropped. */
-function toExportDecision(decision: StoredBookingDecision): BookingDecision {
-  const { request_id, status, reason } = decision;
-  if (status === "rejected") return { request_id, status, reason };
-  const { day, start_period, end_period, room_id } = decision;
-  return { request_id, status, day, start_period, end_period, room_id, reason };
-}
 
 function byPosition<T>(
   items: readonly T[],

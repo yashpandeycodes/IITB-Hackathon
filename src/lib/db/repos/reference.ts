@@ -70,14 +70,21 @@ function toRecord<T extends RefMeta>(doc: T): Omit<T, keyof RefMeta> {
   return omit(stripMeta(doc) as T, ["seq"]) as Omit<T, keyof RefMeta>;
 }
 
+/** Every matching doc in dataset order; `fields` limits the returned fields (a projection). */
 async function findAll<D extends RefMeta>(
   db: Db,
   name: CollectionName,
   filter: Filter<D> = {},
+  fields?: readonly string[],
 ): Promise<Omit<D, keyof RefMeta>[]> {
   const docs = await db
     .collection<D>(name)
-    .find(filter, { sort: SORT_BY_SEQ })
+    .find(filter, {
+      sort: SORT_BY_SEQ,
+      ...(fields && {
+        projection: Object.fromEntries(fields.map((f) => [f, 1])),
+      }),
+    })
     .toArray();
   return docs.map((doc) => toRecord(doc as D));
 }
@@ -169,11 +176,29 @@ function bookingRequestQuery(
   return query;
 }
 
-export function listBookingRequests(db: Db, filter: BookingRequestFilter = {}) {
+/**
+ * Booking requests in dataset order, optionally filtered. `fields` returns only those fields
+ * (a projection), for readers that need a few of them from every request.
+ */
+export function listBookingRequests(
+  db: Db,
+  filter?: BookingRequestFilter,
+): Promise<BookingRequestRecord[]>;
+export function listBookingRequests<K extends keyof BookingRequestRecord>(
+  db: Db,
+  filter: BookingRequestFilter,
+  fields: readonly K[],
+): Promise<Pick<BookingRequestRecord, K>[]>;
+export function listBookingRequests(
+  db: Db,
+  filter: BookingRequestFilter = {},
+  fields?: readonly string[],
+): Promise<BookingRequestRecord[]> {
   return findAll<BookingRequestDoc>(
     db,
     COLLECTIONS.booking_requests,
     bookingRequestQuery(filter),
+    fields,
   );
 }
 

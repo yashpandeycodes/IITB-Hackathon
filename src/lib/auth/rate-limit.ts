@@ -125,4 +125,15 @@ export const limits = {
    */
   scheduleRunUser: limiter("schedule-run-user", 30),
   scheduleRunIp: limiter("schedule-run-ip", 60),
+  /** Plain-language parses per user and per IP (each may cost an LLM call). */
+  aiParseUser: limiter("ai-parse-user", 30),
+  aiParseIp: limiter("ai-parse-ip", 120),
+  /** Booking submissions, cancellations and approval decisions per user and per IP. */
+  bookingWriteUser: limiter("booking-write-user", 30),
+  bookingWriteIp: limiter("booking-write-ip", 120),
+  /**
+   * Model-phrased booking explanations per user (`GET /api/bookings/:id` with AI on). Over the
+   * limit the engine's own text is shown instead: the read never fails.
+   */
+  aiExplainUser: limiter("ai-explain-user", 30),
 } as const;

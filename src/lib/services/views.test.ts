@@ -5,11 +5,19 @@ import {
   RoomAvailabilitySchema,
   TimetableCheckResultSchema,
   TimetableViewSchema,
+  type RoomAvailability,
   type RoomAvailabilityQuery,
+  type SessionUser,
 } from "@/lib/contracts";
 import { COLLECTION_NAMES } from "@/lib/db/collections";
 import { upsertBookingDecision } from "@/lib/db/repos/booking-decisions";
+import {
+  insertBookingRequests,
+  type NewBookingRequest,
+} from "@/lib/db/repos/booking-requests";
 import { insertChangeRequest } from "@/lib/db/repos/change-requests";
+import { upsertSessionOverride } from "@/lib/db/repos/session-overrides";
+import { insertUser } from "@/lib/db/repos/users";
 import {
   activateTimetableVersion,
   insertTimetableVersion,
@@ -77,18 +85,26 @@ describe.skipIf(!testDb)("timetable view (MongoDB)", () => {
   });
 
   it("is empty, not an error, before a timetable exists", async () => {
-    const view = await getTimetableView(db, {
-      view: "group",
-      id: "G1",
-      week: "spectra",
-    });
+    const view = await getTimetableView(
+      db,
+      {
+        view: "group",
+        id: "G1",
+        week: "spectra",
+      },
+      USERS.admin,
+    );
     expect(view).toMatchObject({ version_id: null, cells: [] });
   });
 
   it("throws NOT_FOUND for an unknown id", async () => {
     for (const view of ["group", "faculty", "room"] as const) {
       await expect(
-        getTimetableView(db, { view, id: "NOPE", week: "regular" }),
+        getTimetableView(
+          db,
+          { view, id: "NOPE", week: "regular" },
+          USERS.admin,
+        ),
       ).rejects.toMatchObject({ code: "NOT_FOUND" });
     }
   });
@@ -99,11 +115,15 @@ describe.skipIf(!testDb)("timetable view (MongoDB)", () => {
     });
 
     it("shows a group's regular week in day/period order", async () => {
-      const view = await getTimetableView(db, {
-        view: "group",
-        id: "G1",
-        week: "regular",
-      });
+      const view = await getTimetableView(
+        db,
+        {
+          view: "group",
+          id: "G1",
+          week: "regular",
+        },
+        USERS.admin,
+      );
       expect(TimetableViewSchema.parse(view)).toEqual(view);
       expect(view.version_id).toBe("TT-0001");
       expect(cellsOf(view)).toEqual([
@@ -122,19 +142,24 @@ describe.skipIf(!testDb)("timetable view (MongoDB)", () => {
     });
 
     it("applies Week-7 overrides and adds the group's mandatory bookings", async () => {
-      const view = await getTimetableView(db, {
-        view: "group",
-        id: "G1",
-        week: "spectra",
-      });
+      const view = await getTimetableView(
+        db,
+        {
+          view: "group",
+          id: "G1",
+          week: "spectra",
+        },
+        USERS.admin,
+      );
       expect(cellsOf(view)).toContain("C1-L2@THUP5:LH-1");
       expect(
         view.cells.find((c) => c.session_id === "C1-L2")?.override,
-      ).toEqual({ displaced_by: "BR-02" });
+      ).toEqual({ displaced_by: "BR-02", pending_approval: false });
       expect(view.bookings).toEqual([
         {
           request_id: "BR-02",
           title: "Guest talk",
+          pending_approval: false,
           room_id: "LH-1",
           day: "THU",
           start_period: 3,
@@ -146,11 +171,15 @@ describe.skipIf(!testDb)("timetable view (MongoDB)", () => {
     });
 
     it("filters by faculty and by room", async () => {
-      const faculty = await getTimetableView(db, {
-        view: "faculty",
-        id: "F1",
-        week: "spectra",
-      });
+      const faculty = await getTimetableView(
+        db,
+        {
+          view: "faculty",
+          id: "F1",
+          week: "spectra",
+        },
+        USERS.admin,
+      );
       expect(faculty.cells.map((c) => c.session_id)).toEqual([
         "C1-L1",
         "C1-P1",
@@ -158,19 +187,27 @@ describe.skipIf(!testDb)("timetable view (MongoDB)", () => {
       // BR-02 was requested by "Dr. O. One (F1)": matched on the id suffix.
       expect(faculty.bookings.map((b) => b.request_id)).toEqual(["BR-02"]);
 
-      const aud = await getTimetableView(db, {
-        view: "room",
-        id: "AUD",
-        week: "spectra",
-      });
+      const aud = await getTimetableView(
+        db,
+        {
+          view: "room",
+          id: "AUD",
+          week: "spectra",
+        },
+        USERS.admin,
+      );
       expect(aud.cells).toEqual([]);
       expect(aud.bookings.map((b) => b.request_id)).toEqual(["BR-01"]);
 
-      const lh = await getTimetableView(db, {
-        view: "room",
-        id: "LH-1",
-        week: "regular",
-      });
+      const lh = await getTimetableView(
+        db,
+        {
+          view: "room",
+          id: "LH-1",
+          week: "regular",
+        },
+        USERS.admin,
+      );
       expect(cellsOf(lh)).toEqual(["C1-L2@THUP3:LH-1"]);
     });
   });
@@ -194,27 +231,47 @@ describe.skipIf(!testDb)("room availability (MongoDB)", () => {
 
   it("lists only rooms allowed for the use (events by default)", async () => {
     const ids = async (q: Partial<RoomAvailabilityQuery>) =>
-      (await getRoomAvailability(db, query(q))).map((r) => r.room_id).sort();
+      (await getRoomAvailability(db, query(q), USERS.admin))
+        .map((r) => r.room_id)
+        .sort();
     expect(await ids({})).toEqual(["AUD", "LH-1"]);
     expect(await ids({ use: "lab" })).toEqual(["CS-LAB"]);
     expect(await ids({ use: "tutorial" })).toEqual(["CR-1", "LH-1"]);
   });
 
   it("reports unavailability, Week-7 sessions and bookings", async () => {
-    const result = await getRoomAvailability(db, query({ use: "lecture" }));
+    const result = await getRoomAvailability(
+      db,
+      query({ use: "lecture" }),
+      USERS.admin,
+    );
     for (const row of result)
       expect(RoomAvailabilitySchema.parse(row)).toEqual(row);
     const byRoom = Object.fromEntries(result.map((r) => [r.room_id, r]));
     expect(byRoom["CR-1"]).toEqual({
       room_id: "CR-1",
       free: false,
-      busy_with: [{ kind: "unavailable", id: "CR-1", label: "Painting" }],
+      busy_with: [
+        {
+          kind: "unavailable",
+          id: "CR-1",
+          label: "Painting",
+          pending_approval: false,
+        },
+      ],
     });
     // C1-L2 moved out of THU P3 for BR-02, which now holds LH-1.
     expect(byRoom["LH-1"]).toEqual({
       room_id: "LH-1",
       free: false,
-      busy_with: [{ kind: "booking", id: "BR-02", label: "Guest talk" }],
+      busy_with: [
+        {
+          kind: "booking",
+          id: "BR-02",
+          label: "Guest talk",
+          pending_approval: false,
+        },
+      ],
     });
     expect(byRoom.AUD.free).toBe(true);
     // Free rooms first, smallest first.
@@ -225,6 +282,7 @@ describe.skipIf(!testDb)("room availability (MongoDB)", () => {
     const [lh] = await getRoomAvailability(
       db,
       query({ from_period: 4, to_period: 5, types: ["lecture_hall"] }),
+      USERS.admin,
     );
     expect(lh).toEqual({
       room_id: "LH-1",
@@ -234,6 +292,7 @@ describe.skipIf(!testDb)("room availability (MongoDB)", () => {
           kind: "session",
           id: "C1-L2",
           label: "C1 lecture · G1, G2 (moved for BR-02)",
+          pending_approval: false,
         },
       ],
     });
@@ -249,19 +308,33 @@ describe.skipIf(!testDb)("room availability (MongoDB)", () => {
         types: ["lab_cs"],
         use: "lab",
       }),
+      USERS.admin,
     );
     expect(lab[0].busy_with).toEqual([
-      { kind: "session", id: "C1-P1", label: "C1 lab · G1" },
+      {
+        kind: "session",
+        id: "C1-P1",
+        label: "C1 lab · G1",
+        pending_approval: false,
+      },
     ]);
     const evening = await getRoomAvailability(
       db,
       query({ from_period: 12, to_period: 13, needs: ["stage"] }),
+      USERS.club,
     );
     expect(evening).toEqual([
       {
         room_id: "AUD",
         free: false,
-        busy_with: [{ kind: "booking", id: "BR-01", label: "Annual play" }],
+        busy_with: [
+          {
+            kind: "booking",
+            id: "BR-01",
+            label: "Annual play",
+            pending_approval: false,
+          },
+        ],
       },
     ]);
   });
@@ -275,7 +348,10 @@ describe.skipIf(!testDb)("room availability (MongoDB)", () => {
       use: "lab",
     });
     expect(
-      (await getRoomAvailability(db, friday)).map((r) => [r.room_id, r.free]),
+      (await getRoomAvailability(db, friday, USERS.admin)).map((r) => [
+        r.room_id,
+        r.free,
+      ]),
     ).toEqual([["CS-LAB", true]]);
     await upsertBookingDecision(db, {
       ...TINY_DECISIONS[0],
@@ -284,13 +360,18 @@ describe.skipIf(!testDb)("room availability (MongoDB)", () => {
       room_id: "CS-LAB",
     });
     expect(
-      (await getRoomAvailability(db, friday)).map((r) => [r.room_id, r.free]),
+      (await getRoomAvailability(db, friday, USERS.admin)).map((r) => [
+        r.room_id,
+        r.free,
+      ]),
     ).toEqual([["CS-LAB", true]]);
   });
 
   it("filters by capacity, type, needs and access", async () => {
     const ids = async (q: Partial<RoomAvailabilityQuery>) =>
-      (await getRoomAvailability(db, query(q))).map((r) => r.room_id).sort();
+      (await getRoomAvailability(db, query(q), USERS.admin))
+        .map((r) => r.room_id)
+        .sort();
     expect(await ids({ min_capacity: 100 })).toEqual(["AUD", "LH-1"]);
     expect(await ids({ needs: ["stage", "pa_system"] })).toEqual(["AUD"]);
     expect(await ids({ needs: ["accessible"], use: "lecture" })).toEqual([
@@ -303,6 +384,260 @@ describe.skipIf(!testDb)("room availability (MongoDB)", () => {
     expect(
       await ids({ types: ["classroom", "lab_cs"], use: "lecture" }),
     ).toEqual(["CR-1"]);
+  });
+});
+
+describe.skipIf(!testDb)("Week-7 views of live requests (MongoDB)", () => {
+  const db = testDb?.db as Db;
+  /** Live request ids: the club's pending rehearsal, the faculty's seminar, a spoofed talk. */
+  let rehearsal = "";
+  let seminar = "";
+  let spoofed = "";
+  /** A club account whose display name copies faculty member F1's ("Dr. One"). */
+  const impostor = {
+    ...USERS.club,
+    id: "u_club2",
+    email: "club2@cit.demo",
+    name: "Dr. One",
+    club: "Imitation Club",
+  };
+
+  const live = (
+    fields: Partial<NewBookingRequest> & Pick<NewBookingRequest, "title">,
+  ): NewBookingRequest => ({
+    submitted_at: "2027-02-02T10:00:00+05:30",
+    requester: "Someone",
+    role: "club",
+    department: null,
+    requested_category: "club_event",
+    attendance: 20,
+    duration_periods: 1,
+    windows: [{ day: "FRI", from_period: 1, to_period: 9 }],
+    room_types: ["lecture_hall"],
+    needs: [],
+    requested_room: null,
+    mandatory_for_groups: [],
+    state: "decided",
+    source: "form",
+    created_by: null,
+    ...fields,
+  });
+
+  beforeAll(async () => {
+    await wipe(db);
+    await importDataset(db, tinyDataset(), "upload");
+    const versionId = await seedTinyWorkingState(db);
+    for (const user of [USERS.faculty, USERS.club, impostor]) {
+      await insertUser(db, { ...user, _id: user.id, is_verified: true });
+    }
+    [{ id: rehearsal }] = await insertBookingRequests(db, [
+      live({
+        title: "Secret rehearsal",
+        requester: "Drama Club",
+        state: "pending_approval",
+        created_by: USERS.club.id,
+        mandatory_for_groups: ["G1"],
+      }),
+    ]);
+    [{ id: seminar }] = await insertBookingRequests(db, [
+      // Submitted from F1's linked account under a name that matches nobody.
+      live({
+        title: "Faculty seminar",
+        requester: "Seminar Desk",
+        role: "faculty",
+        created_by: USERS.faculty.id,
+      }),
+    ]);
+    [{ id: spoofed }] = await insertBookingRequests(db, [
+      live({
+        title: "Spoofed talk",
+        requester: "Dr. One",
+        created_by: impostor.id,
+      }),
+    ]);
+    const held = {
+      ...TINY_DECISIONS[0],
+      timetable_version: versionId,
+      auto: false,
+      reason: "Held.",
+    };
+    // The rehearsal (pending an admin) holds AUD MON P2–P3 and moved C1-L1 out of MON P1.
+    await upsertBookingDecision(db, {
+      ...held,
+      request_id: rehearsal,
+      room_id: "AUD",
+      day: "MON",
+      start_period: 2,
+      end_period: 3,
+      reason_code: "APPROVED_WITH_DISPLACEMENT",
+      requires_admin_approval: true,
+    });
+    await upsertSessionOverride(db, {
+      session_id: "C1-L1",
+      day: "MON",
+      start_period: 4,
+      room_id: "CR-1",
+      displaced_by: rehearsal,
+      approved_by: null,
+      timetable_version: versionId,
+    });
+    await upsertBookingDecision(db, {
+      ...held,
+      request_id: seminar,
+      room_id: "LH-1",
+      day: "FRI",
+      start_period: 2,
+      end_period: 2,
+    });
+    await upsertBookingDecision(db, {
+      ...held,
+      request_id: spoofed,
+      room_id: "LH-1",
+      day: "FRI",
+      start_period: 4,
+      end_period: 4,
+    });
+  });
+
+  const groupWeek = (viewer: SessionUser) =>
+    getTimetableView(db, { view: "group", id: "G1", week: "spectra" }, viewer);
+  const titles = (view: {
+    bookings: { request_id: string; title: string }[];
+  }) => Object.fromEntries(view.bookings.map((b) => [b.request_id, b.title]));
+
+  it("flags a pending booking and the class it moved as not final", async () => {
+    const view = await groupWeek(USERS.club);
+    expect(TimetableViewSchema.parse(view)).toEqual(view);
+    expect(
+      view.bookings.map((b) => [b.request_id, b.pending_approval]),
+    ).toEqual([
+      [rehearsal, true],
+      ["BR-02", false],
+    ]);
+    const override = (id: string) =>
+      view.cells.find((c) => c.session_id === id)?.override;
+    expect(override("C1-L1")).toEqual({
+      displaced_by: rehearsal,
+      pending_approval: true,
+    });
+    expect(override("C1-L2")).toEqual({
+      displaced_by: "BR-02",
+      pending_approval: false,
+    });
+  });
+
+  it("shows a live request's title to its owner and admins only", async () => {
+    expect(titles(await groupWeek(USERS.club))[rehearsal]).toBe(
+      "Secret rehearsal",
+    );
+    expect(titles(await groupWeek(USERS.admin))[rehearsal]).toBe(
+      "Secret rehearsal",
+    );
+    for (const viewer of [USERS.faculty, USERS.coordinator, impostor]) {
+      const view = await groupWeek(viewer);
+      // Dataset requests keep their titles for everyone.
+      expect(titles(view)).toEqual({
+        [rehearsal]: "Booked",
+        "BR-02": "Guest talk",
+      });
+    }
+    const aud = await getTimetableView(
+      db,
+      { view: "room", id: "AUD", week: "spectra" },
+      USERS.coordinator,
+    );
+    expect(titles(aud)).toEqual({
+      [rehearsal]: "Booked",
+      "BR-01": "Annual play",
+    });
+  });
+
+  it("matches a faculty member's live bookings by account, never by name", async () => {
+    for (const viewer of [USERS.admin, USERS.faculty, impostor]) {
+      const view = await getTimetableView(
+        db,
+        { view: "faculty", id: "F1", week: "spectra" },
+        viewer,
+      );
+      // BR-02 names "Dr. O. One (F1)"; the seminar came from F1's account; the spoofed talk
+      // only copies the name "Dr. One".
+      expect(view.bookings.map((b) => b.request_id)).toEqual([
+        "BR-02",
+        seminar,
+      ]);
+    }
+    const own = await getTimetableView(
+      db,
+      { view: "faculty", id: "F1", week: "spectra" },
+      USERS.faculty,
+    );
+    expect(titles(own)[seminar]).toBe("Faculty seminar");
+    const other = await getTimetableView(
+      db,
+      { view: "faculty", id: "F2", week: "spectra" },
+      USERS.admin,
+    );
+    expect(other.bookings).toEqual([]);
+  });
+
+  it("applies the same flags and labels to room availability", async () => {
+    const at = (
+      viewer: SessionUser,
+      q: Partial<RoomAvailabilityQuery>,
+    ): Promise<RoomAvailability[]> =>
+      getRoomAvailability(
+        db,
+        { day: "FRI", from_period: 1, to_period: 5, use: "event", ...q },
+        viewer,
+      );
+    const busy = async (
+      viewer: SessionUser,
+      room: string,
+      q: Partial<RoomAvailabilityQuery>,
+    ) => {
+      const rows = await at(viewer, q);
+      for (const row of rows)
+        expect(RoomAvailabilitySchema.parse(row)).toEqual(row);
+      return rows.find((r) => r.room_id === room)?.busy_with;
+    };
+    expect(await busy(USERS.club, "LH-1", {})).toEqual([
+      {
+        kind: "booking",
+        id: seminar,
+        label: "Booked",
+        pending_approval: false,
+      },
+      {
+        kind: "booking",
+        id: spoofed,
+        label: "Booked",
+        pending_approval: false,
+      },
+    ]);
+    expect(
+      (await busy(USERS.faculty, "LH-1", {}))?.map((b) => b.label),
+    ).toEqual(["Faculty seminar", "Booked"]);
+    expect(await busy(impostor, "AUD", { day: "MON" })).toEqual([
+      {
+        kind: "booking",
+        id: rehearsal,
+        label: "Booked",
+        pending_approval: true,
+      },
+    ]);
+    expect(
+      await busy(USERS.club, "CR-1", { day: "MON", use: "lecture" }),
+    ).toEqual([
+      {
+        kind: "session",
+        id: "C1-L1",
+        label: `C1 lecture · G1 (moved for ${rehearsal})`,
+        pending_approval: true,
+      },
+    ]);
+    expect((await busy(USERS.club, "AUD", { day: "MON" }))?.[0].label).toBe(
+      "Secret rehearsal",
+    );
   });
 });
 
@@ -334,11 +669,15 @@ describe.skipIf(!testDb)("Spectra state of another version (MongoDB)", () => {
   });
 
   it("is ignored by the timetable view", async () => {
-    const view = await getTimetableView(db, {
-      view: "group",
-      id: "G1",
-      week: "spectra",
-    });
+    const view = await getTimetableView(
+      db,
+      {
+        view: "group",
+        id: "G1",
+        week: "spectra",
+      },
+      USERS.admin,
+    );
     expect(view.version_id).toBe("TT-0002");
     expect(cellsOf(view)).toContain("C1-L2@THUP3:LH-1");
     expect(view.cells.every((c) => c.override === null)).toBe(true);
@@ -346,12 +685,11 @@ describe.skipIf(!testDb)("Spectra state of another version (MongoDB)", () => {
   });
 
   it("is ignored by room availability", async () => {
-    const rows = await getRoomAvailability(db, {
-      day: "THU",
-      from_period: 10,
-      to_period: 12,
-      use: "event",
-    });
+    const rows = await getRoomAvailability(
+      db,
+      { day: "THU", from_period: 10, to_period: 12, use: "event" },
+      USERS.admin,
+    );
     expect(rows.every((r) => r.free)).toBe(true);
   });
 
@@ -363,6 +701,8 @@ describe.skipIf(!testDb)("Spectra state of another version (MongoDB)", () => {
       undecided: 2,
       by_status: { approved: 0, alternative_offered: 0, rejected: 0 },
       session_overrides: 0,
+      booking_score: null,
+      booking_score_max_if_all_approved: null,
     });
   });
 });
@@ -428,17 +768,54 @@ describe.skipIf(!testDb)("dashboard (MongoDB)", () => {
 
   it("is role-aware about approvals and the user's own items", async () => {
     await importDataset(db, tinyDataset(), "upload");
-    await db.collection("booking_requests").insertOne({
-      ...tinyDataset().booking_requests[2],
-      _id: "REQ-1",
-      id: "REQ-1",
-      seq: 99,
-      state: "pending_approval",
-      source: "form",
-      created_by: "u_club",
-      created_at: "2027-02-05T10:00:00+05:30",
-      updated_at: "2027-02-05T10:00:00+05:30",
-    } as never);
+    const versionId = await seedTinyWorkingState(db);
+    const pendingRequest = (id: string, seq: number, created_by: string) =>
+      ({
+        ...tinyDataset().booking_requests[2],
+        _id: id,
+        id,
+        seq,
+        state: "pending_approval",
+        source: "form",
+        created_by,
+        created_at: "2027-02-05T10:00:00+05:30",
+        updated_at: "2027-02-05T10:00:00+05:30",
+      }) as never;
+    await db
+      .collection("booking_requests")
+      .insertMany([
+        pendingRequest("REQ-1", 99, "u_club"),
+        pendingRequest("REQ-2", 100, "u_faculty"),
+        pendingRequest("REQ-3", 101, "u_faculty"),
+      ]);
+    const held = {
+      ...TINY_DECISIONS[0],
+      timetable_version: versionId,
+      auto: false,
+      day: "FRI" as const,
+      start_period: 10,
+      end_period: 10,
+    };
+    // REQ-1 holds the CS lab: the CSE coordinator approves it. REQ-2 asked for a lab type but was
+    // placed in LH-1, and REQ-3's lab booking moves a class: neither is the coordinator's.
+    await upsertBookingDecision(db, {
+      ...held,
+      request_id: "REQ-1",
+      room_id: "CS-LAB",
+    });
+    await upsertBookingDecision(db, {
+      ...held,
+      request_id: "REQ-2",
+      room_id: "LH-1",
+    });
+    await upsertBookingDecision(db, {
+      ...held,
+      request_id: "REQ-3",
+      room_id: "CS-LAB",
+      start_period: 11,
+      end_period: 11,
+      requires_admin_approval: true,
+    });
     await insertChangeRequest(db, {
       kind: "faculty_request",
       requested_by: "u_faculty",
@@ -461,12 +838,12 @@ describe.skipIf(!testDb)("dashboard (MongoDB)", () => {
 
     const admin = await getDashboard(db, USERS.admin);
     expect(admin.pending_approvals).toEqual({
-      booking_requests: 1,
+      booking_requests: 3,
       change_requests: 1,
-      total: 2,
+      total: 4,
     });
 
-    // REQ-1 asks for a CS lab, so the CSE coordinator may approve it.
+    // Only REQ-1's current decision is the CSE coordinator's to approve.
     const coord = await getDashboard(db, USERS.coordinator);
     expect(coord.pending_approvals).toEqual({
       booking_requests: 1,
@@ -484,12 +861,13 @@ describe.skipIf(!testDb)("dashboard (MongoDB)", () => {
     });
 
     const faculty = await getDashboard(db, USERS.faculty);
+    // BR-02 ("Dr. O. One (F1)") plus REQ-2 and REQ-3, which they submitted.
     expect(faculty.mine).toMatchObject({
-      booking_requests: 1,
+      booking_requests: 3,
       change_requests: 1,
       change_requests_pending: 1,
       sessions_total: 2,
-      sessions_scheduled: 0,
+      sessions_scheduled: 2,
     });
   });
 });

@@ -289,7 +289,14 @@ const RECORD_ONLY_KEYS = {
   room_unavailability: ["change_request_id"],
   faculty: ["user_id"],
   sessions: ["removed"],
-  booking_requests: ["state", "source", "created_by", "ai_meta"],
+  booking_requests: [
+    "state",
+    "source",
+    "created_by",
+    "ai_meta",
+    "approval",
+    "rejection",
+  ],
 } as const;
 
 /** Which booking requests a dataset read includes (see {@link getActiveDataset}). */
@@ -310,8 +317,20 @@ export async function getActiveDataset(
   db: Db,
   options: { origin?: DatasetOrigin } = {},
 ): Promise<Dataset> {
+  return (await getImportedDataset(db, options)) ?? getBundledDataset();
+}
+
+/**
+ * {@link getActiveDataset} without the bundled fallback: null when nothing has been imported.
+ * Booking writes need this: the bundled file's requests have no `booking_requests` records, so
+ * live requests stored then would never be merged into a Spectra run (and never decided).
+ */
+export async function getImportedDataset(
+  db: Db,
+  options: { origin?: DatasetOrigin } = {},
+): Promise<Dataset | null> {
   const meta = await getDatasetMeta(db);
-  if (!meta) return getBundledDataset();
+  if (!meta) return null;
   const origin = options.origin ?? "all";
   const [
     rooms,

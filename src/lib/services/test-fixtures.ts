@@ -432,7 +432,8 @@ export function fakeSolveSteps(
   };
 }
 
-const FAKE_FACTS: BookingFacts = {
+/** The facts every fake decision carries (stored with the decision since Phase 4). */
+export const FAKE_FACTS: BookingFacts = {
   attendance: 0,
   duration: 1,
   series_id: null,

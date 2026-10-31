@@ -28,6 +28,7 @@ import {
   GenerateTimetableResultSchema,
   ScheduleExportSchema,
   SpectraRunResultSchema,
+  type CreateBookingRequest,
   type SolverProgress,
 } from "@/lib/contracts";
 import * as engine from "@/lib/engine";
@@ -40,6 +41,7 @@ import {
   upsertBookingDecision,
 } from "@/lib/db/repos/booking-decisions";
 import { getExamSchedule } from "@/lib/db/repos/exam-schedules";
+import { listBookingRequests } from "@/lib/db/repos/reference";
 import { listSessionOverrides } from "@/lib/db/repos/session-overrides";
 import { openTestDb } from "@/lib/db/repos/test-db";
 import {
@@ -48,6 +50,7 @@ import {
   insertTimetableVersion,
 } from "@/lib/db/repos/timetable-versions";
 import { getServerEnv } from "@/lib/env";
+import { createBooking } from "./bookings";
 import { importDataset } from "./dataset";
 import { generateExams, getActiveExams } from "./exams";
 import {
@@ -57,8 +60,9 @@ import {
 } from "./export";
 import { resetDemo } from "./reset";
 import { updateSettings } from "./settings";
-import { runSpectra } from "./spectra";
+import { runSpectra, runSpectraUnlocked } from "./spectra";
 import {
+  FAKE_FACTS,
   TINY_ASSIGNMENTS,
   TINY_DECISIONS,
   ZERO_SOFT,
@@ -419,7 +423,7 @@ describe.skipIf(!testDb)("runSpectra (mocked engine)", () => {
     expect((err as Error).message).toMatch(/generate one first/);
   });
 
-  it("stores every decision with its engine metadata and no facts", async () => {
+  it("stores every decision with its engine metadata and facts", async () => {
     const { version } = await generateTimetable(db, {
       actor: ADMIN,
       activate: true,
@@ -442,6 +446,8 @@ describe.skipIf(!testDb)("runSpectra (mocked engine)", () => {
       approved_by: null,
       timetable_version: version.id,
       decided_at: expect.stringMatching(/\+05:30$/),
+      // The engine's facts are stored too (explanations are phrased from them).
+      facts: FAKE_FACTS,
     };
     expect(result.decisions).toStrictEqual([
       {
@@ -509,6 +515,110 @@ describe.skipIf(!testDb)("runSpectra (mocked engine)", () => {
     });
   });
 
+  it("marks requests decided, and keeps the stored approver of class moves on a non-admin re-run", async () => {
+    await runSpectra(db, { actor: "u_admin2" });
+    const states = async () =>
+      (await listBookingRequests(db)).map((r) => [r.id, r.state]);
+    // Dataset requests are decided by the run; a cancelled one stays cancelled.
+    expect(await states()).toEqual([
+      ["BR-01", "decided"],
+      ["BR-02", "decided"],
+      ["BR-03", "cancelled"],
+    ]);
+    // A booking change by a non-admin re-runs Spectra without re-approving class moves.
+    const rerun = await runSpectraUnlocked(db, {
+      actor: "u_club",
+      carryApprovals: true,
+    });
+    expect(
+      rerun.decisions.find((d) => d.request_id === "BR-02")?.approved_by,
+    ).toBe("u_admin2");
+    expect(rerun.overrides.map((o) => o.approved_by)).toEqual(["u_admin2"]);
+    expect(
+      rerun.decisions.find((d) => d.request_id === "BR-01")?.approved_by,
+    ).toBeNull();
+  });
+
+  /** The fake engine, with BR-02 in THU P`slot` moving C1-L2 to THU P`to` (facts included). */
+  const movingC1L2 =
+    (to: number, slot = 3): typeof fakeDecideBookings =>
+    (instance, base) => {
+      const result = fakeDecideBookings(instance, base);
+      const from = {
+        session_id: "C1-L2",
+        day: "THU" as const,
+        start_period: 3,
+        room_id: "LH-1",
+      };
+      const decisions = result.decisions.map((d) =>
+        d.request_id === "BR-02"
+          ? {
+              ...d,
+              start_period: slot,
+              end_period: slot,
+              facts: {
+                ...FAKE_FACTS,
+                displaced: [
+                  {
+                    session_id: "C1-L2",
+                    from,
+                    to: { ...from, start_period: to },
+                  },
+                ],
+              },
+            }
+          : d,
+      );
+      const overrides = result.overrides.map((o) =>
+        o.session_id === "C1-L2" ? { ...o, start_period: to } : o,
+      );
+      const check = engine.checkBookings(
+        instance,
+        engine.toAssignMap(base).assign,
+        { bookings: decisions, session_overrides: overrides },
+      );
+      return {
+        ...result,
+        decisions,
+        overrides,
+        stats: check.stats,
+        violations: check.violations,
+        warnings: check.warnings,
+      };
+    };
+
+  it.each([
+    ["the same slot and moves", movingC1L2(5), "u_admin2"],
+    ["another destination for the moved class", movingC1L2(6), null],
+    ["another slot with the same moves", movingC1L2(5, 4), null],
+  ] as const)(
+    "carries a dataset decision's approver on a non-admin re-run only for %s",
+    async (_label, rerunEngine, carried) => {
+      // BR-02 may also take THU P4 here, so the engine can move it within its window.
+      const dataset = phase3Dataset();
+      await fresh({
+        ...dataset,
+        booking_requests: dataset.booking_requests.map((r) =>
+          r.id === "BR-02"
+            ? { ...r, windows: [{ day: "THU", from_period: 3, to_period: 4 }] }
+            : r,
+        ),
+      });
+      await generateTimetable(db, { actor: ADMIN, activate: true });
+      decideBookings.mockImplementation(movingC1L2(5));
+      await runSpectra(db, { actor: "u_admin2" });
+      decideBookings.mockImplementation(rerunEngine);
+      const rerun = await runSpectraUnlocked(db, {
+        actor: "u_club",
+        carryApprovals: true,
+      });
+      const br02 = rerun.decisions.find((d) => d.request_id === "BR-02");
+      expect(br02?.requires_admin_approval).toBe(true);
+      expect(br02?.approved_by).toBe(carried);
+      expect(rerun.overrides.map((o) => o.approved_by)).toEqual([carried]);
+    },
+  );
+
   it.each([
     [
       "hard violations",
@@ -542,6 +652,187 @@ describe.skipIf(!testDb)("runSpectra (mocked engine)", () => {
     },
   );
 });
+
+describe.skipIf(!testDb)(
+  "createBooking export safeguard (mocked engine)",
+  () => {
+    beforeEach(() => fresh());
+
+    const ADMIN_USER = {
+      id: ADMIN,
+      email: "admin@cit.demo",
+      name: "Dean's Office",
+      role: "admin" as const,
+      department: null,
+      faculty_id: null,
+      club: null,
+    };
+
+    const REHEARSAL: CreateBookingRequest = {
+      title: "Convocation rehearsal",
+      attendance: 100,
+      duration_periods: 1,
+      windows: [{ day: "MON", from_period: 1, to_period: 1 }],
+      room_types: ["auditorium"],
+      needs: [],
+      requested_room: null,
+      mandatory_for_groups: ["G1"],
+      repeat_days: [],
+      assumptions: [],
+      follow_up: null,
+      source: "form",
+      ai_log_id: null,
+    };
+
+    /**
+     * A live institute event compulsory for G1 moves C1-L1 (G1, MON P1) away; the engine then
+     * moves C1-L2 (G1 too) into MON P1 for BR-02. Valid with both moves, but schedule.json only
+     * shows BR-02's, so G1 would be double-booked there. With `honourBar`, a barred live request
+     * gets an alternative (MON P3) and moves nothing, as the real engine does.
+     */
+    const conflictingEngine =
+      (honourBar: boolean): typeof engine.decideBookings =>
+      (instance, base, options) => {
+        const result = fakeDecideBookings(instance, base);
+        const live = [...instance.requests.keys()].find((id) =>
+          id.startsWith("REQ-"),
+        );
+        if (!live) return result;
+        if (honourBar && options?.noDisplacement?.has(live)) {
+          const decisions = [...instance.requests.keys()].map(
+            (id) =>
+              result.decisions.find((d) => d.request_id === id) ?? {
+                request_id: id,
+                status: "alternative_offered" as const,
+                day: "MON" as const,
+                start_period: 3,
+                end_period: 3,
+                room_id: "AUD",
+                reason: "AUD is free at MON P3.",
+                reason_code: "ALT_OUTSIDE_WINDOW" as const,
+                effective_category: "institute_event" as const,
+                category_capped: false,
+                requires_admin_approval: false,
+                facts: FAKE_FACTS,
+              },
+          );
+          const check = engine.checkBookings(
+            instance,
+            engine.toAssignMap(base).assign,
+            { bookings: decisions, session_overrides: result.overrides },
+          );
+          return {
+            ...result,
+            decisions,
+            stats: check.stats,
+            violations: check.violations,
+            warnings: check.warnings,
+          };
+        }
+        return {
+          ...result,
+          decisions: [...instance.requests.keys()].map(
+            (id) =>
+              result.decisions.find((d) => d.request_id === id) ?? {
+                request_id: id,
+                status: "approved",
+                day: "MON",
+                start_period: 1,
+                end_period: 1,
+                room_id: "AUD",
+                reason: "C1-L1 moves to MON P2 for Week 7.",
+                reason_code: "APPROVED_WITH_DISPLACEMENT",
+                effective_category: "institute_event",
+                category_capped: false,
+                requires_admin_approval: true,
+                facts: FAKE_FACTS,
+              },
+          ),
+          overrides: [
+            {
+              session_id: "C1-L1",
+              day: "MON",
+              start_period: 2,
+              room_id: "CR-1",
+              displaced_by: live,
+            },
+            {
+              session_id: "C1-L2",
+              day: "MON",
+              start_period: 1,
+              room_id: "LH-1",
+              displaced_by: "BR-02",
+            },
+          ],
+          violations: [],
+        };
+      };
+
+    it("switches off a live request's class moves that would break schedule.json", async () => {
+      await generateTimetable(db, { actor: ADMIN, activate: true });
+      const before = await listBookingDecisions(db);
+      decideBookings.mockClear().mockImplementation(conflictingEngine(true));
+      vi.spyOn(console, "info").mockImplementation(() => undefined);
+
+      const created = await createBooking(db, ADMIN_USER, REHEARSAL);
+      const [booking] = created.bookings;
+      const id = booking.request.id;
+      // Decided again with displacement off for the live request only.
+      expect(decideBookings).toHaveBeenCalledTimes(2);
+      expect([
+        ...(decideBookings.mock.calls[1][2]?.noDisplacement ?? []),
+      ]).toEqual([id]);
+      expect(booking.decision).toMatchObject({
+        status: "alternative_offered",
+        requires_admin_approval: false,
+      });
+      expect(booking.request.state).toBe("decided");
+      // The file's decisions and moves are untouched, and the export is valid.
+      const after = await listBookingDecisions(db);
+      expect(after.filter((d) => d.request_id.startsWith("BR-"))).toEqual(
+        before.map((d) => ({ ...d, decided_at: expect.any(String) })),
+      );
+      expect(
+        (await listSessionOverrides(db)).map((o) => o.displaced_by),
+      ).toEqual(["BR-02"]);
+      // (No exam schedule exists here, so only the Week-7 part is checked.)
+      const report = await validateCurrentSchedule(db);
+      expect(report.hard_violations.filter((v) => v.where !== "exams")).toEqual(
+        [],
+      );
+    });
+
+    it("saves nothing and undoes the submission when the safeguard can't keep schedule.json valid", async () => {
+      await generateTimetable(db, { actor: ADMIN, activate: true });
+      const before = await listBookingDecisions(db);
+      expect(before.map((d) => d.request_id)).toEqual([
+        "BR-01",
+        "BR-02",
+        "BR-03",
+      ]);
+      // An engine that ignores the bar keeps producing the bad move: an engine bug.
+      decideBookings.mockImplementation(conflictingEngine(false));
+      silenceConsole();
+      vi.spyOn(console, "info").mockImplementation(() => undefined);
+
+      const err = await createBooking(db, ADMIN_USER, REHEARSAL).catch(
+        (e: unknown) => e,
+      );
+      expect(err).toMatchObject({ code: "INTERNAL_ERROR", status: 500 });
+      expect(console.error).toHaveBeenCalledWith(
+        "[spectra] the export safeguard left schedule.json inconsistent",
+        expect.objectContaining({ violations: expect.any(Array) }),
+      );
+      // Nothing stayed behind: no live request, the previous decisions untouched.
+      expect(
+        await db
+          .collection("booking_requests")
+          .countDocuments({ origin: "manual" }),
+      ).toBe(0);
+      expect(await listBookingDecisions(db)).toEqual(before);
+    });
+  },
+);
 
 describe.skipIf(!testDb)("exam schedules (mocked scheduler)", () => {
   beforeAll(() => fresh());

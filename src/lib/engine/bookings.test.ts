@@ -453,6 +453,24 @@ describe("decideBookings: displacement for institute events", () => {
     expect(x.reason).toContain("moving classes is switched off");
     expect(r.week).toEqual(base);
   });
+
+  it("bars only the requests listed in noDisplacement", () => {
+    const off = run(data, base, { allowDisplacement: false });
+    const barred = run(data, base, { noDisplacement: new Set(["BR-01"]) });
+    expectClean(barred);
+    expect(barred.overrides).toEqual([]);
+    expect(barred.week).toEqual(base);
+    // BR-01 is decided exactly as with displacement switched off for everyone.
+    expect(decisionOf(barred, "BR-01")).toEqual(decisionOf(off, "BR-01"));
+    expect(decisionOf(barred, "BR-01").requires_admin_approval).toBe(false);
+  });
+
+  it("changes nothing when the listed requests would not move classes anyway", () => {
+    expect(run(data, base, { noDisplacement: new Set() })).toEqual(result);
+    expect(
+      run(data, base, { noDisplacement: new Set(["BR-20", "BR-11a", "NOPE"]) }),
+    ).toEqual(result);
+  });
 });
 
 describe("decideBookings: retry after a displacement", () => {
@@ -917,9 +935,19 @@ describe("decideBookings: full dataset", () => {
       for (const seed of [1, 2, 3]) {
         const hostile = hostileWeek(data, week, rotate * 100 + seed);
         expect(checkTimetable(instance, hostile).violations).toEqual([]);
-        for (const options of [{}, { allowDisplacement: false }]) {
+        const variants: SpectraOptions[] = [
+          {},
+          { allowDisplacement: false },
+          { noDisplacement: new Set(["BR-01", "BR-16", "BR-20"]) },
+        ];
+        for (const options of variants) {
           const result = decideBookings(instance, hostile, options);
           expectClean(result);
+          const barred: ReadonlySet<string> =
+            options.noDisplacement ?? new Set();
+          for (const o of result.overrides) {
+            expect(barred.has(o.displaced_by)).toBe(false);
+          }
           expect(result.decisions).toHaveLength(instance.requests.size);
           const approved = new Set(
             result.decisions

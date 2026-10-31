@@ -139,13 +139,14 @@ describe("timetable", () => {
           duration: 1,
           basket_slot: null,
           size: 360,
-          override: { displaced_by: "BR-01" },
+          override: { displaced_by: "BR-01", pending_approval: false },
         },
       ],
       bookings: [
         {
           request_id: "BR-01",
           title: "Spectra '27 Inauguration",
+          pending_approval: false,
           room_id: "AUD",
           day: "MON",
           start_period: 4,
@@ -213,7 +214,14 @@ describe("timetable", () => {
     accepts(RoomAvailabilitySchema, {
       room_id: "LH-4",
       free: false,
-      busy_with: [{ kind: "unavailable", id: "LH-4", label: "Ceiling repair" }],
+      busy_with: [
+        {
+          kind: "unavailable",
+          id: "LH-4",
+          label: "Ceiling repair",
+          pending_approval: false,
+        },
+      ],
     });
     rejects(RoomAvailabilitySchema, {
       room_id: "LH-4",

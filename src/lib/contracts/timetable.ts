@@ -181,15 +181,25 @@ export const TimetableCellSchema = z.strictObject({
   duration: z.number().int().min(1).max(9),
   basket_slot: z.string().nullable(),
   size: Count,
-  /** Set in the Spectra-week view when the session was moved for an event. */
-  override: z.strictObject({ displaced_by: Id }).nullable(),
+  /**
+   * Set in the Spectra-week view when the session was moved for an event. `pending_approval`:
+   * the move waits for an admin's approval of that event (it may still change).
+   */
+  override: z
+    .strictObject({ displaced_by: Id, pending_approval: z.boolean() })
+    .nullable(),
 });
 export type TimetableCell = z.infer<typeof TimetableCellSchema>;
 
-/** A Spectra-week booking shown alongside sessions. `end_period` is inclusive. */
+/**
+ * A Spectra-week booking shown alongside sessions. `end_period` is inclusive. Another user's live
+ * request shows as "Booked" (no title) to everyone but its owner and admins.
+ */
 export const TimetableBookingCellSchema = z.strictObject({
   request_id: Id,
   title: z.string(),
+  /** The request waits for an approver: the slot is held but not confirmed. */
+  pending_approval: z.boolean(),
   room_id: Id,
   day: Day,
   start_period: Period,
@@ -258,7 +268,10 @@ export const RoomAvailabilitySchema = z.strictObject({
     z.strictObject({
       kind: RoomBusyKind,
       id: Id,
+      /** Another user's live request is labelled "Booked" for everyone but its owner and admins. */
       label: z.string(),
+      /** A booking waiting for an approver, or a session moved there for one. */
+      pending_approval: z.boolean(),
     }),
   ),
 });

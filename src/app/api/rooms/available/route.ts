@@ -9,9 +9,10 @@ export const dynamic = "force-dynamic";
 /**
  * Any signed-in user: rooms matching the filters with what occupies them in Week 7,
  * `?day=THU&from_period=10&to_period=12&min_capacity=150&needs=stage,pa_system&types=auditorium&accessible=true`.
+ * The viewer decides which live booking titles are shown (others' are "Booked").
  */
 export const GET = withHandler(async (request) => {
-  await requireUser(request);
+  const user = await requireUser(request);
   const query = parseSearchParams(request.nextUrl, RoomAvailabilityQuerySchema);
-  return ok(await getRoomAvailability(await getDb(), query));
+  return ok(await getRoomAvailability(await getDb(), query, user));
 });

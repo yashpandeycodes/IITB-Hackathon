@@ -1,20 +1,30 @@
 /**
  * End-to-end Phase-3 flow on the bundled dataset with the real engine (no mocks): reset →
  * generate + activate → Spectra → exams → export, gated by the validator port. The mocked
- * versions of these flows (fast, engine-independent) are in `engine-services.test.ts`.
+ * versions of these flows (fast, engine-independent) are in `engine-services.test.ts`. Also:
+ * a default reset reproduces the committed `exports/schedule.json` byte for byte, and live
+ * bookings can never leave that file inconsistent (the export safeguard).
  */
+import { readFileSync } from "node:fs";
 import type { Db } from "mongodb";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  CreateBookingRequestSchema,
   ExamScheduleSchema,
   ScheduleExportSchema,
   SpectraRunResultSchema,
+  type CreateBookingRequest,
+  type SessionUser,
   type SolverProgress,
 } from "@/lib/contracts";
 import { getBundledDataset } from "@/lib/dataset";
 import { listBookingDecisions } from "@/lib/db/repos/booking-decisions";
+import { getBookingRequest } from "@/lib/db/repos/reference";
+import { listSessionOverrides } from "@/lib/db/repos/session-overrides";
 import { openTestDb } from "@/lib/db/repos/test-db";
 import { getActiveTimetableVersion } from "@/lib/db/repos/timetable-versions";
+import { findUserByEmail, toUser } from "@/lib/db/repos/users";
+import { cancelBooking, createBooking } from "./bookings";
 import { getActiveExams } from "./exams";
 import {
   buildScheduleProjection,
@@ -27,9 +37,12 @@ import { activateTimetable, generateTimetable } from "./timetable";
 
 const testDb = await openTestDb("pipeline.test");
 const db = testDb?.db as Db;
+/** A second database for the default (committed-export) reset. */
+const committedDb = testDb ? await openTestDb("pipeline.test.committed") : null;
 
 afterAll(async () => {
   await testDb?.cleanup();
+  await committedDb?.cleanup();
 });
 
 /** Deterministic and quick: a fixed iteration budget, the wall clock only as a backstop. */
@@ -66,7 +79,8 @@ describe.skipIf(!testDb)(
       expect(decisions).toHaveLength(bundled.booking_requests.length);
       for (const d of decisions) {
         expect(d.timetable_version).toBe(version?.id);
-        expect(d).not.toHaveProperty("facts");
+        // The engine's facts are stored with every decision (explanations use them).
+        expect(d.facts).toEqual(expect.any(Object));
       }
       // Cancelled requests are rejected, never approved or offered an alternative.
       const cancelled = new Set(bundled.cancellations.map((c) => c.request_id));
@@ -140,6 +154,119 @@ describe.skipIf(!testDb)(
 
       const report = await validateCurrentSchedule(db);
       expect(report.hard_violations).toEqual([]);
+    });
+  },
+);
+
+/** `schedule.json` as `npm run export` writes it. */
+const serialise = (schedule: unknown) =>
+  JSON.stringify(schedule, null, 2) + "\n";
+
+describe.skipIf(!committedDb)(
+  "Week-7 export safeguard on the committed timetable (real engine)",
+  { timeout: 60_000 },
+  () => {
+    const cdb = committedDb?.db as Db;
+    let admin: SessionUser;
+    let baseline = "";
+
+    const draft = (fields: Partial<CreateBookingRequest>) =>
+      CreateBookingRequestSchema.parse({
+        title: "x",
+        attendance: 1,
+        duration_periods: 1,
+        windows: [{ day: "THU", from_period: 8, to_period: 8 }],
+        room_types: ["classroom"],
+        needs: [],
+        requested_room: null,
+        mandatory_for_groups: [],
+        repeat_days: [],
+        assumptions: [],
+        follow_up: null,
+        ...fields,
+      });
+
+    /** `GET /api/validate`'s hard violations and the export, as text (or the error code). */
+    async function exportState() {
+      const report = await validateCurrentSchedule(cdb);
+      const text = await exportSchedule(cdb).then(serialise, (err: unknown) =>
+        String((err as { code?: string }).code ?? err),
+      );
+      return { hard: report.hard_violations, text };
+    }
+
+    beforeAll(async () => {
+      // The default settings and budget, exactly as `npm run export` and the demo reset run.
+      await resetDemo(cdb, { actor: "u_admin" });
+      admin = toUser((await findUserByEmail(cdb, "admin@cit.demo"))!);
+    }, 60_000);
+
+    it("reproduces the committed exports/schedule.json byte for byte", async () => {
+      const { hard, text } = await exportState();
+      expect(hard).toEqual([]);
+      baseline = text;
+      expect(text).toBe(readFileSync("exports/schedule.json", "utf8"));
+    });
+
+    it("keeps schedule.json valid when a cancellation frees a live class move's room (QA R1)", async () => {
+      vi.spyOn(console, "info").mockImplementation(() => undefined);
+      // ME-2 has ME204-L3 in CR-105 on THU P8 in the committed week.
+      const version = (await getActiveTimetableVersion(cdb))!;
+      expect(
+        version.assignments.find((a) => a.session_id === "ME204-L3"),
+      ).toMatchObject({ day: "THU", start_period: 8, room_id: "CR-105" });
+
+      // X asks for CR-105 at THU P8 and is given another classroom.
+      const x = await createBooking(
+        cdb,
+        admin,
+        draft({ title: "Press briefing", requested_room: "CR-105" }),
+      );
+      const xId = x.bookings[0].request.id;
+      expect(x.bookings[0].decision?.room_id).not.toBe("CR-105");
+
+      // L is compulsory for ME-2 at THU P8 in any room.
+      const l = await createBooking(
+        cdb,
+        admin,
+        draft({
+          title: "ME-2 townhall",
+          room_types: [
+            "classroom",
+            "lecture_hall",
+            "seminar_hall",
+            "auditorium",
+            "outdoor",
+          ],
+          mandatory_for_groups: ["ME-2"],
+        }),
+      );
+      const lId = l.bookings[0].request.id;
+      expect((await exportState()).hard).toEqual([]);
+
+      // Cancelling X frees its classroom; without the safeguard L's move of ME204-L3 would let
+      // BR-08 into CR-105, where schedule.json still shows ME204-L3.
+      const cancelled = await cancelBooking(cdb, admin, xId);
+      expect(cancelled.request.state).toBe("cancelled");
+      const after = await exportState();
+      expect(after.hard).toEqual([]);
+      expect(after.text).toBe(baseline);
+
+      // L no longer moves classes; X has no decision at all and stays cancelled.
+      const decisions = await listBookingDecisions(cdb, {
+        timetable_version: version.id,
+      });
+      expect(decisions.some((d) => d.request_id === xId)).toBe(false);
+      expect((await getBookingRequest(cdb, xId))?.state).toBe("cancelled");
+      const townhall = decisions.find((d) => d.request_id === lId);
+      expect(townhall?.requires_admin_approval).toBe(false);
+      expect(
+        (await listSessionOverrides(cdb)).filter((o) => o.displaced_by === lId),
+      ).toEqual([]);
+
+      // An admin's re-run decides the same way.
+      await runSpectra(cdb, { actor: admin.id });
+      expect(await exportState()).toEqual(after);
     });
   },
 );

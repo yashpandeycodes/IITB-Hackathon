@@ -6,9 +6,12 @@ import { getTimetableView } from "@/lib/services/timetable-view";
 
 export const dynamic = "force-dynamic";
 
-/** Any signed-in user (read-only for every role): `?view=group|faculty|room&id=…&week=regular|spectra`. */
+/**
+ * Any signed-in user (read-only for every role): `?view=group|faculty|room&id=…&week=regular|spectra`.
+ * The viewer decides which live booking titles are shown (others' are "Booked").
+ */
 export const GET = withHandler(async (request) => {
-  await requireUser(request);
+  const user = await requireUser(request);
   const query = parseSearchParams(request.nextUrl, TimetableViewQuerySchema);
-  return ok(await getTimetableView(await getDb(), query));
+  return ok(await getTimetableView(await getDb(), query, user));
 });

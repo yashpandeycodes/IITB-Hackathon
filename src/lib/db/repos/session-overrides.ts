@@ -73,22 +73,31 @@ export async function upsertSessionOverride(
   return stripMeta(doc);
 }
 
-/** Replaces every override (a full Spectra run). */
+/**
+ * Replaces every override (a full Spectra run): upserts each one by `_id`, then deletes the
+ * ones not in `overrides`. Never deletes first, so a concurrent reader never sees the
+ * collection empty mid-run. Returns how many were written.
+ */
 export async function replaceSessionOverrides(
   db: Db,
   overrides: readonly StoredSessionOverride[],
 ): Promise<number> {
   const at = nowIso();
-  const result = await collection(db).bulkWrite(
+  const docs = overrides.map((override) => toDoc(override, at));
+  await collection(db).bulkWrite(
     [
-      { deleteMany: { filter: {} } },
-      ...overrides.map((override) => ({
-        insertOne: { document: toDoc(override, at) },
+      ...docs.map((replacement) => ({
+        replaceOne: {
+          filter: { _id: replacement._id },
+          replacement,
+          upsert: true,
+        },
       })),
+      { deleteMany: { filter: { _id: { $nin: docs.map((d) => d._id) } } } },
     ],
     { ordered: true },
   );
-  return result.insertedCount;
+  return docs.length;
 }
 
 /** Removes the overrides a booking caused (e.g. when it is cancelled). Returns how many. */
