@@ -3,17 +3,15 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { verifySessionToken, COOKIE_NAME } from '@/lib/auth/jwt';
-import { CITLogo } from '@/components/brand/logo';
-import { CrazyBackground } from '@/components/landing/crazy-background';
-import { GraduationCap, ArrowLeft, BookOpen, Clock, AlertCircle } from 'lucide-react';
-import { LogoutButton } from '@/components/auth/logout-button';
+import { AppShell } from '@/components/layout/app-shell';
+import { Calendar, Bot, Shuffle, Building2, ArrowRight } from 'lucide-react';
 
 export const metadata = {
   title: 'Faculty Portal — CIT Nexus',
-  description: 'Faculty schedule inspection and room requisitions.',
+  description: 'Faculty teaching assignments, unavailabilities, and AI timetable assistant.',
 };
 
-export default async function FacultySectorPage() {
+export default async function FacultyPage() {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
   if (!token) redirect('/login');
@@ -24,67 +22,56 @@ export default async function FacultySectorPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col justify-between bg-[#04010a] text-white relative overflow-hidden py-8 px-4 sm:px-6">
-      <CrazyBackground />
-
-      <header className="max-w-7xl mx-auto w-full flex items-center justify-between pb-6 border-b border-white/10 relative z-10">
-        <Link href="/" className="flex items-center gap-2">
-          <CITLogo size="md" />
-        </Link>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-mono font-bold text-white bg-[#14062e] border border-white/10 hover:border-[#fbbf24]"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Dashboard</span>
-          </Link>
-          <LogoutButton />
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto w-full flex-1 relative z-10 my-8">
-        <div className="p-8 sm:p-10 rounded-3xl bg-[#081829]/90 border-2 border-[#38bdf8]/60 shadow-[0_0_50px_rgba(56,189,248,0.25)] backdrop-blur-3xl mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#38bdf8]/20 border border-[#38bdf8]/50 mb-3 text-xs font-mono font-bold text-[#7dd3fc]">
-            <GraduationCap className="w-4 h-4 text-[#38bdf8]" />
-            <span>FACULTY EDUCATOR CLEARANCE</span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-white">
-            Teaching & Course Command
-          </h1>
-          <p className="text-base text-[#cbd5e1] font-medium mt-1">
-            Instructor: <strong className="text-white">{session.name}</strong> • Role: {session.role}
+    <AppShell
+      userRole={session.role}
+      userName={session.name}
+      userEmail={session.email}
+      pageTitle="Faculty Operations Portal"
+      breadcrumbs={[{ label: 'Faculty' }]}
+    >
+      <div className="space-y-6 max-w-7xl mx-auto">
+        <div className="p-6 rounded-3xl bg-[#0B1220] border border-sky-500/30 shadow-lg">
+          <h1 className="text-2xl font-bold text-white">Academic Faculty Console</h1>
+          <p className="text-xs font-mono text-[#98A6BB] mt-1">
+            Personal teaching schedule, constraint-checked lecture relocations, and automated room discovery.
           </p>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-6 rounded-3xl bg-[#12042b]/90 border-2 border-white/10 shadow-xl">
-            <BookOpen className="w-8 h-8 text-[#38bdf8] mb-4" />
-            <h3 className="text-lg font-black text-white mb-2">My Teaching Schedule</h3>
-            <p className="text-xs text-[#cbd5e1] leading-relaxed">
-              Real-time weekly timetable view with automated room direction and enrolled student counts.
-            </p>
-          </div>
-          <div className="p-6 rounded-3xl bg-[#12042b]/90 border-2 border-white/10 shadow-xl">
-            <Clock className="w-8 h-8 text-[#fbbf24] mb-4" />
-            <h3 className="text-lg font-black text-white mb-2">Rescheduling Requisition</h3>
-            <p className="text-xs text-[#cbd5e1] leading-relaxed">
-              Submit class time swaps or makeup lectures evaluated against student cohort zero-clash rules.
-            </p>
-          </div>
-          <div className="p-6 rounded-3xl bg-[#12042b]/90 border-2 border-white/10 shadow-xl">
-            <AlertCircle className="w-8 h-8 text-[#f43f5e] mb-4" />
-            <h3 className="text-lg font-black text-white mb-2">Flag Room Maintenance</h3>
-            <p className="text-xs text-[#cbd5e1] leading-relaxed">
-              Report AC faults or projector errors to automatically trigger the Nexus Disruption Repair engine.
-            </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+            <Link
+              href="/timetable/group/Y1-A"
+              className="p-4 rounded-2xl bg-[#101A2B] border border-white/5 hover:border-[#66E3F0]/40 transition-colors block"
+            >
+              <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#66E3F0] mb-1">
+                <Calendar className="w-4 h-4" />
+                <span>My Teaching Schedule</span>
+              </div>
+              <div className="text-[11px] text-[#98A6BB]">12 hours/week · 0 clash guarantee</div>
+            </Link>
+
+            <Link
+              href="/assistant"
+              className="p-4 rounded-2xl bg-[#101A2B] border border-white/5 hover:border-[#8279FF]/40 transition-colors block"
+            >
+              <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#8279FF] mb-1">
+                <Bot className="w-4 h-4" />
+                <span>AI Scheduling Assistant</span>
+              </div>
+              <div className="text-[11px] text-[#98A6BB]">Natural language rescheduling with verified options</div>
+            </Link>
+
+            <Link
+              href="/changes/new"
+              className="p-4 rounded-2xl bg-[#101A2B] border border-white/5 hover:border-amber-500/40 transition-colors block"
+            >
+              <div className="flex items-center gap-2 text-xs font-mono font-bold text-amber-400 mb-1">
+                <Shuffle className="w-4 h-4" />
+                <span>Request Lecture Change</span>
+              </div>
+              <div className="text-[11px] text-[#98A6BB]">Submit leave or time preference changes</div>
+            </Link>
           </div>
         </div>
-      </main>
-
-      <footer className="max-w-7xl mx-auto w-full pt-6 border-t border-white/10 text-center text-xs font-mono font-bold text-[#cbd5e1] relative z-10">
-        CIT Nexus • Faculty Sector • RBAC Verified
-      </footer>
-    </div>
+      </div>
+    </AppShell>
   );
 }

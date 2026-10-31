@@ -2,13 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifySessionToken, COOKIE_NAME } from './lib/auth/jwt';
 import { UserRole } from './lib/db/models/user.model';
 
-// RBAC Role Clearance Matrix
+// RBAC Role Clearance Matrix according to frontend spec §4.1 & §4.2
 const ROLE_PERMISSIONS: Record<string, UserRole[]> = {
   '/admin': ['Admin'],
+  '/approvals': ['Admin', 'Department Coordinator'],
+  '/changes': ['Admin', 'Department Coordinator', 'Faculty'],
+  '/assistant': ['Admin', 'Department Coordinator', 'Faculty'],
   '/coordinator': ['Admin', 'Department Coordinator'],
   '/faculty': ['Admin', 'Faculty'],
   '/club': ['Admin', 'Club Representative'],
   '/dashboard': ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'],
+  '/timetable': ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'],
+  '/rooms': ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'],
+  '/bookings': ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'],
+  '/spectra': ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'],
+  '/exams': ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'],
 };
 
 export async function middleware(req: NextRequest) {
@@ -67,8 +75,15 @@ export const config = {
     '/coordinator/:path*',
     '/faculty/:path*',
     '/club/:path*',
+    '/timetable/:path*',
+    '/rooms/:path*',
+    '/bookings/:path*',
+    '/spectra/:path*',
+    '/approvals/:path*',
+    '/changes/:path*',
+    '/assistant/:path*',
+    '/exams/:path*',
     '/login',
     '/signup',
   ],
 };
-
