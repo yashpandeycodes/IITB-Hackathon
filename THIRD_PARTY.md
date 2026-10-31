@@ -4,35 +4,37 @@ Versions are the installed versions from `package-lock.json` / `node_modules`. L
 
 ## npm dependencies
 
-| Package                    | Version | License      | Purpose                                                              |
-| -------------------------- | ------- | ------------ | -------------------------------------------------------------------- |
-| `@hookform/resolvers`      | 6.0.2   | MIT          | Connects Zod schemas to react-hook-form (`zodResolver`)              |
-| `@tanstack/react-query`    | 5.105.0 | MIT          | Server-state fetching, caching and mutations in the UI               |
-| `bcryptjs`                 | 3.0.3   | BSD-3-Clause | Password hashing for user accounts                                   |
-| `class-variance-authority` | 0.7.1   | Apache-2.0   | Variant-based class names for UI components                          |
-| `cmdk`                     | 1.1.1   | MIT          | Command palette (shadcn/ui `Command`)                                |
-| `cn`                       | 0.4.0   | MIT          | Tailwind class-name merging (`cn()` helper)                          |
-| `framer-motion`            | 14.9.0  | MIT          | Landing-page motion (reveals, tab transitions, node pulses)          |
-| `jose`                     | 6.2.14  | MIT          | Signing and verifying session JWTs                                   |
-| `lucide-react`             | 1.66.0  | ISC          | Icons                                                                |
-| `mongodb`                  | 7.8.0   | Apache-2.0   | Official MongoDB driver                                              |
-| `next`                     | 16.4.3  | MIT          | React framework: App Router, Route Handlers, `proxy.ts`, `next/font` |
-| `next-themes`              | 0.4.6   | MIT          | Light / dark theme switching                                         |
-| `nuqs`                     | 2.10.2  | MIT          | Type-safe URL search-param state                                     |
-| `radix-ui`                 | 1.8.1   | MIT          | Accessible UI primitives used by the shadcn/ui components            |
-| `react`                    | 19.3.0  | MIT          | UI library                                                           |
-| `react-dom`                | 19.3.0  | MIT          | React DOM renderer                                                   |
-| `react-hook-form`          | 7.91.0  | MIT          | Form state and validation                                            |
-| `server-only`              | 0.0.1   | MIT          | Build-time guard that keeps server modules out of client bundles     |
-| `sonner`                   | 2.0.8   | MIT          | Toast notifications                                                  |
-| `tw-animate-css`           | 1.4.0   | MIT          | Tailwind v4 animation utilities                                      |
-| `zod`                      | 4.6.7   | MIT          | Schemas for every data contract (DB, API, forms, LLM output, export) |
+| Package                    | Version | License      | Purpose                                                                     |
+| -------------------------- | ------- | ------------ | --------------------------------------------------------------------------- |
+| `@hookform/resolvers`      | 6.0.2   | MIT          | Connects Zod schemas to react-hook-form (`zodResolver`)                     |
+| `@tanstack/react-query`    | 5.105.0 | MIT          | Server-state fetching, caching and mutations in the UI                      |
+| `bcryptjs`                 | 3.0.3   | BSD-3-Clause | Password hashing for user accounts                                          |
+| `class-variance-authority` | 0.7.1   | Apache-2.0   | Variant-based class names for UI components                                 |
+| `cmdk`                     | 1.1.1   | MIT          | Command palette (shadcn/ui `Command`)                                       |
+| `cn`                       | 0.4.0   | MIT          | Tailwind class-name merging (`cn()` helper)                                 |
+| `framer-motion`            | 14.9.0  | MIT          | Landing-page motion (reveals, tab transitions, node pulses)                 |
+| `jose`                     | 6.2.14  | MIT          | Signing and verifying session JWTs                                          |
+| `lucide-react`             | 1.66.0  | ISC          | Icons                                                                       |
+| `mongodb`                  | 7.8.0   | Apache-2.0   | Official MongoDB driver                                                     |
+| `mongoose`                 | 9.11.4  | MIT          | MongoDB ODM used by the account store merged from main (to be consolidated) |
+| `next`                     | 16.4.3  | MIT          | React framework: App Router, Route Handlers, `proxy.ts`, `next/font`        |
+| `next-themes`              | 0.4.6   | MIT          | Light / dark theme switching                                                |
+| `nuqs`                     | 2.10.2  | MIT          | Type-safe URL search-param state                                            |
+| `radix-ui`                 | 1.8.1   | MIT          | Accessible UI primitives used by the shadcn/ui components                   |
+| `react`                    | 19.3.0  | MIT          | UI library                                                                  |
+| `react-dom`                | 19.3.0  | MIT          | React DOM renderer                                                          |
+| `react-hook-form`          | 7.91.0  | MIT          | Form state and validation                                                   |
+| `server-only`              | 0.0.1   | MIT          | Build-time guard that keeps server modules out of client bundles            |
+| `sonner`                   | 2.0.8   | MIT          | Toast notifications                                                         |
+| `tw-animate-css`           | 1.4.0   | MIT          | Tailwind v4 animation utilities                                             |
+| `zod`                      | 4.6.7   | MIT          | Schemas for every data contract (DB, API, forms, LLM output, export)        |
 
 ## npm devDependencies
 
 | Package                       | Version  | License    | Purpose                                                          |
 | ----------------------------- | -------- | ---------- | ---------------------------------------------------------------- |
 | `@tailwindcss/turbopack`      | 4.3.3    | MIT        | Tailwind CSS v4 loader for Turbopack                             |
+| `@types/bcryptjs`             | 2.4.6    | MIT        | bcryptjs type definitions                                        |
 | `@types/node`                 | 20.19.43 | MIT        | Node.js type definitions                                         |
 | `@types/react`                | 19.3.0   | MIT        | React type definitions                                           |
 | `@types/react-dom`            | 19.3.0   | MIT        | React DOM type definitions                                       |
@@ -75,12 +77,14 @@ Radix UI primitives they use (all MIT, via the `radix-ui` package):
 
 ## External services
 
-| Service                 | Purpose                                                            |
-| ----------------------- | ------------------------------------------------------------------ |
-| MongoDB / MongoDB Atlas | Database (local `mongod` or `mongo:7` Docker image in development) |
-| Google Gemini API       | Parsing English/Hinglish requests and phrasing explanations        |
-| Vercel                  | Hosting                                                            |
-| GitHub Actions          | CI (lint, typecheck, test, build, export validation)               |
+| Service                         | Purpose                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------ |
+| MongoDB / MongoDB Atlas         | Database (local `mongod` or `mongo:7` Docker image in development)       |
+| Google Gemini API               | Parsing English/Hinglish requests and phrasing explanations              |
+| Vercel                          | Hosting                                                                  |
+| GitHub Actions                  | CI (lint, typecheck, test, build, export validation)                     |
+| Brevo (transactional email API) | Sends sign-up / login one-time passwords (account auth merged from main) |
+| Google Identity (OAuth 2.0)     | "Continue with Google" sign-in (account auth merged from main)           |
 
 ## Organisers' starter pack
 
