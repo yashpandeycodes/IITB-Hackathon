@@ -7,3 +7,17 @@ data
 exports
 docs
 src/components/ui
+
+# CIT Nexus frontend merged from main: kept byte-identical so later edits on main
+# still match these files by content when merged. Format them together with the team.
+PROGRESS.md
+src/app/globals.css
+src/app/layout.tsx
+src/app/page.tsx
+src/app/login
+src/app/signup
+src/components/auth
+src/components/brand
+src/components/landing
+src/lib/mock-data.ts
+src/lib/validation.ts
