@@ -1,0 +1,51 @@
+/**
+ * API envelope and error codes — frozen contract shared by Route Handlers and the UI client.
+ * See docs/architecture.md §4.5.
+ */
+import { z } from "zod";
+
+export const ErrorCode = z.enum([
+  "VALIDATION_ERROR",
+  "UNAUTHENTICATED",
+  "FORBIDDEN",
+  "SELF_APPROVAL",
+  "HARD_CONSTRAINT",
+  "INFEASIBLE",
+  "NOT_FOUND",
+  "STALE_VERSION",
+  "LLM_UNAVAILABLE",
+  "INTERNAL_ERROR",
+]);
+export type ErrorCode = z.infer<typeof ErrorCode>;
+
+export const ERROR_HTTP_STATUS: Record<ErrorCode, number> = {
+  VALIDATION_ERROR: 400,
+  UNAUTHENTICATED: 401,
+  FORBIDDEN: 403,
+  SELF_APPROVAL: 403,
+  NOT_FOUND: 404,
+  HARD_CONSTRAINT: 409,
+  STALE_VERSION: 409,
+  INFEASIBLE: 422,
+  INTERNAL_ERROR: 500,
+  LLM_UNAVAILABLE: 503,
+};
+
+export const ApiErrorBody = z.object({
+  code: ErrorCode,
+  message: z.string(),
+  details: z.unknown().optional(),
+});
+export type ApiErrorBody = z.infer<typeof ApiErrorBody>;
+
+export type ApiOk<T> = { ok: true; data: T };
+export type ApiErr = { ok: false; error: ApiErrorBody };
+export type ApiResponse<T> = ApiOk<T> | ApiErr;
+
+/** Build a Zod schema for an envelope whose `data` matches `data`. */
+export function apiResponseSchema<T extends z.ZodType>(data: T) {
+  return z.discriminatedUnion("ok", [
+    z.object({ ok: z.literal(true), data }),
+    z.object({ ok: z.literal(false), error: ApiErrorBody }),
+  ]);
+}
