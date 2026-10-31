@@ -1,26 +1,352 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /*
+   * Semantic colours (docs/frontend.md §3.2). Each meaning has three tokens:
+   *   <name>            solid accent: borders, dots, bars, icons, outlines
+   *   <name>-subtle     tinted background for chips, cards and grid cells
+   *   <name>-foreground text/icon colour; AA (≥ 4.5:1) on <name>-subtle,
+   *                     on --background and on --card, in both themes
+   * Example chip: "border-status-approved/40 bg-status-approved-subtle text-status-approved-foreground".
+   * Text, icons and status dots use <name>-foreground (AA in both themes). The solid <name>
+   * accent is decoration only (stripes, outlines, hatching) and never carries meaning alone.
+   * Colour is never the only signal: always pair it with a label or icon. The shared
+   * value → label/icon/class mapping lives in src/config/semantics.ts.
+   */
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+
+  --color-kind-lecture: var(--kind-lecture);
+  --color-kind-lecture-subtle: var(--kind-lecture-subtle);
+  --color-kind-lecture-foreground: var(--kind-lecture-foreground);
+  --color-kind-tutorial: var(--kind-tutorial);
+  --color-kind-tutorial-subtle: var(--kind-tutorial-subtle);
+  --color-kind-tutorial-foreground: var(--kind-tutorial-foreground);
+  --color-kind-lab: var(--kind-lab);
+  --color-kind-lab-subtle: var(--kind-lab-subtle);
+  --color-kind-lab-foreground: var(--kind-lab-foreground);
+  --color-kind-basket: var(--kind-basket);
+  --color-kind-basket-subtle: var(--kind-basket-subtle);
+  --color-kind-basket-foreground: var(--kind-basket-foreground);
+
+  --color-override: var(--override);
+  --color-override-subtle: var(--override-subtle);
+  --color-override-foreground: var(--override-foreground);
+  --color-booking: var(--booking);
+  --color-booking-subtle: var(--booking-subtle);
+  --color-booking-foreground: var(--booking-foreground);
+
+  --color-status-approved: var(--status-approved);
+  --color-status-approved-subtle: var(--status-approved-subtle);
+  --color-status-approved-foreground: var(--status-approved-foreground);
+  --color-status-alternative: var(--status-alternative);
+  --color-status-alternative-subtle: var(--status-alternative-subtle);
+  --color-status-alternative-foreground: var(--status-alternative-foreground);
+  --color-status-rejected: var(--status-rejected);
+  --color-status-rejected-subtle: var(--status-rejected-subtle);
+  --color-status-rejected-foreground: var(--status-rejected-foreground);
+  --color-status-pending: var(--status-pending);
+  --color-status-pending-subtle: var(--status-pending-subtle);
+  --color-status-pending-foreground: var(--status-pending-foreground);
+  --color-status-cancelled: var(--status-cancelled);
+  --color-status-cancelled-subtle: var(--status-cancelled-subtle);
+  --color-status-cancelled-foreground: var(--status-cancelled-foreground);
+
+  --color-cat-exam: var(--cat-exam);
+  --color-cat-exam-subtle: var(--cat-exam-subtle);
+  --color-cat-exam-foreground: var(--cat-exam-foreground);
+  --color-cat-regular: var(--cat-regular);
+  --color-cat-regular-subtle: var(--cat-regular-subtle);
+  --color-cat-regular-foreground: var(--cat-regular-foreground);
+  --color-cat-institute: var(--cat-institute);
+  --color-cat-institute-subtle: var(--cat-institute-subtle);
+  --color-cat-institute-foreground: var(--cat-institute-foreground);
+  --color-cat-guest: var(--cat-guest);
+  --color-cat-guest-subtle: var(--cat-guest-subtle);
+  --color-cat-guest-foreground: var(--cat-guest-foreground);
+  --color-cat-department: var(--cat-department);
+  --color-cat-department-subtle: var(--cat-department-subtle);
+  --color-cat-department-foreground: var(--cat-department-foreground);
+  --color-cat-club: var(--cat-club);
+  --color-cat-club-subtle: var(--cat-club-subtle);
+  --color-cat-club-foreground: var(--cat-club-foreground);
+
+  --color-hard: var(--hard);
+  --color-hard-subtle: var(--hard-subtle);
+  --color-hard-foreground: var(--hard-foreground);
+  --color-soft: var(--soft);
+  --color-soft-subtle: var(--soft-subtle);
+  --color-soft-foreground: var(--soft-foreground);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.54 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.205 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.205 0 0);
+
+  /* Brand mark (violet, "Spectra") */
+  --brand: oklch(0.541 0.281 293.009);
+  --brand-foreground: oklch(0.985 0 0);
+
+  /* Session kinds */
+  --kind-lecture: oklch(0.585 0.233 277.117);
+  --kind-lecture-subtle: oklch(0.962 0.018 272.314);
+  --kind-lecture-foreground: oklch(0.398 0.195 277.366);
+  --kind-tutorial: oklch(0.704 0.14 182.503);
+  --kind-tutorial-subtle: oklch(0.984 0.014 180.72);
+  --kind-tutorial-foreground: oklch(0.437 0.078 188.216);
+  --kind-lab: oklch(0.769 0.188 70.08);
+  --kind-lab-subtle: oklch(0.987 0.022 95.277);
+  --kind-lab-foreground: oklch(0.473 0.137 46.201);
+  --kind-basket: oklch(0.667 0.295 322.15);
+  --kind-basket-subtle: oklch(0.977 0.017 320.058);
+  --kind-basket-foreground: oklch(0.452 0.211 324.591);
+
+  /* Week-7 override (dashed violet outline) and event booking (pink hatch) */
+  --override: oklch(0.606 0.25 292.717);
+  --override-subtle: oklch(0.969 0.016 293.756);
+  --override-foreground: oklch(0.432 0.232 292.759);
+  --booking: oklch(0.656 0.241 354.308);
+  --booking-subtle: oklch(0.971 0.014 343.198);
+  --booking-foreground: oklch(0.459 0.187 3.815);
+
+  /* Decision / request statuses */
+  --status-approved: oklch(0.627 0.194 149.214);
+  --status-approved-subtle: oklch(0.982 0.018 155.826);
+  --status-approved-foreground: oklch(0.448 0.119 151.328);
+  --status-alternative: oklch(0.666 0.179 58.318);
+  --status-alternative-subtle: oklch(0.987 0.022 95.277);
+  --status-alternative-foreground: oklch(0.473 0.137 46.201);
+  --status-rejected: oklch(0.577 0.245 27.325);
+  --status-rejected-subtle: oklch(0.971 0.013 17.38);
+  --status-rejected-foreground: oklch(0.444 0.177 26.899);
+  --status-pending: oklch(0.546 0.245 262.881);
+  --status-pending-subtle: oklch(0.97 0.014 254.604);
+  --status-pending-foreground: oklch(0.424 0.199 265.638);
+  --status-cancelled: oklch(0.552 0.016 285.938);
+  --status-cancelled-subtle: oklch(0.967 0.001 286.375);
+  --status-cancelled-foreground: oklch(0.37 0.013 285.805);
+
+  /* Priority categories (dataset priority_order) */
+  --cat-exam: oklch(0.577 0.245 27.325);
+  --cat-exam-subtle: oklch(0.971 0.013 17.38);
+  --cat-exam-foreground: oklch(0.444 0.177 26.899);
+  --cat-regular: oklch(0.554 0.046 257.417);
+  --cat-regular-subtle: oklch(0.968 0.007 247.896);
+  --cat-regular-foreground: oklch(0.372 0.044 257.287);
+  --cat-institute: oklch(0.541 0.281 293.009);
+  --cat-institute-subtle: oklch(0.969 0.016 293.756);
+  --cat-institute-foreground: oklch(0.432 0.232 292.759);
+  --cat-guest: oklch(0.588 0.158 241.966);
+  --cat-guest-subtle: oklch(0.977 0.013 236.62);
+  --cat-guest-foreground: oklch(0.443 0.11 240.79);
+  --cat-department: oklch(0.596 0.145 163.225);
+  --cat-department-subtle: oklch(0.979 0.021 166.113);
+  --cat-department-foreground: oklch(0.432 0.095 166.913);
+  --cat-club: oklch(0.592 0.249 0.584);
+  --cat-club-subtle: oklch(0.971 0.014 343.198);
+  --cat-club-foreground: oklch(0.459 0.187 3.815);
+
+  /* Constraint severity */
+  --hard: oklch(0.577 0.245 27.325);
+  --hard-subtle: oklch(0.971 0.013 17.38);
+  --hard-foreground: oklch(0.444 0.177 26.899);
+  --soft: oklch(0.666 0.179 58.318);
+  --soft-subtle: oklch(0.987 0.022 95.277);
+  --soft-foreground: oklch(0.473 0.137 46.201);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.8 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.8 0 0);
+
+  --brand: oklch(0.541 0.281 293.009);
+  --brand-foreground: oklch(0.985 0 0);
+
+  --kind-lecture: oklch(0.673 0.182 276.935);
+  --kind-lecture-subtle: oklch(0.257 0.09 281.288);
+  --kind-lecture-foreground: oklch(0.87 0.065 274.039);
+  --kind-tutorial: oklch(0.777 0.152 181.912);
+  --kind-tutorial-subtle: oklch(0.277 0.046 192.524);
+  --kind-tutorial-foreground: oklch(0.91 0.096 180.426);
+  --kind-lab: oklch(0.828 0.189 84.429);
+  --kind-lab-subtle: oklch(0.279 0.077 45.635);
+  --kind-lab-foreground: oklch(0.924 0.12 95.746);
+  --kind-basket: oklch(0.74 0.238 322.16);
+  --kind-basket-subtle: oklch(0.293 0.136 325.661);
+  --kind-basket-foreground: oklch(0.903 0.076 319.62);
+
+  --override: oklch(0.702 0.183 293.541);
+  --override-subtle: oklch(0.283 0.141 291.089);
+  --override-foreground: oklch(0.894 0.057 293.283);
+  --booking: oklch(0.718 0.202 349.761);
+  --booking-subtle: oklch(0.284 0.109 3.907);
+  --booking-foreground: oklch(0.899 0.061 343.231);
+
+  --status-approved: oklch(0.792 0.209 151.711);
+  --status-approved-subtle: oklch(0.266 0.065 152.934);
+  --status-approved-foreground: oklch(0.925 0.084 155.995);
+  --status-alternative: oklch(0.828 0.189 84.429);
+  --status-alternative-subtle: oklch(0.279 0.077 45.635);
+  --status-alternative-foreground: oklch(0.924 0.12 95.746);
+  --status-rejected: oklch(0.704 0.191 22.216);
+  --status-rejected-subtle: oklch(0.258 0.092 26.042);
+  --status-rejected-foreground: oklch(0.885 0.062 18.334);
+  --status-pending: oklch(0.707 0.165 254.624);
+  --status-pending-subtle: oklch(0.282 0.091 267.935);
+  --status-pending-foreground: oklch(0.882 0.059 254.128);
+  --status-cancelled: oklch(0.705 0.015 286.067);
+  --status-cancelled-subtle: oklch(0.274 0.006 286.033);
+  --status-cancelled-foreground: oklch(0.871 0.006 286.286);
+
+  --cat-exam: oklch(0.704 0.191 22.216);
+  --cat-exam-subtle: oklch(0.258 0.092 26.042);
+  --cat-exam-foreground: oklch(0.885 0.062 18.334);
+  --cat-regular: oklch(0.704 0.04 256.788);
+  --cat-regular-subtle: oklch(0.279 0.041 260.031);
+  --cat-regular-foreground: oklch(0.869 0.022 252.894);
+  --cat-institute: oklch(0.702 0.183 293.541);
+  --cat-institute-subtle: oklch(0.283 0.141 291.089);
+  --cat-institute-foreground: oklch(0.894 0.057 293.283);
+  --cat-guest: oklch(0.746 0.16 232.661);
+  --cat-guest-subtle: oklch(0.293 0.066 243.157);
+  --cat-guest-foreground: oklch(0.901 0.058 230.902);
+  --cat-department: oklch(0.765 0.177 163.223);
+  --cat-department-subtle: oklch(0.262 0.051 172.552);
+  --cat-department-foreground: oklch(0.905 0.093 164.15);
+  --cat-club: oklch(0.718 0.202 349.761);
+  --cat-club-subtle: oklch(0.284 0.109 3.907);
+  --cat-club-foreground: oklch(0.899 0.061 343.231);
+
+  --hard: oklch(0.704 0.191 22.216);
+  --hard-subtle: oklch(0.258 0.092 26.042);
+  --hard-foreground: oklch(0.885 0.062 18.334);
+  --soft: oklch(0.828 0.189 84.429);
+  --soft-subtle: oklch(0.279 0.077 45.635);
+  --soft-foreground: oklch(0.924 0.12 95.746);
+}
+
+/* Diagonal hatch for event bookings in the Spectra view: "bg-booking-subtle bg-hatch". */
+@utility bg-hatch {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--booking) 22%, transparent) 0 2px,
+    transparent 2px 8px
+  );
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
 }
