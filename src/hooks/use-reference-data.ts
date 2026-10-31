@@ -3,19 +3,29 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { apiGet } from "@/lib/api-client";
-import { ReferenceDataSchema, type ReferenceData } from "@/lib/contracts/ui";
+import { ReferenceDataSchema, type ReferenceData } from "@/lib/contracts";
 
 export const REFERENCE_QUERY_KEY = ["reference"] as const;
 
 const EMPTY_REFERENCE: ReferenceData = {
+  dataset_id: "",
+  calendar: {
+    days: [],
+    periods: [],
+    lunch: { after_period: 4, start: "12:00", end: "13:00" },
+    lab_start_periods: [],
+    event_only_periods: [],
+    fest_week: null,
+    exam_week: { days: [], sessions: [] },
+  },
   rooms: [],
+  room_unavailability: [],
   faculty: [],
   student_groups: [],
   courses: [],
   sessions: [],
   exams: [],
   booking_requests: [],
-  calendar_periods: [],
 };
 
 export function useReferenceData() {
@@ -42,13 +52,13 @@ export function useReferenceData() {
     data.rooms?.forEach((r) => roomMap.set(r.id, r.name));
     data.faculty?.forEach((f) => facultyMap.set(f.id, f.name));
     data.student_groups?.forEach((g) => groupMap.set(g.id, g.name));
-    data.courses?.forEach((c) => courseMap.set(c.code, c.name));
+    data.courses?.forEach((c) => courseMap.set(c.id, c.title));
 
     return {
       roomName: (id: string) => roomMap.get(id) ?? id,
       facultyName: (id: string) => facultyMap.get(id) ?? id,
       groupName: (id: string) => groupMap.get(id) ?? id,
-      courseName: (code: string) => courseMap.get(code) ?? code,
+      courseName: (idOrCode: string) => courseMap.get(idOrCode) ?? idOrCode,
       roomMap,
       facultyMap,
       groupMap,
@@ -67,4 +77,3 @@ export function useInvalidateReference() {
   const queryClient = useQueryClient();
   return () => queryClient.invalidateQueries({ queryKey: REFERENCE_QUERY_KEY });
 }
-
