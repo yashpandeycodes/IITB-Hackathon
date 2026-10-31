@@ -93,7 +93,8 @@ export const LoginForm: React.FC = () => {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to authenticate demo user');
+        const errorMsg = data.error?.message || (typeof data.error === 'string' ? data.error : '') || data.message || 'Failed to authenticate demo user';
+        throw new Error(errorMsg);
       }
 
       router.push('/dashboard');
@@ -139,7 +140,8 @@ export const LoginForm: React.FC = () => {
           setRequiresOtp(true);
           return;
         }
-        setServerError(data.error || 'Authentication rejected. Please check credentials.');
+        const errorMsg = data.error?.message || (typeof data.error === 'string' ? data.error : '') || data.message || 'Authentication rejected. Please check credentials.';
+        setServerError(errorMsg);
         return;
       }
 

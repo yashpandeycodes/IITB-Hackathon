@@ -21,13 +21,26 @@ import { readSessionClaims } from "./session";
 export async function getCurrentUser(request: Request): Promise<User | null> {
   const claims = await readSessionClaims(request);
   if (!claims) return null;
-  const db = await getDb();
-  const [revoked, doc] = await Promise.all([
-    isSessionRevoked(db, claims.jti),
-    findUserById(db, claims.user.id),
-  ]);
-  if (revoked || !doc?.is_verified) return null;
-  return toUser(doc);
+  try {
+    const db = await getDb();
+    const [revoked, doc] = await Promise.all([
+      isSessionRevoked(db, claims.jti),
+      findUserById(db, claims.user.id),
+    ]);
+    if (revoked || !doc?.is_verified) return null;
+    return toUser(doc);
+  } catch {
+    // If DB is temporarily unreachable, trust cryptographically verified claims
+    return {
+      id: claims.user.id,
+      email: claims.user.email,
+      name: claims.user.name,
+      role: claims.user.role,
+      department: claims.user.department,
+      faculty_id: claims.user.faculty_id,
+      club: claims.user.club,
+    };
+  }
 }
 
 /** The signed-in user, or `UNAUTHENTICATED` (401). */

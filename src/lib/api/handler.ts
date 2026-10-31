@@ -33,6 +33,24 @@ export function toErrorResponse(err: unknown): NextResponse<ApiErr> {
     );
     return fail("INTERNAL_ERROR", GENERIC_ERROR_MESSAGE);
   }
+  const isMongoNetworkError =
+    err instanceof Error &&
+    (err.name === "MongoServerSelectionError" ||
+      err.name === "MongoNetworkError" ||
+      err.message.includes("ECONNRESET") ||
+      (err.cause instanceof Error && err.cause.message.includes("ECONNRESET")));
+
+  if (isMongoNetworkError) {
+    console.error(
+      "[api] Database connection failed: MongoDB Atlas closed the connection (ECONNRESET). Check IP Access List in Atlas Network Access.",
+      err,
+    );
+    return fail(
+      "INTERNAL_ERROR",
+      "Database unreachable (ECONNRESET). Please ensure your IP address is whitelisted in MongoDB Atlas under Network Access (or allow 0.0.0.0/0).",
+    );
+  }
+
   console.error("[api] Unhandled error", err);
   return fail("INTERNAL_ERROR", GENERIC_ERROR_MESSAGE);
 }

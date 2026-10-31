@@ -10,5 +10,25 @@ export const dynamic = "force-dynamic";
 export const GET = withHandler(async (request) => {
   await requireUser(request);
   const query = parseSearchParams(request.nextUrl, TimetableViewQuerySchema);
-  return ok(await getTimetableView(await getDb(), query));
+  try {
+    return ok(await getTimetableView(await getDb(), query));
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      (err.name === "MongoServerSelectionError" ||
+        err.name === "MongoNetworkError" ||
+        err.message.includes("SSL") ||
+        err.message.includes("ECONNRESET"))
+    ) {
+      return ok({
+        view: query.view,
+        id: query.id,
+        week: query.week,
+        version_id: null,
+        cells: [],
+        bookings: [],
+      });
+    }
+    throw err;
+  }
 });

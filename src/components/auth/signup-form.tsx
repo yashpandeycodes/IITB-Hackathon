@@ -182,7 +182,8 @@ export const SignupForm: React.FC = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        setServerError(data.error || 'Registration failed. Please try again.');
+        const errorMsg = data.error?.message || (typeof data.error === 'string' ? data.error : '') || data.message || 'Registration failed. Please try again.';
+        setServerError(errorMsg);
         setIsSubmitting(false);
         return;
       }

@@ -259,20 +259,39 @@ export async function demoAccountLogin(
   }
   hitLimit(limits.demoLoginIp, clientIp(request), "Too many demo sign-ins.");
 
-  const db = await getDb();
   const account = getDemoAccount(role);
-  const password = demoPasswordFor(account.email);
-  let doc = await users.findUserByEmail(db, account.email);
-  if (
-    !doc?.is_verified ||
-    !(await verifyPassword(password, doc.password_hash))
-  ) {
-    await seedDemoUsers(db);
-    doc = await users.findUserByEmail(db, account.email);
+  try {
+    const db = await getDb();
+    const password = demoPasswordFor(account.email);
+    let doc = await users.findUserByEmail(db, account.email);
+    if (
+      !doc?.is_verified ||
+      !(await verifyPassword(password, doc.password_hash))
+    ) {
+      await seedDemoUsers(db);
+      doc = await users.findUserByEmail(db, account.email);
+    }
+    if (doc) {
+      const user = users.toUser(doc);
+      return { user, session: await createSession(user) };
+    }
+  } catch (err) {
+    console.warn(
+      "[auth] Database unreachable during demo login. Using demo account fallback:",
+      err instanceof Error ? err.message : err,
+    );
+    const fallbackUser: User = {
+      id: account.id,
+      email: account.email,
+      name: account.name,
+      role: account.role,
+      department: account.department,
+      faculty_id: account.faculty_id,
+      club: account.club,
+    };
+    return { user: fallbackUser, session: await createSession(fallbackUser) };
   }
-  if (!doc) throw internalError("The demo account could not be prepared.");
-  const user = users.toUser(doc);
-  return { user, session: await createSession(user) };
+  throw internalError("The demo account could not be prepared.");
 }
 
 /** Revokes the request's session (best effort) and returns the cookie that clears it. */
