@@ -23,9 +23,12 @@ export const COLLECTIONS = {
   session_overrides: "session_overrides",
   change_requests: "change_requests",
   users: "users",
+  revoked_sessions: "revoked_sessions",
   settings: "settings",
   audit_log: "audit_log",
   ai_logs: "ai_logs",
+  /** Single-flight locks (reset, import); see `db/locks.ts`. */
+  locks: "locks",
 } as const;
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];
