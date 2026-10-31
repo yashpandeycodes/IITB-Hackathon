@@ -345,8 +345,9 @@ Test on 360×740 (Android), 390×844 (iPhone), 768×1024, 1366×768 (typical jud
 ## 9. Data fetching and state
 
 - **Typed client** `src/lib/api-client.ts`: `apiGet(path, Schema)`, `apiPost(path, body, Schema)`, `apiPatch`, `apiDelete` unwrap the `{ ok, data | error }` envelope and throw `ApiClientError` (code from [architecture.md §4.5](./architecture.md#45-api-envelope-and-error-codes), or `NETWORK_ERROR` / `BAD_RESPONSE`).
-- **Reads:** RSC pages fetch initial data on the server (fast first paint, no spinner on navigation). Client components hydrate into TanStack Query with `initialData`.
-- **Query keys:** `["timetable", view, id, week]`, `["bookings", filters]`, `["changes", status]`, `["dashboard"]`, `["spectra"]`, `["exams"]`, `["rooms", filters]`.
+- **Stream and export helpers** (same file): `streamTimetableGeneration(body, onProgress, { signal })` (generation with live progress; built on `postEventStream`), `canExport()` and `EXPORT_SCHEDULE_URL`. Step-by-step wiring: [integration-guide.md](./integration-guide.md).
+- **Reads:** client components fetch with TanStack Query and the typed client (integration guide §1.3); the signed-in user comes from `getSessionUser()` in the `(app)` layout. RSC pages may pass `initialData` for a faster first paint.
+- **Query keys:** `["reference"]` (`staleTime: Infinity`), `["timetable", view, id, week]`, `["bookings", filters]`, `["changes", status]`, `["dashboard"]`, `["spectra"]`, `["exams"]`, `["rooms", filters]`, `["validate"]`. A reset or dataset import invalidates everything, including `["reference"]`.
 - **Mutations invalidate:** approve change → `timetable`, `changes`, `dashboard`. Submit booking → `bookings`, `spectra`, `rooms`, `dashboard`. Generate → everything.
 - **URL state (nuqs):** view, id, week, filters. Every screen is shareable and back-button friendly.
 - **Mock-first development:** `src/lib/fixtures/` builds view models from `data/cit_public.json` plus a placeholder assignment. `NEXT_PUBLIC_USE_FIXTURES=true` makes the client resolve from fixtures, so frontend work starts at H1 without waiting for the solver.

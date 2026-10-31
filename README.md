@@ -165,11 +165,11 @@ All three run the unmodified `CrunchWeek_StarterPack/validator.py` (Python 3). `
 │   ├── app/
 │   │   ├── page.tsx  login/  signup/  unauthorized/   # CIT Nexus landing, sign-in, sign-up, access denied
 │   │   ├── dashboard/  admin/  coordinator/  faculty/  club/   # CIT Nexus role pages (role-gated)
-│   │   ├── (app)/                   # app shell: timetable, rooms, bookings, spectra,
-│   │   │                            # approvals, changes, assistant, exams
+│   │   ├── timetable/ rooms/ bookings/ spectra/ approvals/ changes/ assistant/ exams/
+│   │   │                            # app screens (to move into an (app)/ route group; see docs/integration-guide.md)
 │   │   └── api/                     # Route Handlers: auth, admin, settings, timetable (+ generate,
-│   │                                # versions), rooms, exams, spectra, export, validate, dashboard,
-│   │                                # health (docs/api.md)
+│   │                                # versions), rooms, exams, spectra, export, validate, reference,
+│   │                                # dashboard, health (docs/api.md)
 │   ├── components/
 │   │   ├── ui/                      # shadcn/ui primitives
 │   │   ├── landing/ auth/ brand/    # CIT Nexus landing sections, auth forms, logo
@@ -184,12 +184,13 @@ All three run the unmodified `CrunchWeek_StarterPack/validator.py` (Python 3). `
 │   │   ├── db/                      # native MongoDB driver (no Mongoose): client, collections, indexes, repos/
 │   │   ├── services/                # dataset import, reset (+ generation pipeline), settings, timetable
 │   │   │                            # generation + versions, view + what-if check, exams, Spectra, export +
-│   │   │                            # validator report, room availability, dashboard, OTP email
+│   │   │                            # validator report, reference data, room availability, dashboard,
+│   │   │                            # OTP email
 │   │   ├── ai/                      # (planned) Gemini client, prompt loader, Hinglish rules, fallbacks
-│   │   ├── auth/                    # JWT session cookie, guards, proxy rules, accounts + OTP, rate limits,
-│   │   │                            # role labels, demo-user seed
+│   │   ├── auth/                    # JWT session cookie, guards, server-session (getSessionUser), proxy
+│   │   │                            # rules, accounts + OTP, rate limits, role labels, demo-user seed
 │   │   ├── errors.ts                # ApiError, shared by services and route handlers
-│   │   ├── env.ts  dataset.ts  format.ts
+│   │   ├── env.ts  dataset.ts  format.ts  redirect.ts (safe post-login redirects)
 │   │   └── api-client.ts            # typed fetch wrapper used by the UI
 │   ├── config/                      # nav, roles, demo accounts, semantic chip mapping
 │   └── proxy.ts                     # auth gate (Next.js 16): page redirects, API 401, cross-origin 403
@@ -208,15 +209,16 @@ Scripts that import server-only modules (database, env) run with `npx tsx --cond
 
 ## Documentation
 
-| Doc                                              | Contents                                                                           |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| [docs/architecture.md](docs/architecture.md)     | System design, data contracts, MongoDB schema, API catalogue, RBAC                 |
-| [docs/project-status.md](docs/project-status.md) | Plain-language status: what works, what to fix, what's next (frontend and backend) |
-| [docs/api.md](docs/api.md)                       | API reference for the implemented routes, with example responses                   |
-| [docs/backend.md](docs/backend.md)               | Features, algorithms, dataset traps, AI layer                                      |
-| [docs/frontend.md](docs/frontend.md)             | Design system, screens, components, responsive and state handling                  |
-| [AI_USAGE.md](AI_USAGE.md)                       | AI in the product, AI tools used, prompts, what the LLM may not do                 |
-| [THIRD_PARTY.md](THIRD_PARTY.md)                 | Libraries, components, fonts, services and data used                               |
+| Doc                                                    | Contents                                                                           |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| [docs/architecture.md](docs/architecture.md)           | System design, data contracts, MongoDB schema, API catalogue, RBAC                 |
+| [docs/project-status.md](docs/project-status.md)       | Plain-language status: what works, what to fix, what's next (frontend and backend) |
+| [docs/integration-guide.md](docs/integration-guide.md) | Step-by-step guide for wiring the screens to the API                               |
+| [docs/api.md](docs/api.md)                             | API reference for the implemented routes, with example responses                   |
+| [docs/backend.md](docs/backend.md)                     | Features, algorithms, dataset traps, AI layer                                      |
+| [docs/frontend.md](docs/frontend.md)                   | Design system, screens, components, responsive and state handling                  |
+| [AI_USAGE.md](AI_USAGE.md)                             | AI in the product, AI tools used, prompts, what the LLM may not do                 |
+| [THIRD_PARTY.md](THIRD_PARTY.md)                       | Libraries, components, fonts, services and data used                               |
 
 ## Known limitations
 
@@ -225,7 +227,7 @@ Scripts that import server-only modules (database, env) run with `npx tsx --cond
 - After a dataset **import**, no timetable is generated automatically: run `POST /api/timetable/generate` with `{"activate": true}` and `POST /api/exams/generate` (a reset does all of this).
 - Live drag-and-drop checks run on the server (`POST /api/timetable/check`); the in-browser Web Worker copy of the engine shown in the diagram is planned.
 - Google sign-in isn't available: `/api/auth/google` always redirects back to `/login?error=google_unavailable` (no callback yet). Use the demo accounts.
-- Sign-up email needs `BREVO_API_KEY` and `BREVO_SENDER_EMAIL`. Without them, local development shows the code on screen and production answers 503.
+- Sign-up email needs `BREVO_API_KEY` and `BREVO_SENDER_EMAIL`. Without them, local development prints the code in the server console (it never appears in a response) and production answers 503.
 - Rate limits on sign-in, demo sign-in, sign-up and verification codes are kept in memory per server instance: they reset on restart and each serverless instance counts separately. Client IPs are read from `X-Forwarded-For` only on Vercel; elsewhere all callers share one per-IP counter.
 
 ## Team

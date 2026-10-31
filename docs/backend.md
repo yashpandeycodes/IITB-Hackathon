@@ -366,13 +366,14 @@ With `LLM_ENABLED=false` or a 503, the UI shows "AI is unavailable, the form bel
 | `datasetService` | — | `/api/admin/dataset`, `/api/admin/reset` | B |
 | `timetable` (+ `timetable-view`) | `solver`, `fest`, `checker`, `soft` | `/api/timetable`, `/check`, `/generate`, `/versions`, `/versions/:id/activate`; later `/api/manual/place` | A + B |
 | `exams` | `exams`, `exams-check` | `/api/exams`, `/api/exams/generate` | A |
-| `spectra` | `bookings`, `bookings-check` | `/api/spectra/run` (and every activation) | B |
+| `spectra` | `bookings`, `bookings-check` | `/api/spectra`, `/api/spectra/run` (and every activation) | B |
+| `reference` | — (projects the active dataset) | `/api/reference` | B |
 | `bookings` (P4) | `bookings`, `checker`, `explain` | `/api/bookings/*` | B |
 | `rooms` | — (reads the Week-7 picture) | `/api/rooms/available` | B |
 | `changeService` | `reschedule`, `checker`, `explain` | `/api/changes/*` | A + B |
 | `aiService` | (calls the services above for facts) | `/api/bookings/parse`, `/api/assistant`, `/api/explain` | B |
 | `export` | `validate` (gate) | `/api/export`, `/api/validate` | B |
-| `dashboardService` | `checker`, utilisation | `/api/dashboard` | B |
+| `dashboard` | `checker`, `bookings-check` (booking score via `spectra`), utilisation | `/api/dashboard` | B |
 | `authService` | — | `/api/auth/*` | B |
 
 **Cross-cutting rules**

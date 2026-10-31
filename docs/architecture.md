@@ -80,7 +80,7 @@ Anything right of `Z` is our code. Gemini can never reach the database, change a
 │   ├── app/
 │   │   ├── page.tsx  login/  signup/  unauthorized/   # CIT Nexus landing, sign-in, sign-up, access denied
 │   │   ├── dashboard/  admin/  coordinator/  faculty/  club/   # CIT Nexus role pages (role-gated by proxy.ts)
-│   │   ├── (app)/                        # app shell (sidebar, topbar); screens not yet wired to the API
+│   │   ├── (app)/                        # planned route group for the signed-in screens (today they sit at the top level); its layout reads getSessionUser()
 │   │   │   ├── timetable/                # group | faculty | room grids
 │   │   │   ├── rooms/                    # find a free room
 │   │   │   ├── bookings/                 # NL + manual booking
@@ -114,12 +114,14 @@ Anything right of `Z` is our code. Gemini can never reach the database, change a
 │   │   ├── services/                     # use-cases. Now: dataset (import), reset (+ generation pipeline),
 │   │   │                                 #   settings, timetable (generate, activate, versions), timetable-view
 │   │   │                                 #   (view + what-if), exams, spectra, export (+ validator report),
-│   │   │                                 #   rooms (availability), dashboard, brevo-mail (OTP).
-│   │   │                                 #   Planned: bookings, changes, ai
+│   │   │                                 #   rooms (availability), dashboard, reference (UI reference data),
+│   │   │                                 #   brevo-mail (OTP). Planned: bookings, changes, ai
 │   │   ├── ai/                           # (planned) Gemini client, prompt loader, hinglish rules, fallbacks
 │   │   ├── auth/
 │   │   │   ├── session.ts                # jose HS256 JWT (with jti) in the cit_nexus_session cookie (12 h)
 │   │   │   ├── guards.ts                 # requireUser, requireRole (re-read user, check revocation), assertNotSelf
+│   │   │   ├── current-user.ts           # userForClaims: verified claims → stored user (revocation, verified)
+│   │   │   ├── server-session.ts         # getSessionUser(): signed-in User for Server Components (cached; same checks)
 │   │   │   ├── proxy-rules.ts            # pure rules behind src/proxy.ts (no DB access)
 │   │   │   ├── accounts.ts               # password and demo sign-in, Club sign-up + OTP, logout revocation
 │   │   │   ├── otp.ts  password.ts       # HMAC-hashed 6-digit codes, bcrypt (cost 10)
@@ -562,7 +564,7 @@ The `changes[]` items use the **exact starter-pack disruption format** (`faculty
 ```
 Indexes: unique `email`; partial TTL on `unverified_expires_at` (unverified sign-ups expire after 24 h). Demo accounts are seeded verified (`seedDemoUsers`); self sign-up creates Club accounts only.
 
-**`revoked_sessions`**: `{ _id: <jti>, expires_at }` with a TTL index. Logout revokes only that token; API guards check it and re-read the user on every request.
+**`revoked_sessions`**: `{ _id: <jti>, expires_at }` with a TTL index. Logout revokes only that token; API guards check it and re-read the user on every request, and so does `getSessionUser()` (`src/lib/auth/server-session.ts`) for Server Components. A page whose session is rejected goes to `GET /api/auth/session-expired`, which clears the cookie before `/login` (avoiding a proxy redirect loop).
 
 **`locks`**: `{ _id: "dataset", token, acquired_at, expires_at }`. Single-flight lock taken by reset, import, generation, activation, exam generation and Spectra runs (a concurrent call gets 409 `CONFLICT`); a streamed generation holds it from before the stream opens until the run ends. It expires after 75 s (just above Vercel's 60 s route cap) so a crashed request can't wedge it.
 
@@ -604,6 +606,7 @@ All routes live under `src/app/api/`. Request and response bodies are the Zod co
 | `/api/auth/signup`                                                    | POST               | public                                  | sign-up form (Club only) → `{email}` + pending cookie; `409 CONFLICT` if pending elsewhere                                                                                                                              |   ✅    |
 | `/api/auth/verify-otp` · `/resend-otp`                                | POST               | public                                  | `{email, otp}` → `User` + cookie · `{email}` → `null`                                                                                                                                                                   |   ✅    |
 | `/api/auth/google`                                                    | GET                | public                                  | always `302` → `/login?error=google_unavailable` (no callback, `state` or PKCE yet)                                                                                                                                     |    —    |
+| `/api/auth/session-expired`                                           | GET                | public                                  | clears the session cookie → `303 /login?redirect=<safe path>` (for rejected sessions whose cookie is still signed)                                                                                                      |   ✅    |
 | `/api/admin/reset`                                                    | POST               | admin                                   | `{from?: "bundled"\|"stored"}` (default bundled) → `ResetReport`; then generates + activates a timetable, schedules exams and runs Spectra; `409` if busy                                                               |   ✅    |
 | `/api/admin/dataset`                                                  | POST (JSON ≤ 2 MB) | admin                                   | `Dataset` (refs checked) → `ImportReport` (counts, cleared working state); `409` if busy                                                                                                                                |   ✅    |
 | `/api/timetable/generate`                                             | POST (JSON or SSE) | admin                                   | `{seed?, time_budget_ms?, activate?}` → `GenerateTimetableResult` (draft unless `activate`); `Accept: text/event-stream` streams `progress` (`SolverProgress`) then `result` / `error`; `422 INFEASIBLE`, `409` if busy |   ✅    |
@@ -618,6 +621,7 @@ All routes live under `src/app/api/`. Request and response bodies are the Zod co
 | `/api/bookings/:id/cancel`                                            | POST               | owner, admin                            | → `BookingRequest`                                                                                                                                                                                                      |   P4    |
 | `/api/bookings/:id/decide`                                            | POST               | admin; coordinator for own-dept labs    | `{status, room_id?, day?, start_period?, comment}` → `BookingDecision`                                                                                                                                                  |   P5    |
 | `/api/spectra/run`                                                    | POST               | admin                                   | re-decide all Week-7 requests for the active version → `SpectraRunResult` (summary + stored decisions + overrides); `404` without an active timetable                                                                   |   ✅    |
+| `/api/spectra`                                                        | GET                | any                                     | stored decisions + overrides + booking stats of the active version → `SpectraState` (approver ids for admins only)                                                                                                      |   ✅    |
 | `/api/exams/generate`                                                 | POST               | admin                                   | → `ExamSchedule` (activated)                                                                                                                                                                                            |   ✅    |
 | `/api/exams`                                                          | GET                | any                                     | → active `ExamSchedule` or `null`                                                                                                                                                                                       |   ✅    |
 | `/api/changes`                                                        | GET / POST         | any / admin, coordinator, faculty       | list / `{kind, changes[]}` → `ChangeRequest` (with proposal or conflicts)                                                                                                                                               |   P5    |
@@ -626,8 +630,9 @@ All routes live under `src/app/api/`. Request and response bodies are the Zod co
 | `/api/explain`                                                        | POST               | any                                     | `{subject: "session"\|"booking"\|"change", id}` → `{facts, text}`                                                                                                                                                       |   P5    |
 | `/api/export?file=schedule\|schedule_after`                           | GET                | admin                                   | → `ScheduleExport` download; `409 HARD_CONSTRAINT` if the validator port finds a hard violation, `409 CONFLICT` if Spectra decisions are missing. `schedule_after` arrives in P5                                        | ✅ / P5 |
 | `/api/validate`                                                       | GET                | admin                                   | → `ValidatorReport` of the current export projection (same sections as `validator.py`)                                                                                                                                  |   ✅    |
-| `/api/dashboard`                                                      | GET                | any (role-aware)                        | → `Dashboard`: timetable/exam coverage, bookings, pending approvals, mine, utilisation matrix                                                                                                                           |   ✅    |
+| `/api/dashboard`                                                      | GET                | any (role-aware)                        | → `Dashboard`: timetable/exam coverage, bookings (incl. booking score), pending approvals, mine, utilisation matrix                                                                                                     |   ✅    |
 | `/api/settings`                                                       | GET / PATCH        | any / admin                             | → `Settings` / `SettingsPatch` (`team, priority_order, llm_enabled, reference_date, solver_seed`) → `Settings`                                                                                                          |   ✅    |
+| `/api/reference`                                                      | GET                | any                                     | → `ReferenceData`: calendar, rooms, room maintenance, faculty, groups, courses, sessions, exams, Week-7 requests (names for the UI)                                                                                     |   ✅    |
 
 The four account-form routes (`login`, `signup`, `verify-otp`, `resend-otp`) answer errors as `{ ok: false, error: "message", code, details? }` for the CIT Nexus forms; every other route uses the §4.5 envelope. Unknown `/api/*` paths get Next's default 404 (or the proxy's 401 when signed out).
 
@@ -823,6 +828,7 @@ stateDiagram-v2
 | Approve bookings of own dept's labs                    | ✅\*  |       ✅\*       |          —          |          —          |
 | Submit / cancel venue requests                         |  ✅   | ✅ (dept events) | ✅ (guest lectures) |  ✅ (club events)   |
 | Use AI assistant                                       |  ✅   |        ✅        |         ✅          | booking parser only |
+| View Spectra decisions and reference data              |  ✅   |        ✅        |         ✅          |         ✅          |
 
 \* never their own request (`SELF_APPROVAL`).
 
