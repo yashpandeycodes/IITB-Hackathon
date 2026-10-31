@@ -10,3 +10,13 @@ trim_trailing_whitespace = true
 
 [*.md]
 trim_trailing_whitespace = false
+
+# Organiser data and app-produced exports are kept byte-for-byte (CRLF CSVs, files without a
+# final newline): editors must not rewrite them on save.
+[{CrunchWeek_StarterPack/**,data/**,exports/**}]
+charset = unset
+end_of_line = unset
+indent_style = unset
+indent_size = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset

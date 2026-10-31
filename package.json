@@ -15,7 +15,8 @@
     "db:start": "mkdir -p .data/mongo && mongod --dbpath .data/mongo --bind_ip 127.0.0.1 --port 27017 --fork --logpath .data/mongod.log",
     "validate": "tsx scripts/validate.ts",
     "seed": "tsx --conditions=react-server scripts/seed.ts",
-    "parity": "tsx scripts/parity.ts"
+    "parity": "tsx scripts/parity.ts",
+    "export": "tsx scripts/export.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^6.0.2",
