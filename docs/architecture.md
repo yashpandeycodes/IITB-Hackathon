@@ -78,42 +78,63 @@ Anything right of `Z` is our code. Gemini can never reach the database, change a
 .
 ├── src/
 │   ├── app/
-│   │   ├── page.tsx  login/  signup/     # CIT Nexus landing page, sign-in, access request
-│   │   ├── (app)/                        # authenticated shell (sidebar, topbar)
-│   │   │   ├── dashboard/
-│   │   │   ├── timetable/[view]/[id]/    # view = group | faculty | room
+│   │   ├── page.tsx  login/  signup/  unauthorized/   # CIT Nexus landing, sign-in, sign-up, access denied
+│   │   ├── dashboard/  admin/  coordinator/  faculty/  club/   # CIT Nexus role pages (role-gated by proxy.ts)
+│   │   ├── (app)/                        # app shell (sidebar, topbar); screens not yet wired to the API
+│   │   │   ├── timetable/                # group | faculty | room grids
 │   │   │   ├── rooms/                    # find a free room
-│   │   │   ├── bookings/  bookings/new/  # NL + manual booking
+│   │   │   ├── bookings/                 # NL + manual booking
 │   │   │   ├── spectra/                  # Week-7 decisions board
 │   │   │   ├── approvals/                # inbox + diff review
 │   │   │   ├── changes/                  # disruptions & change requests
 │   │   │   ├── assistant/                # faculty AI assistant
-│   │   │   ├── exams/
-│   │   │   └── admin/                    # data, generate, export, settings
-│   │   └── api/                          # Route Handlers (see §6)
+│   │   │   └── exams/
+│   │   └── api/                          # Route Handlers (see §6; live ones in docs/api.md)
 │   ├── components/
 │   │   ├── ui/                           # shadcn/ui primitives
 │   │   ├── layout/ providers/ states/    # app shell, providers, empty/error/loading states
 │   │   ├── semantic/                     # StatusBadge, CategoryChip, RuleChip, KindChip
 │   │   ├── landing/ auth/ brand/         # CIT Nexus landing sections, auth forms, logo
-│   │   └── {timetable,booking,approvals,dashboard,assistant}/
+│   │   └── {timetable,booking,approvals,dashboard,assistant}/   # (planned)
 │   ├── config/                           # nav, roles, demo-account display data, semantic chip map
-│   ├── workers/                          # engine Web Worker (drag-and-drop checks)
+│   ├── workers/                          # (planned) engine Web Worker (drag-and-drop checks)
 │   ├── lib/
-│   │   ├── contracts/                    # ★ Zod schemas = single source of truth
-│   │   ├── engine/                       # ★ pure TS: checker, solver, exams, bookings, reschedule, explain
-│   │   ├── db/                           # Mongo client (cached), typed collections, repositories
-│   │   ├── services/                     # use-cases: generate, decideBookings, proposeChange, …
-│   │   ├── ai/                           # Gemini client, prompt loader, hinglish rules, fallbacks
-│   │   ├── auth/                         # jose session, RBAC guards, server-only demo credentials
-│   │   ├── api/                          # route helpers: withHandler, parseJsonBody, ok/fail
+│   │   ├── contracts/                    # ★ Zod schemas = single source of truth (DashboardSchema in dashboard.ts)
+│   │   ├── engine/                       # ★ pure TS, no I/O. Now: validator.py port (instance, checker,
+│   │   │                                 #   soft, bookings-check, exams-check, disruption, validate),
+│   │   │                                 #   py (validator formatting), rng. Planned: solver, exams, bookings,
+│   │   │                                 #   reschedule, explain
+│   │   ├── db/                           # native driver, no Mongoose
+│   │   │   ├── client.ts  collections.ts  indexes.ts   # cached client, collection names, every index
+│   │   │   ├── locks.ts                  # dataset lock shared by reset and import (409 CONFLICT)
+│   │   │   ├── repos/                    # reference, datasets, users (+ revoked_sessions), settings, timetable-versions,
+│   │   │   │                             #   exam-schedules, booking-decisions, session-overrides,
+│   │   │   │                             #   change-requests, audit-log, meta (timestamps, helpers)
+│   │   │   └── models/user.model.ts      # type re-export kept for src/lib/validation.ts
+│   │   ├── services/                     # use-cases. Now: dataset (import), reset, settings, timetable-view
+│   │   │                                 #   (view + what-if), rooms (availability), dashboard, brevo-mail (OTP).
+│   │   │                                 #   Planned: generate, decideBookings, proposeChange, …
+│   │   ├── ai/                           # (planned) Gemini client, prompt loader, hinglish rules, fallbacks
+│   │   ├── auth/
+│   │   │   ├── session.ts                # jose HS256 JWT (with jti) in the cit_nexus_session cookie (12 h)
+│   │   │   ├── guards.ts                 # requireUser, requireRole (re-read user, check revocation), assertNotSelf
+│   │   │   ├── proxy-rules.ts            # pure rules behind src/proxy.ts (no DB access)
+│   │   │   ├── accounts.ts               # password and demo sign-in, Club sign-up + OTP, logout revocation
+│   │   │   ├── otp.ts  password.ts       # HMAC-hashed 6-digit codes, bcrypt (cost 10)
+│   │   │   ├── rate-limit.ts             # in-memory fixed-window limiters
+│   │   │   ├── http.ts                   # account-form helpers ({ ok:false, error: string, code } shape)
+│   │   │   ├── roles.ts                  # role value ↔ display label (client-safe)
+│   │   │   ├── seed.ts  demo-credentials.ts   # demo users; passwords server-only
+│   │   │   └── jwt.ts                    # label-role facade for the CIT Nexus role pages
+│   │   ├── api/                          # route helpers: withHandler, parseJsonBody, parseSearchParams, ok/fail
 │   │   ├── errors.ts                     # ApiError (framework-free, thrown by services)
 │   │   ├── env.ts  dataset.ts  format.ts # server env, bundled dataset loader, display formatting
 │   │   ├── mock-data.ts  validation.ts   # landing-page illustrative data, client-side form checks
 │   │   └── api-client.ts                 # typed fetch wrapper used by the UI
 │   └── proxy.ts                          # auth gate (Next.js 16 replacement for middleware.ts)
 ├── prompts/                              # versioned prompt files (declared in AI_USAGE.md)
-├── scripts/                              # validate.ts, seed.ts, export.ts, parity.ts, ai-eval.ts
+├── scripts/                              # seed.ts (reset demo DB), parity.ts (engine vs validator.py),
+│                                         # validate.ts (exports); planned: export.ts, ai-eval.ts
 │                                         # (DB scripts: npx tsx --conditions=react-server …)
 ├── data/                                 # copy of starter-pack cit_public.json + sample_disruption.json
 ├── exports/                              # schedule.json, schedule_after.json (from the app)
@@ -121,7 +142,7 @@ Anything right of `Z` is our code. Gemini can never reach the database, change a
 ├── AI_USAGE.md  THIRD_PARTY.md  README.md  .env.example
 ```
 
-**Dependency rule:** `app → services → (engine | ai | db) → contracts`. The engine imports only `contracts`. UI components import `contracts` and `api-client`, never `db` or `services`. ESLint enforces this with `no-restricted-imports` (`eslint.config.mjs`). Scripts that import `server-only` modules run with `npx tsx --conditions=react-server`.
+**Dependency rule:** `app → services → (engine | ai | db) → contracts`. The engine imports only `contracts`. UI components import `contracts` and `api-client`, never `db` or `services`. Route handlers may import only `getDb`/`pingDb` from the db layer (to hand a `Db` to services), never repositories, the engine or the driver; services never import route helpers or Next.js; the db layer never imports services, auth, api or the engine. ESLint enforces all of this with `no-restricted-imports` (`eslint.config.mjs`). Scripts that import `server-only` modules run with `npx tsx --conditions=react-server`.
 
 ---
 
@@ -344,8 +365,12 @@ type ApiErr = {
 | `STALE_VERSION`                 | 409       | Proposal was built on a timetable that is no longer active                 |
 | `LLM_UNAVAILABLE`               | 503       | Gemini failed. UI switches to the manual form. Never blocks a booking.     |
 | `INTERNAL_ERROR`                | 500       | Unhandled error, or a server-side schema failure (bare `ZodError`). Generic message; details never exposed. |
+| `CONFLICT`                      | 409       | Another reset or import holds the dataset lock; a sign-up for this email is pending in another browser |
+| `EMAIL_TAKEN`                   | 409       | Sign-up with an email a verified account already uses                      |
+| `RATE_LIMITED`                  | 429       | Too many attempts (`details.retry_after_seconds` + `Retry-After` header)   |
+| `MAIL_UNAVAILABLE`              | 503       | The sign-up code can't be emailed (mail not configured, Brevo failed, global hourly cap) |
 
-Request bodies must be `application/json` (else `VALIDATION_ERROR`) and are capped at 1 MB by default.
+Request bodies must be `application/json` (else `VALIDATION_ERROR`) and are capped at 1 MB by default. The four account-form routes (`login`, `signup`, `verify-otp`, `resend-otp`) answer errors as `{ ok: false, error: "message", code, details? }` for the CIT Nexus forms ([api.md](./api.md#response-shapes)).
 
 `Violation` shape is shared by the engine, API and UI, and mirrors the validator output:
 `{ rule: "H4", where: "timetable" | "fest_week" | "exams", detail: string, refs: { session_ids?, room_id?, day?, periods?, request_id?, exam_id? } }`.
@@ -381,7 +406,7 @@ erDiagram
 
 ### 5.2 Reference data (mirrors the starter pack)
 
-All fields are exactly as in `cit_public.json`, plus `_id` (= `id`), `origin: "dataset" | "disruption" | "manual"`, `created_at`, `updated_at`.
+All fields are exactly as in `cit_public.json`, plus `_id` (= `id`), `origin: "dataset" | "disruption" | "manual"`, `seq` (position in the source file, so exports keep file order), `created_at`, `updated_at`. Timestamps are ISO strings (§4.2) except TTL and lock fields (`expires_at`, `unverified_expires_at`, `acquired_at`), which are BSON Dates because MongoDB TTL indexes require them.
 
 | Collection            | Source key              | Extra fields                                                                                                                                                                | Indexes                                                     |
 | --------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -523,11 +548,21 @@ The `changes[]` items use the **exact starter-pack disruption format** (`faculty
   "department": "CSE",
   "faculty_id": null,
   "club": null,
-  "password_hash": "<bcrypt>"
+  "password_hash": "<bcrypt>",
+  "is_verified": true,
+  "otp_hash": null, "otp_expires_at": null, "otp_attempts": 0,
+  "pending_nonce_hash": null,
+  "unverified_expires_at": null,
+  "google_id": null
 }
 ```
+Indexes: unique `email`; partial TTL on `unverified_expires_at` (unverified sign-ups expire after 24 h). Demo accounts are seeded verified (`seedDemoUsers`); self sign-up creates Club accounts only.
 
-**`settings`** (singleton `_id: "app"`): `team` (defaults to `TEAM_NAME`; the export reads `settings.team`), `priority_order` (editable copy, defaults to the dataset's), `llm_enabled`, `reference_date` (what "today/kal" resolves against, defaulting to the Monday before Week 7), `solver_seed`.
+**`revoked_sessions`**: `{ _id: <jti>, expires_at }` with a TTL index. Logout revokes only that token; API guards check it and re-read the user on every request.
+
+**`locks`**: `{ _id: "dataset", token, acquired_at, expires_at }`. Single-flight lock shared by reset and import (a concurrent call gets 409 `CONFLICT`); expires after 120 s so a crashed request can't wedge it.
+
+**`settings`** (singleton `_id: "app"`): `team` (defaults to `TEAM_NAME`; the export reads `settings.team`), `priority_order` (editable copy, defaults to the dataset's; it drives previews only — **exported Spectra decisions always use `datasets.priority_order`**, because the official validator ranks priorities and inversions with the dataset's order), `llm_enabled`, `reference_date` (what "today/kal" resolves against, defaulting to the Monday before Week 7), `solver_seed`.
 
 **`audit_log`**: `{ actor, action, entity, entity_id, before?, after?, at }`. Every approve/reject/apply/reset is logged.
 
@@ -546,43 +581,52 @@ The exporter is a **projection** (`pick`), not a transformation, so there's noth
 
 ### 5.5 Reset and import
 
-- **Reset demo data** (Admin): drop working collections, then re-import `datasets.raw` (bundled `data/cit_public.json`), re-seed demo users, then auto-generate timetable + exams + Spectra decisions. Target: under 15 s.
-- **Import** accepts `cit_public.json`-shaped files (full replace) and disruption files (become a `change_request` with `status: "proposing"`). Both are validated with Zod and the UI shows field-level errors.
+- **Reset demo data** (Admin, `POST /api/admin/reset` or `npm run seed`): clear the working collections and settings, load the bundled `data/cit_public.json` (default) or, with `{"from":"stored"}` / `--stored`, re-import the last upload from `datasets.raw`; ensure indexes, re-seed the demo users, write default settings. Generation is not wired in yet: Phase 3 plugs timetable + exams + Spectra decisions into `postResetPipeline` (`src/lib/services/reset.ts`), which returns `null` / `0` until then. Target: under 15 s (about 0.3 s today).
+- **Import** (`POST /api/admin/dataset`) accepts `cit_public.json`-shaped JSON (full replace). The whole file is validated with Zod before any write, including dangling references (sessions → faculty / groups / courses, exams → groups, room unavailability → rooms, mandatory groups, cancellations → requests; an unknown `requested_room` is allowed), and the UI shows `{ path, message }` issues. Import clears timetable versions, exam schedules, decisions, overrides and change requests, and resets the saved priority order to the new dataset's. Disruption files (becoming a `change_request` with `status: "proposing"`) come in Phase 5.
+- Reset and import share one dataset lock (`src/lib/db/locks.ts`, `locks` collection, 2-minute expiry); an overlapping call gets `409 CONFLICT`.
 
 ---
 
 ## 6. API catalogue
 
-All routes live under `src/app/api/`. Request and response bodies are the Zod contracts above. "Roles" = who may call it.
+All routes live under `src/app/api/`. Request and response bodies are the Zod contracts above. "Roles" = who may call it ("public" = no session; "any" = any signed-in role). **Status:** ✅ = implemented (details and real examples in [api.md](./api.md)); P3 / P4 / P5 = planned for that phase.
 
-| Route                                                                 | Method                  | Roles                                   | Request → Response                                                              |
-| --------------------------------------------------------------------- | ----------------------- | --------------------------------------- | ------------------------------------------------------------------------------- |
-| `/api/auth/login` · `/logout` · `/me`                                 | POST/POST/GET           | public / any                            | `{email,password}` → `User`                                                     |
-| `/api/admin/reset`                                                    | POST                    | admin                                   | → `{timetable_version, exams_version, decisions}`                               |
-| `/api/admin/dataset`                                                  | POST (multipart / JSON) | admin                                   | `Dataset` → import report                                                       |
-| `/api/timetable/generate`                                             | POST                    | admin                                   | `{seed?, time_budget_ms?}` → `TimetableVersion` (draft)                         |
-| `/api/timetable/generate/stream`                                      | GET (SSE)               | admin                                   | progress events `{iter, hard, soft}`                                            |
-| `/api/timetable/versions/:id/activate`                                | POST                    | admin                                   | → `TimetableVersion`                                                            |
-| `/api/timetable?view=group\|faculty\|room&id=…&week=regular\|spectra` | GET                     | any (faculty limited to own by default) | → `TimetableView` (cells with session + room + override flag)                   |
-| `/api/timetable/check`                                                | POST                    | any                                     | `Assignment[]` (what-if) → `Violation[]` + soft delta                           |
-| `/api/manual/place`                                                   | POST                    | admin, coordinator (own dept)           | `Assignment` → `ChangeRequest` (pending) or `HARD_CONSTRAINT`                   |
-| `/api/rooms/available`                                                | GET                     | any                                     | `day, from_period, to_period, capacity?, needs?, types?` → `RoomAvailability[]` |
-| `/api/bookings/parse`                                                 | POST                    | any                                     | `{text}` → `BookingDraft` (+ `assumptions[]`, `follow_up?`, `engine_preview`)   |
-| `/api/bookings`                                                       | GET / POST              | any / club, coordinator, faculty, admin | list mine (admin: all) / `BookingDraft` → `BookingRequest` + `BookingDecision`  |
-| `/api/bookings/:id/cancel`                                            | POST                    | owner, admin                            | → `BookingRequest`                                                              |
-| `/api/bookings/:id/decide`                                            | POST                    | admin; coordinator for own-dept labs    | `{status, room_id?, day?, start_period?, comment}` → `BookingDecision`          |
-| `/api/spectra/run`                                                    | POST                    | admin                                   | re-decide all Week-7 requests → `BookingDecision[]` + `SessionOverride[]`       |
-| `/api/exams/generate`                                                 | POST                    | admin                                   | → `ExamSchedule`                                                                |
-| `/api/changes`                                                        | GET / POST              | any / admin, coordinator, faculty       | list / `{kind, changes[]}` → `ChangeRequest` (with proposal or conflicts)       |
-| `/api/changes/:id/approve` · `/reject`                                | POST                    | admin (never the requester)             | `{comment?}` → `ChangeRequest`                                                  |
-| `/api/assistant`                                                      | POST                    | faculty, coordinator, admin             | `{message, thread_id?}` → `AssistantReply` (text + verified `options[]`)        |
-| `/api/explain`                                                        | POST                    | any                                     | `{subject: "session"\|"booking"\|"change", id}` → `{facts, text}`               |
-| `/api/export?file=schedule\|schedule_after`                           | GET                     | admin                                   | → `ScheduleExport` (download)                                                   |
-| `/api/validate`                                                       | GET                     | admin                                   | → `ValidatorReport` (same sections as `validator.py`)                           |
-| `/api/dashboard`                                                      | GET                     | any (role-aware)                        | → KPIs, utilisation matrix, conflicts, pending items                            |
-| `/api/settings`                                                       | GET / PATCH             | any / admin                             | `priority_order`, `llm_enabled`, `reference_date`                               |
+| Route                                                                 | Method              | Roles                                   | Request → Response                                                                                                    | Status |
+| --------------------------------------------------------------------- | ------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | :----: |
+| `/api/health`                                                         | GET                 | public                                  | → `{status, db, dataset_id, time}`                                                                                    |   ✅   |
+| `/api/auth/demo-login`                                                | POST                | public                                  | `{role}` (value or label) → `User` + session cookie                                                                   |   ✅   |
+| `/api/auth/login`                                                     | POST                | public                                  | `{email, password}` → `User` + cookie; `403` + `requiresOtp` for an unverified sign-up                                |   ✅   |
+| `/api/auth/logout` · `/me`                                            | POST / GET          | any                                     | → `null` (token revoked, cookie cleared) · → current `User` (`401` when signed out)                                   |   ✅   |
+| `/api/auth/signup`                                                    | POST                | public                                  | sign-up form (Club only) → `{email, demoMode, demoOtp?}` + pending cookie; `409 CONFLICT` if pending elsewhere        |   ✅   |
+| `/api/auth/verify-otp` · `/resend-otp`                                | POST                | public                                  | `{email, otp}` → `User` + cookie · `{email}` → `{demoMode, demoOtp?}`                                                 |   ✅   |
+| `/api/auth/google`                                                    | GET                 | public                                  | always `302` → `/login?error=google_unavailable` (no callback, `state` or PKCE yet)                                   |   —    |
+| `/api/admin/reset`                                                    | POST                | admin                                   | `{from?: "bundled"\|"stored"}` (default bundled) → `ResetReport`; `409` if busy; auto-generation from P3              |   ✅   |
+| `/api/admin/dataset`                                                  | POST (JSON ≤ 2 MB)  | admin                                   | `Dataset` (refs checked) → `ImportReport` (counts, cleared working state); `409` if busy                              |   ✅   |
+| `/api/timetable/generate`                                             | POST                | admin                                   | `{seed?, time_budget_ms?}` → `TimetableVersion` (draft)                                                               |   P3   |
+| `/api/timetable/generate/stream`                                      | GET (SSE)           | admin                                   | progress events `{iter, hard, soft}`                                                                                  |   P3   |
+| `/api/timetable/versions/:id/activate`                                | POST                | admin                                   | → `TimetableVersion`                                                                                                  |   P3   |
+| `/api/timetable?view=group\|faculty\|room&id=…&week=regular\|spectra` | GET                 | any (read-only, every view)             | → `TimetableView` (cells + Spectra bookings; `version_id: null` before generation)                                    |   ✅   |
+| `/api/timetable/check`                                                | POST                | any                                     | `{assignments: Assignment[]}` (what-if) → `{violations, soft_penalty, soft_delta}` for the merged timetable           |   ✅   |
+| `/api/manual/place`                                                   | POST                | admin, coordinator (own dept)           | `Assignment` → `ChangeRequest` (pending) or `HARD_CONSTRAINT`                                                         |   P5   |
+| `/api/rooms/available`                                                | GET                 | any                                     | `day, from_period, to_period, use? (event), min_capacity?, needs?, types?, accessible?` → `RoomAvailability[]`        |   ✅   |
+| `/api/bookings/parse`                                                 | POST                | any                                     | `{text}` → `BookingDraft` (+ `assumptions[]`, `follow_up?`, `engine_preview`)                                         |   P4   |
+| `/api/bookings`                                                       | GET / POST          | any / club, coordinator, faculty, admin | list mine (admin: all) / `BookingDraft` → `BookingRequest` + `BookingDecision`                                        |   P4   |
+| `/api/bookings/:id/cancel`                                            | POST                | owner, admin                            | → `BookingRequest`                                                                                                    |   P4   |
+| `/api/bookings/:id/decide`                                            | POST                | admin; coordinator for own-dept labs    | `{status, room_id?, day?, start_period?, comment}` → `BookingDecision`                                                |   P5   |
+| `/api/spectra/run`                                                    | POST                | admin                                   | re-decide all Week-7 requests → `BookingDecision[]` + `SessionOverride[]`                                             |   P3   |
+| `/api/exams/generate`                                                 | POST                | admin                                   | → `ExamSchedule`                                                                                                      |   P3   |
+| `/api/changes`                                                        | GET / POST          | any / admin, coordinator, faculty       | list / `{kind, changes[]}` → `ChangeRequest` (with proposal or conflicts)                                             |   P5   |
+| `/api/changes/:id/approve` · `/reject`                                | POST                | admin (never the requester)             | `{comment?}` → `ChangeRequest`                                                                                        |   P5   |
+| `/api/assistant`                                                      | POST                | faculty, coordinator, admin             | `{message, thread_id?}` → `AssistantReply` (text + verified `options[]`)                                              |   P5   |
+| `/api/explain`                                                        | POST                | any                                     | `{subject: "session"\|"booking"\|"change", id}` → `{facts, text}`                                                     |   P5   |
+| `/api/export?file=schedule\|schedule_after`                           | GET                 | admin                                   | → `ScheduleExport` (download)                                                                                         |   P3   |
+| `/api/validate`                                                       | GET                 | admin                                   | → `ValidatorReport` (same sections as `validator.py`)                                                                 |   P3   |
+| `/api/dashboard`                                                      | GET                 | any (role-aware)                        | → `Dashboard`: timetable/exam coverage, bookings, pending approvals, mine, utilisation matrix                          |   ✅   |
+| `/api/settings`                                                       | GET / PATCH         | any / admin                             | → `Settings` / `SettingsPatch` (`team, priority_order, llm_enabled, reference_date, solver_seed`) → `Settings`        |   ✅   |
 
-Long-running routes (`generate`, `reschedule`, `spectra/run`) set `export const maxDuration = 60` and use an internal solver budget (`SOLVER_TIME_BUDGET_MS`, default 8000), so they're safe on Vercel.
+The four account-form routes (`login`, `signup`, `verify-otp`, `resend-otp`) answer errors as `{ ok: false, error: "message", code, details? }` for the CIT Nexus forms; every other route uses the §4.5 envelope. Unknown `/api/*` paths get Next's default 404 (or the proxy's 401 when signed out).
+
+Long-running routes (`admin/reset`, `admin/dataset`, and later `generate`, `reschedule`, `spectra/run`) set `export const maxDuration = 60`; solver routes use an internal budget (`SOLVER_TIME_BUDGET_MS`, default 8000), so they're safe on Vercel.
 
 ---
 
@@ -718,8 +762,35 @@ stateDiagram-v2
 
 ## 9. Auth and RBAC
 
-- **Session:** email + password (bcrypt) → `jose`-signed JWT in an httpOnly, `SameSite=Lax` cookie. `src/proxy.ts` (Next.js 16's replacement for `middleware.ts`) protects `(app)` routes, and every Route Handler re-checks with `requireRole(...)`.
-- **Demo login:** `/login` (CIT Nexus design) gets 4 one-click cards ("Log in as Admin / Coordinator / Faculty / Club") when real sign-in lands in Phase 2; until then use the README credentials. `/signup` must not create accounts (the hackathon uses fixed demo accounts).
+- **Session:** email + password (bcrypt, cost 10) or one-click demo login → HS256 JWT (`jose`) whose claims are `SessionUser` (`id, email, name, role, department, faculty_id, club`) plus required `exp`, `iat` and a random `jti`, in the `cit_nexus_session` cookie: httpOnly, `SameSite=Lax`, `Secure` in production, 12 h from sign-in (no refresh; older tokens are refused). Signed with `JWT_SECRET` when set, otherwise `AUTH_SECRET` (both validated in `src/lib/env.ts`; a missing secret fails closed).
+- **Logout and fresh users:** `POST /api/auth/logout` records that token's `jti` in `revoked_sessions` (TTL until the token's expiry), so only that session ends. The API guards (`requireUser` / `requireRole`, `src/lib/auth/guards.ts`) check revocation and re-read the user on every request, so a role change applies at once and a deleted or unverified account is signed out. The proxy checks the signature only.
+- **Proxy:** `src/proxy.ts` (Next.js 16's replacement for `middleware.ts`; rules in `src/lib/auth/proxy-rules.ts`, no DB access):
+
+  | Request                                                                                                                            | Signed out                           | Signed in                                                                   |
+  | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------- |
+  | `/api/*` except `/api/auth/*` and `/api/health`                                                                                    | `401 UNAUTHENTICATED` envelope       | passes; the route's guard answers `401` (revoked) or `403` (wrong role)     |
+  | `POST`/`PUT`/`PATCH`/`DELETE` `/api/*` with a cross-origin `Origin` or `Sec-Fetch-Site: cross-site`                                | `403 FORBIDDEN`                      | `403 FORBIDDEN`                                                             |
+  | `/dashboard` (any role), `/admin` (admin), `/coordinator` (admin, coordinator), `/faculty` (admin, faculty), `/club` (admin, club) | redirect to `/login?redirect=<path>` | wrong role: redirect to `/unauthorized?role=<label>&attemptedSector=<path>` |
+  | `/timetable`, `/rooms`, `/bookings`, `/spectra`, `/approvals`, `/changes`, `/assistant`, `/exams` (all four roles)                 | redirect to `/login?redirect=<path>` | shown; actions are limited by role through the API                          |
+  | `/login`, `/signup`                                                                                                                | shown                                | redirect to `/dashboard`                                                    |
+
+  `X-Forwarded-Host` (CSRF host check) and `X-Forwarded-For` (rate-limit keys) are trusted only on Vercel, whose edge sets them.
+- **Roles:** stored and signed as contract values (`admin`, `department_coordinator`, `faculty`, `club`). Display labels (`Admin`, `Department Coordinator`, `Faculty`, `Club Representative`; `src/lib/auth/roles.ts`) exist only at the UI boundary: demo-login and sign-up accept either, and the account-form routes and `me` add a legacy `user` object carrying the label.
+- **Demo login:** `POST /api/auth/demo-login {role}` signs in one of the four accounts below (passwords stay server-side in `demo-credentials.ts`; the accounts are re-seeded if missing). `DEMO_LOGIN_ENABLED=false` turns it off (`403`); default on. The one-click cards on `/login` are pending in the frontend; the README lists the credentials.
+- **Sign-up:** Club Representative only. Faculty → `403` ("Faculty accounts are set up by the Dean's office…", since a faculty login must be linked to its `faculty_id`); Admin / Department Coordinator → `403`. The account stays unverified until a 6-digit emailed code is verified (10-minute expiry, 5 attempts, HMAC-hashed) and is deleted after 24 h if it never is. Verification is bound to the sign-up browser: signup, and sign-in to an unverified account, set an httpOnly `cit_pending_signup` nonce cookie (`SameSite=Lax`, path `/api/auth`) that `verify-otp` and `resend-otp` require. While a code is active, a sign-up for the same email from another browser → `409 CONFLICT`; a verified email → `409 EMAIL_TAKEN`. Mail goes through Brevo; in development without `BREVO_API_KEY` the code is returned as `demoOtp`, in production it answers `503 MAIL_UNAVAILABLE`.
+- **Google sign-in:** not available. `GET /api/auth/google` always redirects (302) to `/login?error=google_unavailable`; the callback with `state`, PKCE, code exchange and account linking (never to a staff role) isn't built.
+- **Rate limits** (fixed windows, in memory per instance) → `429 RATE_LIMITED` with `details.retry_after_seconds` and `Retry-After`:
+
+  | Route               | Limits (per 10 minutes unless noted)                                                           |
+  | ------------------- | ---------------------------------------------------------------------------------------------- |
+  | `login`             | failed attempts: 10 per IP + email (reset on success), 20 per email                            |
+  | `signup`            | 10 per IP, 5 per email                                                                         |
+  | `verify-otp`        | 30 per IP, 10 per email; 5 wrong codes per code                                                |
+  | `resend-otp`        | 10 per IP                                                                                      |
+  | verification emails | 5 per address (signup, resend, unverified login); 60 per hour overall → `503 MAIL_UNAVAILABLE` |
+  | `demo-login`        | 30 per IP                                                                                      |
+
+- **Error shape:** `login`, `signup`, `verify-otp` and `resend-otp` answer errors as `{ ok: false, error: "message", code, details? }` (the CIT Nexus forms show `error` as one line); everything else uses the §4.5 envelope. Codes added for accounts and data: `RATE_LIMITED` (429), `EMAIL_TAKEN` (409), `CONFLICT` (409), `MAIL_UNAVAILABLE` (503).
 
 | Demo account         | Role                   | Linked to                                          | Password      |
 | -------------------- | ---------------------- | -------------------------------------------------- | ------------- |
@@ -765,6 +836,13 @@ MONGODB_URI="mongodb+srv://<user>:<pass>@<cluster>/?retryWrites=true&w=majority"
 MONGODB_DB="cit_prod"
 # Auth
 AUTH_SECRET="<32+ random chars>"
+JWT_SECRET=""                      # optional alias; overrides AUTH_SECRET when set (32+ chars)
+BREVO_API_KEY="<your Brevo API key>"       # sign-up OTP email
+BREVO_SENDER_EMAIL="<sender@example.org>"  # required with BREVO_API_KEY
+BREVO_SENDER_NAME="CIT Nexus"
+GOOGLE_CLIENT_ID="<your Google OAuth client id>"  # optional; reserved, Google sign-in is not wired yet
+NEXT_PUBLIC_APP_URL="https://<your-app>.vercel.app"  # optional; absolute public base URL (reserved for OAuth)
+DEMO_LOGIN_ENABLED="true"          # one-click demo sign-in; false turns it off (403)
 # AI (Gemini)
 GEMINI_API_KEY="<your key>"
 GEMINI_MODEL_FAST="<current stable Gemini Flash model id>"     # parsing, intents
@@ -779,20 +857,35 @@ TEAM_NAME="<Team name for schedule.json>"
 APP_REFERENCE_DATE="2027-02-08"    # Monday of fest week; the "today" that "kal"/"tomorrow" resolves against
 ```
 
+Empty values and `<placeholder>` values count as unset. All of these are validated in `src/lib/env.ts`. Auth and mail variables:
+
+| Variable              | Required               | Behaviour                                                                                                                                                                                       |
+| --------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AUTH_SECRET`         | yes, or `JWT_SECRET`   | Signs session JWTs and keys the OTP hash. ≥ 32 chars; on a deployment (`NODE_ENV=production` or Vercel) a placeholder-looking or low-variety value is rejected. Missing → sessions fail closed. |
+| `JWT_SECRET`          | no                     | Alias that overrides `AUTH_SECRET` when set; same rules (≥ 32 chars, weak-secret check on a deployment).                                                                                        |
+| `DEMO_LOGIN_ENABLED`  | no                     | `true` (default) or `false`. Off → `POST /api/auth/demo-login` answers `403`. Keep it on for the judges.                                                                                        |
+| `BREVO_API_KEY`       | for real sign-up email | Brevo transactional mail for OTP codes. Unset (or a placeholder): development returns the code as `demoOtp`; production answers `503 MAIL_UNAVAILABLE`.                                         |
+| `BREVO_SENDER_EMAIL`  | with `BREVO_API_KEY`   | A sender verified in Brevo; must be an email address. Missing → the email isn't sent and sign-up answers `503`.                                                                                 |
+| `BREVO_SENDER_NAME`   | no                     | Defaults to `CIT Nexus`.                                                                                                                                                                        |
+| `GOOGLE_CLIENT_ID`    | no                     | Validated but unused: `/api/auth/google` always redirects to `/login?error=google_unavailable` until the callback is built.                                                                     |
+| `NEXT_PUBLIC_APP_URL` | no                     | Must be an absolute URL when set. Reserved for the Google redirect URI; unused today.                                                                                                           |
+| `MONGODB_DB`          | yes on Vercel          | Must be set explicitly when `VERCEL` is present (no silent fallback to `cit_dev`).                                                                                                              |
+
 ---
 
 ## 11. Testing and verification
 
-| Test                 | Tool                                               | What it proves                                                                                                                                                                                                                           |
-| -------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Validator parity** | `scripts/parity.ts` + `python validator.py --json` | Our TS checker reports the same violation counts per rule and the same soft totals as the official validator on (a) our timetable, (b) 50 randomly mutated timetables, (c) `schedule.example.json`. **This is the most important test.** |
-| Golden exports       | Vitest + `validator.py`                            | `exports/schedule.json` → 0 hard, booking score logged. `schedule_after.json` with `--disruption --baseline` → 0 hard, moved count logged.                                                                                               |
-| Engine units         | Vitest                                             | Each hard rule H1–H14 has a passing and a failing fixture. Basket and lunch-crossing edge cases are covered.                                                                                                                             |
-| Booking engine       | Vitest                                             | The dataset-trap table in [backend.md §4](./backend.md#4-dataset-traps--expected-handling) as assertions                                                                                                                                 |
-| AI eval              | `scripts/ai-eval.ts`                               | 25 `raw_text` → compare parsed fields to the dataset's structured fields. 8 `sample_requests.md` plus an adversarial set. Accuracy is printed per field.                                                                                 |
-| Smoke (deployed)     | Manual checklist                                   | All 4 demo logins work, reset works, LLM-off booking works, export downloads                                                                                                                                                             |
+| Test                 | Tool                                                                   | What it proves                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Validator parity** | `npm run parity` (`scripts/parity.ts` + the unmodified `validator.py`) | Our TS engine and the official validator produce identical reports (violations in order, soft penalties, booking stats, exam penalty, stability, warnings) on 78 cases: `schedule.example.json`, a synthetic full schedule with and without the fest week, edge cases, 50 seeded mutations, 10 disruption runs (sample change file + one covering all five change types) and 13 runs on a dataset variant. Runs in CI on every push. **This is the most important test.** |
+| Golden exports       | Vitest + `validator.py`                                                | `exports/schedule.json` → 0 hard, booking score logged. `schedule_after.json` with `--disruption --baseline` → 0 hard, moved count logged. (Phase 3, once exports exist.)                                                                                                                                                                                                                                                                                                 |
+| Engine units         | Vitest                                                                 | Each hard rule H1–H14 has a passing and a failing fixture. Basket and lunch-crossing edge cases are covered.                                                                                                                                                                                                                                                                                                                                                              |
+| Data and API         | Vitest + MongoDB                                                       | Repositories, import/reset, auth flows, guards, proxy rules and route handlers against throwaway databases (a local `mongod`, or the CI MongoDB service).                                                                                                                                                                                                                                                                                                                 |
+| Booking engine       | Vitest                                                                 | The dataset-trap table in [backend.md §4](./backend.md#4-dataset-traps--expected-handling) as assertions (Phase 4)                                                                                                                                                                                                                                                                                                                                                        |
+| AI eval              | `scripts/ai-eval.ts`                                                   | 25 `raw_text` → compare parsed fields to the dataset's structured fields. 8 `sample_requests.md` plus an adversarial set. Accuracy is printed per field. (Phase 4)                                                                                                                                                                                                                                                                                                        |
+| Smoke (deployed)     | Manual checklist                                                       | All 4 demo logins work, reset works, LLM-off booking works, export downloads                                                                                                                                                                                                                                                                                                                                                                                              |
 
-CI (GitHub Actions): `npm run lint && npm run typecheck && npm test && npm run validate` (`validate` runs the official `CrunchWeek_StarterPack/validator.py` on `exports/schedule.json`; add `-- --after` for `schedule_after.json`).
+CI (GitHub Actions, `.github/workflows/ci.yml`, with a `mongo:7` service container): `npm run lint` → `npm run typecheck` → `npm test` → `npm run build` → `npm run parity` → `npm run validate` and `npm run validate -- --after` when `exports/schedule.json` / `schedule_after.json` exist (`validate` runs the official `CrunchWeek_StarterPack/validator.py`).
 
 ---
 
@@ -824,15 +917,19 @@ CI (GitHub Actions): `npm run lint && npm run typecheck && npm test && npm run v
 
 ### 12.3 Team split (3 people, equal load)
 
+> **Current ownership:** A + B (engine, data, auth, API, AI layer, exports, architecture docs) are owned by **Aryan**; C (all frontend: landing, login/signup UI, app screens, styling, responsive, video) is owned by **the two frontend teammates**. The interface between them is the typed contracts in `src/lib/contracts`, `docs/api.md` and `docs/frontend-handoff.md`.
+
 | Member                       | Owns                                                     | Deliverables                                                                                                                                                     |
 | ---------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **A: Engine**                | `lib/engine/*`, `scripts/parity.ts`                      | Checker (validator port) → solver → exam scheduler → rescheduler + conflict report → SA optimiser → fest-aware costs                                             |
 | **B: Backend and AI**        | `lib/{db,services,ai,auth}`, `app/api/*`, booking engine | Import/reset/seed, auth + RBAC, booking decision engine, Gemini parser + assistant + explanations, fallbacks, AI eval                                            |
 | **C: Frontend and delivery** | `app/(app)/*`, `components/*`, deploy, docs, video       | Design system, grids, booking UI, approvals diff, dashboard, admin, responsive and states, Vercel/Atlas, README / AI_USAGE / THIRD_PARTY / `.env.example`, video |
 
-Everyone co-owns `lib/contracts/`. Changes after the H1 freeze need a 1-minute ping to the other two.
+The backend owner maintains `lib/contracts/` and `docs/api.md`; any contract change is announced to the frontend teammates before it lands.
 
 ### 12.4 24-hour timeline
+
+Columns A and B are the backend owner's work; column C is the frontend teammates'.
 
 | Hours   | A: Engine                                                                                                                                  | B: Backend and AI                                                                                        | C: Frontend and delivery                                                                                                  | ✅ Milestone                                                                |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |

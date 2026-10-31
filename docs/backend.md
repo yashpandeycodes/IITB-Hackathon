@@ -42,7 +42,7 @@
 
 **Difficulty:** 🟢 Easy (≤ 1.5 h) · 🟡 Medium (2–3 h) · 🔴 Hard (4 h+)
 **Wow:** ⭐ Low · ⭐⭐ Medium · ⭐⭐⭐ High (judges remember it)
-**Owners:** A = Engine · B = Backend and AI · C = Frontend and delivery
+**Owners:** A = Engine, B = Backend and AI (both: Aryan, backend & architecture) · C = Frontend and delivery (the two frontend teammates)
 
 ### 2.1 MVP (must ship; each maps to a problem-statement requirement or a disqualification rule)
 
