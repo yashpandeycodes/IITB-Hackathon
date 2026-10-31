@@ -171,7 +171,13 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ["src/components/**/*.{ts,tsx}", "src/config/**/*.ts"],
+    // UI code, plus the client-side fetch helpers it imports.
+    files: [
+      "src/components/**/*.{ts,tsx}",
+      "src/config/**/*.ts",
+      "src/lib/api-client.ts",
+      "src/lib/redirect.ts",
+    ],
     rules: {
       "no-restricted-imports": restrict(
         [...SERVER_ONLY_MODULES, ...LANDING_ONLY_MODULES],
