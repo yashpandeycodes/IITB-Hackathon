@@ -16,7 +16,7 @@ export const CompletePriorityOrderSchema = z
   );
 
 export const SettingsSchema = z.strictObject({
-  team: z.string().min(1),
+  team: z.string().min(1).max(100),
   /** Editable copy; defaults to the dataset's. */
   priority_order: CompletePriorityOrderSchema,
   llm_enabled: z.boolean(),

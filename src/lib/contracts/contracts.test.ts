@@ -97,6 +97,38 @@ describe("dataset", () => {
     expect(issuePaths(result)).toContain("sessions.1.id");
   });
 
+  it("rejects dangling references with field paths", () => {
+    const raw = rawDataset();
+    raw.sessions[0]!.faculty_id = "F404";
+    raw.sessions[1]!.groups = [raw.sessions[1]!.groups[0]!, "Y9-Z"];
+    raw.sessions[2]!.course_id = "NOPE101";
+    raw.exams[0]!.groups = ["Y9-Z"];
+    raw.room_unavailability[0]!.room_id = "LH-404";
+    raw.booking_requests[0]!.mandatory_for_groups = ["Y9-Z"];
+    raw.cancellations[0]!.request_id = "BR-404";
+    const result = DatasetSchema.safeParse(raw);
+    expect(result.success).toBe(false);
+    expect(issuePaths(result).sort()).toEqual(
+      [
+        "sessions.0.faculty_id",
+        "sessions.1.groups.1",
+        "sessions.2.course_id",
+        "exams.0.groups.0",
+        "room_unavailability.0.room_id",
+        "booking_requests.0.mandatory_for_groups.0",
+        "cancellations.0.request_id",
+      ].sort(),
+    );
+  });
+
+  it("allows an unknown requested_room and skips course checks without courses", () => {
+    const raw = rawDataset();
+    raw.booking_requests[0]!.requested_room = "LHC-404";
+    raw.sessions[0]!.course_id = "NOPE101";
+    (raw as { courses: unknown[] }).courses = [];
+    expect(DatasetSchema.safeParse(raw).success).toBe(true);
+  });
+
   it("rejects a priority_order that omits a role's cap", () => {
     const raw = rawDataset();
     raw.priority_order = raw.priority_order.filter(

@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { BookingRequestSchema } from "./dataset";
 import { Category, Day, Need, Period, RequestState, RoomType } from "./enums";
-import { BookingDecisionSchema } from "./schedule";
+import { BookingDecisionSchema, SessionOverrideSchema } from "./schedule";
 import { Id, Timestamp, type KnownFields } from "./util";
 
 /** Why a decision came out the way it did; rendered into `reason` from a template. */
@@ -42,6 +42,17 @@ export const StoredBookingDecisionSchema = BookingDecisionSchema.safeExtend({
   decided_at: Timestamp,
 }).strict();
 export type StoredBookingDecision = z.infer<typeof StoredBookingDecisionSchema>;
+
+/**
+ * A Week-7-only session move as stored in `session_overrides` (`_id` = `session_id`): the export
+ * shape plus the approver and the timetable version it was computed against. Readers only use
+ * overrides (and decisions) whose `timetable_version` is the active version.
+ */
+export const StoredSessionOverrideSchema = SessionOverrideSchema.extend({
+  approved_by: Id.nullable(),
+  timetable_version: Id,
+}).strict();
+export type StoredSessionOverride = z.infer<typeof StoredSessionOverrideSchema>;
 
 export const BookingSource = z.enum(["dataset", "nl", "form"]);
 export type BookingSource = z.infer<typeof BookingSource>;

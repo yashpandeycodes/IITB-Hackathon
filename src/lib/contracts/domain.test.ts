@@ -181,6 +181,21 @@ describe("timetable", () => {
       min_capacity: 130,
       needs: ["stage", "pa_system"],
       accessible: true,
+      use: "event",
+    });
+    expect(
+      RoomAvailabilityQuerySchema.parse({
+        day: "MON",
+        from_period: "1",
+        to_period: "2",
+        use: "lab",
+      }).use,
+    ).toBe("lab");
+    rejects(RoomAvailabilityQuerySchema, {
+      day: "MON",
+      from_period: "1",
+      to_period: "2",
+      use: "party",
     });
     rejects(RoomAvailabilityQuerySchema, {
       day: "THU",
@@ -213,10 +228,21 @@ describe("timetable", () => {
         { rule: "H4", where: "timetable", detail: "LH-1 double-booked MON P2" },
       ],
       soft_penalty: PENALTY,
+      soft_delta: -2,
+    });
+    accepts(TimetableCheckResultSchema, {
+      violations: [],
+      soft_penalty: PENALTY,
+      soft_delta: null,
+    });
+    rejects(TimetableCheckResultSchema, {
+      violations: [],
+      soft_penalty: PENALTY,
     });
     rejects(TimetableCheckResultSchema, {
       violations: [],
       soft_penalty: { S1: 0 },
+      soft_delta: 0,
     });
   });
 });
@@ -235,9 +261,14 @@ describe("exam schedule", () => {
         },
       ],
       penalty: 5,
+      solver_meta: { seed: 42, ms: 120, algorithm: "greedy" },
+      dataset_id: "cit-public-v1",
+      created_by: "engine",
       created_at: AT,
     };
     accepts(ExamScheduleSchema, schedule);
+    accepts(ExamScheduleSchema, { ...schedule, solver_meta: null });
+    rejects(ExamScheduleSchema, { ...schedule, dataset_id: undefined });
     rejects(ExamScheduleSchema, {
       ...schedule,
       exams: [{ exam_id: "EX-MA101", day: "SAT", session: "AM", rooms: [] }],
@@ -419,6 +450,9 @@ describe("settings", () => {
       priority_order: ["exam", "club_event"],
     });
     rejects(SettingsSchema, { ...settings, reference_date: "01/02/2027" });
+    accepts(SettingsSchema, { ...settings, team: "x".repeat(100) });
+    rejects(SettingsSchema, { ...settings, team: "x".repeat(101) });
+    rejects(SettingsSchema, { ...settings, team: "" });
   });
 
   it("accepts a partial patch but not an empty or unknown one", () => {

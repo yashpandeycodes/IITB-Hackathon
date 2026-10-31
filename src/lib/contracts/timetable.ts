@@ -10,6 +10,7 @@ import {
   DecisionStatus,
   Day,
   Period,
+  RoomUse,
   SessionKind,
   TeachingPeriod,
 } from "./enums";
@@ -144,6 +145,8 @@ export const RoomAvailabilityQuerySchema = z
     /** Acceptable room types. */
     types: ListParam.optional(),
     accessible: z.union([z.boolean(), z.stringbool()]).optional(),
+    /** Only rooms whose `allowed_uses` include this use are listed. Defaults to `event`. */
+    use: RoomUse.default("event"),
   })
   .refine((query) => query.to_period >= query.from_period, {
     path: ["to_period"],
@@ -179,5 +182,7 @@ export type TimetableCheckRequest = z.infer<typeof TimetableCheckRequestSchema>;
 export const TimetableCheckResultSchema = z.strictObject({
   violations: z.array(ViolationSchema),
   soft_penalty: SoftPenaltySummarySchema,
+  /** `soft_penalty.total` minus the active timetable's total (negative is better); null with no active timetable. */
+  soft_delta: z.number().int().nullable(),
 });
 export type TimetableCheckResult = z.infer<typeof TimetableCheckResultSchema>;

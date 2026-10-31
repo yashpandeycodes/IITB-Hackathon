@@ -334,5 +334,104 @@ export const DatasetSchema = z
         seen.add(item.id);
       });
     }
+    checkReferences(data, ctx);
   });
 export type Dataset = KnownFields<z.infer<typeof DatasetSchema>>;
+
+/**
+ * Every id one entity uses must name an entity in the file: a dangling reference makes the
+ * official validator crash on export. `requested_room` is only a wish and may be unknown;
+ * `course_id` is checked only when the file lists courses (the validator never reads them).
+ */
+function checkReferences(
+  data: {
+    rooms: readonly { id: string }[];
+    faculty: readonly { id: string }[];
+    student_groups: readonly { id: string }[];
+    courses: readonly { id: string }[];
+    booking_requests: readonly {
+      id: string;
+      mandatory_for_groups: readonly string[];
+    }[];
+    sessions: readonly {
+      course_id: string;
+      faculty_id: string;
+      groups: readonly string[];
+    }[];
+    exams: readonly { groups: readonly string[] }[];
+    room_unavailability: readonly { room_id: string }[];
+    cancellations: readonly { request_id: string }[];
+  },
+  ctx: z.RefinementCtx,
+): void {
+  const ids = (items: readonly { id: string }[]) =>
+    new Set(items.map((item) => item.id));
+  const rooms = ids(data.rooms);
+  const faculty = ids(data.faculty);
+  const groups = ids(data.student_groups);
+  const courses = ids(data.courses);
+  const requests = ids(data.booking_requests);
+
+  const checkRef = (
+    known: ReadonlySet<string>,
+    value: string,
+    path: (string | number)[],
+    what: string,
+  ) => {
+    if (!known.has(value)) {
+      ctx.addIssue({
+        code: "custom",
+        path,
+        message: `Unknown ${what} "${value}"`,
+      });
+    }
+  };
+  const checkGroups = (list: readonly string[], path: (string | number)[]) =>
+    list.forEach((group, j) =>
+      checkRef(groups, group, [...path, j], "student group"),
+    );
+
+  data.sessions.forEach((session, i) => {
+    checkRef(
+      faculty,
+      session.faculty_id,
+      ["sessions", i, "faculty_id"],
+      "faculty",
+    );
+    checkGroups(session.groups, ["sessions", i, "groups"]);
+    if (courses.size > 0) {
+      checkRef(
+        courses,
+        session.course_id,
+        ["sessions", i, "course_id"],
+        "course",
+      );
+    }
+  });
+  data.exams.forEach((exam, i) =>
+    checkGroups(exam.groups, ["exams", i, "groups"]),
+  );
+  data.room_unavailability.forEach((entry, i) =>
+    checkRef(
+      rooms,
+      entry.room_id,
+      ["room_unavailability", i, "room_id"],
+      "room",
+    ),
+  );
+  data.booking_requests.forEach((request, i) =>
+    checkGroups(request.mandatory_for_groups, [
+      "booking_requests",
+      i,
+      "mandatory_for_groups",
+    ]),
+  );
+  data.cancellations.forEach((cancellation, i) =>
+    checkRef(
+      requests,
+      cancellation.request_id,
+      ["cancellations", i, "request_id"],
+      "booking request",
+    ),
+  );
+}

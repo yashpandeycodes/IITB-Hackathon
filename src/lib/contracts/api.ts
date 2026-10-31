@@ -15,6 +15,10 @@ export const ErrorCode = z.enum([
   "STALE_VERSION",
   "LLM_UNAVAILABLE",
   "INTERNAL_ERROR",
+  "RATE_LIMITED",
+  "EMAIL_TAKEN",
+  "MAIL_UNAVAILABLE",
+  "CONFLICT",
 ]);
 export type ErrorCode = z.infer<typeof ErrorCode>;
 
@@ -29,6 +33,10 @@ export const ERROR_HTTP_STATUS: Record<ErrorCode, number> = {
   INFEASIBLE: 422,
   INTERNAL_ERROR: 500,
   LLM_UNAVAILABLE: 503,
+  RATE_LIMITED: 429,
+  EMAIL_TAKEN: 409,
+  MAIL_UNAVAILABLE: 503,
+  CONFLICT: 409,
 };
 
 export const ApiErrorBody = z.object({
