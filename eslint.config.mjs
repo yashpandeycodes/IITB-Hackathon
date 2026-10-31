@@ -85,8 +85,21 @@ const eslintConfig = defineConfig([
     ignores: ["**/*.test.ts", "**/test-*.ts"],
     rules: {
       "no-restricted-imports": restrict(
-        [...LANDING_ONLY_MODULES, "@/lib/api", "@/lib/api/*", "next", "next/*"],
-        "Services are framework-free: no route helpers or Next.js imports.",
+        [
+          ...LANDING_ONLY_MODULES,
+          "@/lib/api",
+          "@/lib/api/*",
+          "next",
+          "next/*",
+          // These reach Next.js (cookies, responses) or the session layer: routes only.
+          // Services use @/lib/auth/policy (and rate-limit) instead.
+          "@/lib/auth/guards",
+          "@/lib/auth/http",
+          "@/lib/auth/session",
+          "@/lib/auth/current-user",
+          "@/lib/auth/server-session",
+        ],
+        "Services are framework-free: no route helpers, session guards or Next.js imports.",
       ),
     },
   },
@@ -128,6 +141,49 @@ const eslintConfig = defineConfig([
           "react",
         ],
         "Contracts depend on zod only.",
+      ),
+    },
+  },
+  {
+    // The AI layer is a pure adapter: contracts + the Gemini SDK (allow-list, like contracts);
+    // the service passes context and config. node:fs / node:path / node:crypto are deliberate
+    // (prompt loader, cache key). Tests may also read the bundled dataset.
+    files: ["src/lib/ai/**/*.ts"],
+    ignores: ["**/*.test.ts", "src/lib/ai/test-context.ts"],
+    rules: {
+      "no-restricted-imports": restrict(
+        [
+          "@/lib/*",
+          "!@/lib/contracts",
+          "!@/lib/contracts/*",
+          "@/config/*",
+          "@/components/*",
+          "mongodb",
+          "next",
+          "next/*",
+          "react",
+        ],
+        "The AI layer may import only @/lib/contracts and the Gemini SDK; services pass context and config.",
+      ),
+    },
+  },
+  {
+    files: ["src/lib/ai/**/*.test.ts", "src/lib/ai/test-context.ts"],
+    rules: {
+      "no-restricted-imports": restrict(
+        [
+          "@/lib/*",
+          "!@/lib/contracts",
+          "!@/lib/contracts/*",
+          "!@/lib/dataset",
+          "@/config/*",
+          "@/components/*",
+          "mongodb",
+          "next",
+          "next/*",
+          "react",
+        ],
+        "AI tests may import contracts and the bundled dataset only.",
       ),
     },
   },
