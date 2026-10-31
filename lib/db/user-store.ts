@@ -34,7 +34,7 @@ export async function findUserByEmail(email: string): Promise<UserRecord | null>
     try {
       const doc = await UserModel.findOne({ email: normalizedEmail }).lean().exec();
       if (doc) {
-        return {
+        const record: UserRecord = {
           id: doc._id.toString(),
           name: doc.name,
           email: doc.email,
@@ -47,6 +47,8 @@ export async function findUserByEmail(email: string): Promise<UserRecord | null>
           createdAt: doc.createdAt,
           updatedAt: doc.updatedAt,
         };
+        memoryUsers.set(normalizedEmail, record);
+        return record;
       }
     } catch (err) {
       console.warn('[UserStore] Mongo query failed, checking in-memory store:', (err as Error).message);
@@ -64,7 +66,7 @@ export async function findUserById(id: string): Promise<UserRecord | null> {
     try {
       const doc = await UserModel.findById(id).lean().exec();
       if (doc) {
-        return {
+        const record: UserRecord = {
           id: doc._id.toString(),
           name: doc.name,
           email: doc.email,
@@ -77,6 +79,8 @@ export async function findUserById(id: string): Promise<UserRecord | null> {
           createdAt: doc.createdAt,
           updatedAt: doc.updatedAt,
         };
+        memoryUsers.set(doc.email.toLowerCase().trim(), record);
+        return record;
       }
     } catch (err) {
       console.warn('[UserStore] Mongo query by ID failed:', (err as Error).message);
@@ -120,7 +124,7 @@ export async function createUser(data: {
         googleId: data.googleId || null,
       });
 
-      return {
+      const record: UserRecord = {
         id: created._id.toString(),
         name: created.name,
         email: created.email,
@@ -133,6 +137,9 @@ export async function createUser(data: {
         createdAt: created.createdAt,
         updatedAt: created.updatedAt,
       };
+
+      memoryUsers.set(normalizedEmail, record);
+      return record;
     } catch (err) {
       console.warn('[UserStore] Mongo create failed, falling back to in-memory store:', (err as Error).message);
     }
@@ -171,7 +178,6 @@ export async function updateUserOtp(
         { email: normalizedEmail },
         { $set: { otp, otpExpiresAt } }
       ).exec();
-      return true;
     } catch (err) {
       console.warn('[UserStore] Mongo update OTP failed:', (err as Error).message);
     }
@@ -186,7 +192,7 @@ export async function updateUserOtp(
     return true;
   }
 
-  return false;
+  return true;
 }
 
 export async function verifyAndClearOtp(email: string, otpToTest: string): Promise<{

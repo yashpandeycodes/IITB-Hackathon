@@ -34,17 +34,14 @@ export async function POST(req: NextRequest) {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     await updateUserOtp(email, newOtp, expiresAt);
-    const result = await sendOtpEmail(email, user.name, newOtp);
+    await sendOtpEmail(email, user.name, newOtp);
 
     return NextResponse.json({
       success: true,
-      message: 'A fresh 6-digit verification code has been dispatched.',
-      demoMode: result.demoMode,
-      demoOtp: result.demoOtp,
+      message: 'A fresh 6-digit verification code has been dispatched to your email.',
     });
   } catch (err) {
     console.error('[API /resend-otp] Server error:', err);
     return NextResponse.json({ error: 'Internal server error while resending OTP.' }, { status: 500 });
   }
 }
-

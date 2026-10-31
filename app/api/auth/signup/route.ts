@@ -50,15 +50,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Send OTP email via Brevo
-    const emailResult = await sendOtpEmail(email, fullName, otp);
+    // Dispatch OTP email via Brevo to the mentioned email
+    await sendOtpEmail(email, fullName, otp);
 
     return NextResponse.json({
       success: true,
       message: 'A 6-digit verification code has been dispatched to your email address.',
       email,
-      demoMode: emailResult.demoMode,
-      demoOtp: emailResult.demoOtp, // Surfaced in demo mode for instant local testing without live key
     });
   } catch (err) {
     console.error('[API /signup] Server error:', err);
@@ -68,4 +66,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
