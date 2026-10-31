@@ -1,26 +1,87 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #070a12;
+  --foreground: #f4f7fb;
+  --surface-navy: #0b1220;
+  --surface-slate: #101a2b;
+  --surface-card: #132035;
+  --accent-cyan: #66e3f0;
+  --accent-violet: #8279ff;
+  --text-muted: #98a6bb;
+  --border-subtle: rgba(244, 247, 251, 0.08);
+  --border-cyan: rgba(102, 227, 240, 0.2);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface-navy: var(--surface-navy);
+  --color-surface-slate: var(--surface-slate);
+  --color-surface-card: var(--surface-card);
+  --color-accent-cyan: var(--accent-cyan);
+  --color-accent-violet: var(--accent-violet);
+  --color-text-muted: var(--text-muted);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+  background-color: #070a12;
+  color: #f4f7fb;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #070a12;
+  color: #f4f7fb;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* Custom visual utilities */
+.campus-grid-bg {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+}
+
+.campus-radial-glow {
+  background: radial-gradient(circle at 50% 30%, rgba(102, 227, 240, 0.09) 0%, rgba(130, 121, 255, 0.05) 45%, transparent 70%);
+}
+
+.glass-panel {
+  background: rgba(16, 26, 43, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(244, 247, 251, 0.08);
+}
+
+.glass-panel-elevated {
+  background: rgba(19, 32, 53, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(102, 227, 240, 0.16);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+}
+
+.cyan-glow {
+  box-shadow: 0 0 20px -2px rgba(102, 227, 240, 0.25);
+}
+
+.violet-glow {
+  box-shadow: 0 0 20px -2px rgba(130, 121, 255, 0.25);
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
