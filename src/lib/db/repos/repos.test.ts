@@ -398,6 +398,70 @@ describe.skipIf(!testDb)("repositories (MongoDB)", () => {
     expect(await listBookingDecisions(db)).toEqual([]);
   });
 
+  it("replaces decisions and overrides without ever emptying them for readers", async () => {
+    const ids = Array.from({ length: 60 }, (_, i) => `BR-${100 + i}`);
+    const sessions = ids.map((_, i) => `S${100 + i}`);
+    const decisions = (status: StoredBookingDecision["status"]) =>
+      ids.map((id) => decision(id, status));
+    const overrides = (start_period: number) =>
+      sessions.map((session_id) => ({ ...override, session_id, start_period }));
+    expect(await replaceBookingDecisions(db, decisions("approved"))).toBe(60);
+    expect(await replaceSessionOverrides(db, overrides(2))).toBe(60);
+    // A stale decision and override (requests no longer decided) must go.
+    await upsertBookingDecision(db, decision("BR-OLD", "approved"));
+    await upsertSessionOverride(db, { ...override, session_id: "S-OLD" });
+
+    // Poll while runs replace the same ids: every id must stay visible throughout.
+    let replacing = true;
+    let polls = 0;
+    const seen: number[] = [];
+    const poller = (async () => {
+      while (replacing) {
+        const [d, o] = await Promise.all([
+          db
+            .collection("booking_decisions")
+            .countDocuments({ _id: { $in: ids } } as never),
+          db
+            .collection("session_overrides")
+            .countDocuments({ _id: { $in: sessions } } as never),
+        ]);
+        seen.push(d, o);
+        polls++;
+      }
+    })();
+    for (let run = 0; run < 15; run++) {
+      const flip = run % 2 === 0;
+      await replaceBookingDecisions(
+        db,
+        decisions(flip ? "alternative_offered" : "approved"),
+      );
+      await replaceSessionOverrides(db, overrides(flip ? 3 : 2));
+    }
+    replacing = false;
+    await poller;
+    expect(polls).toBeGreaterThan(0);
+    expect(Math.min(...seen)).toBe(60);
+
+    expect(await getBookingDecision(db, "BR-OLD")).toBeNull();
+    expect(
+      (await listSessionOverrides(db)).some((o) => o.session_id === "S-OLD"),
+    ).toBe(false);
+    // The last run (an even one) stored alternatives and overrides at P3.
+    expect(await countBookingDecisionsByStatus(db)).toEqual({
+      approved: 0,
+      alternative_offered: 60,
+      rejected: 0,
+    });
+    expect(
+      new Set((await listSessionOverrides(db)).map((o) => o.start_period)),
+    ).toEqual(new Set([3]));
+    // An empty run clears everything.
+    expect(await replaceBookingDecisions(db, [])).toBe(0);
+    expect(await replaceSessionOverrides(db, [])).toBe(0);
+    expect(await listBookingDecisions(db)).toEqual([]);
+    expect(await countSessionOverrides(db)).toBe(0);
+  });
+
   it("upserts, replaces and deletes session overrides", async () => {
     await upsertSessionOverride(db, override);
     await upsertSessionOverride(db, { ...override, start_period: 3 });

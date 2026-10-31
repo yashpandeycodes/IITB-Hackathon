@@ -65,47 +65,85 @@ export async function releaseLock(
   await collection(db).deleteOne({ _id: name, token });
 }
 
-/** `CONFLICT` (409) for dataset-wide work that overlaps another run. */
-export const datasetBusy = (cause?: unknown) =>
+const DATASET_BUSY_MESSAGE =
+  "Another reset, import or schedule run is in progress. Try again in a moment.";
+
+/**
+ * `CONFLICT` (409) for dataset-wide work that overlaps another run. `message` replaces the
+ * default text (which names resets, imports and schedule runs).
+ */
+export const datasetBusy = (cause?: unknown, message = DATASET_BUSY_MESSAGE) =>
   new ApiError(
     "CONFLICT",
-    "Another reset, import or schedule run is in progress. Try again in a moment.",
+    message,
     undefined,
     cause === undefined ? undefined : { cause },
   );
 
+/** How long to wait for a held dataset lock before answering `CONFLICT`, and what to say. */
+export type LockWaitOptions = {
+  /**
+   * Keep retrying for up to this many milliseconds (default 0: fail at once). For short user
+   * writes (booking submissions, cancellations, approvals) that would otherwise collide.
+   */
+  waitMs?: number;
+  /**
+   * The `CONFLICT` message when the lock stays busy (default: another reset, import or schedule
+   * run is in progress). Booking writes say that another change is being saved.
+   */
+  busyMessage?: string;
+};
+
+/** Pause between retries while waiting for the lock (plus up to 50 ms of jitter). */
+const LOCK_RETRY_MS = 100;
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 /**
  * Takes the dataset lock and returns its release function, for work that outlives one call (a
- * streamed generation). `CONFLICT` (409) at once when the lock is held. The release function is
- * idempotent and never throws (a failed release is logged; the lock then expires on its TTL).
+ * streamed generation). `CONFLICT` (409) when the lock is held: at once by default, or after
+ * `waitMs` of retrying. The release function is idempotent and never throws (a failed release
+ * is logged; the lock then expires on its TTL).
  */
-export async function acquireDatasetLock(db: Db): Promise<() => Promise<void>> {
-  const token = await acquireLock(db, DATASET_LOCK);
-  if (token === null) throw datasetBusy();
+export async function acquireDatasetLock(
+  db: Db,
+  options: LockWaitOptions = {},
+): Promise<() => Promise<void>> {
+  const deadline = Date.now() + Math.max(0, options.waitMs ?? 0);
+  let token = await acquireLock(db, DATASET_LOCK);
+  while (token === null) {
+    const left = deadline - Date.now();
+    if (left <= 0) throw datasetBusy(undefined, options.busyMessage);
+    await sleep(Math.min(left, LOCK_RETRY_MS + Math.random() * 50));
+    token = await acquireLock(db, DATASET_LOCK);
+  }
+  const held = token;
   let released = false;
   return async () => {
     if (released) return;
     released = true;
-    await releaseLock(db, DATASET_LOCK, token).catch((err: unknown) => {
+    await releaseLock(db, DATASET_LOCK, held).catch((err: unknown) => {
       console.error("[locks] failed to release the dataset lock", err);
     });
   };
 }
 
 /**
- * Runs `fn` while holding the dataset lock. A concurrent caller gets `CONFLICT` at once, and a
- * duplicate-key error that still slips through (another writer outside the lock) becomes
- * `CONFLICT` too rather than a 500.
+ * Runs `fn` while holding the dataset lock. A concurrent caller gets `CONFLICT` (at once, or
+ * after `options.waitMs` of retrying), and a duplicate-key error that still slips through
+ * (another writer outside the lock) becomes `CONFLICT` too rather than a 500.
  */
 export async function withDatasetLock<T>(
   db: Db,
   fn: () => Promise<T>,
+  options: LockWaitOptions = {},
 ): Promise<T> {
-  const release = await acquireDatasetLock(db);
+  const release = await acquireDatasetLock(db, options);
   try {
     return await fn();
   } catch (err) {
-    if (isDuplicateKeyError(err)) throw datasetBusy(err);
+    if (isDuplicateKeyError(err)) throw datasetBusy(err, options.busyMessage);
     throw err;
   } finally {
     await release();

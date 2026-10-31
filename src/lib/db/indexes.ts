@@ -73,6 +73,8 @@ export const INDEXES: Partial<Record<CollectionName, IndexDescription[]>> = {
   [COLLECTIONS.ai_logs]: [
     { key: { at: -1 }, name: "at_-1" },
     { key: { feature: 1 }, name: "feature_1" },
+    // Retention (`ai-logs.ts`): each entry is deleted once its `expire_at` Date has passed.
+    { key: { expire_at: 1 }, name: "expire_at_ttl", expireAfterSeconds: 0 },
   ],
 };
 

@@ -1,9 +1,9 @@
 import "server-only";
 import type { Role } from "@/lib/contracts/enums";
 import type { SessionUser, User } from "@/lib/contracts/user";
-import { forbidden, selfApproval, unauthenticated } from "@/lib/errors";
+import { forbidden, unauthenticated } from "@/lib/errors";
 import { clientIp, rateLimited } from "./http";
-import { limits } from "./rate-limit";
+import { limits, type RateLimiter } from "./rate-limit";
 import { userForClaims } from "./current-user";
 import { readSessionClaims } from "./session";
 
@@ -43,13 +43,7 @@ export async function requireRole(
   return user;
 }
 
-/** `SELF_APPROVAL` (403) when someone tries to approve their own request. */
-export function assertNotSelf(
-  approverId: string,
-  requesterId: string | null,
-): void {
-  if (requesterId !== null && approverId === requesterId) throw selfApproval();
-}
+export { assertNotSelf } from "./policy";
 
 /**
  * Counts one schedule run (generate, activate, exam generation, Spectra) against the per-admin
@@ -72,4 +66,39 @@ export function requireScheduleRunQuota(
       );
     }
   }
+}
+
+function enforce(
+  pairs: readonly (readonly [RateLimiter, string])[],
+  message: string,
+): void {
+  for (const [limiter, key] of pairs) {
+    const result = limiter.hit(key);
+    if (!result.allowed) throw rateLimited(message, result.retryAfterSeconds);
+  }
+}
+
+/** One plain-language parse (`POST /api/bookings/parse`) per the per-user and per-IP limits. */
+export function requireAiParseQuota(request: Request, user: SessionUser): void {
+  enforce(
+    [
+      [limits.aiParseUser, user.id],
+      [limits.aiParseIp, clientIp(request)],
+    ],
+    "Too many requests to the booking assistant. Try again in a few minutes.",
+  );
+}
+
+/** One booking write (submit, cancel, approve or reject) per the per-user and per-IP limits. */
+export function requireBookingWriteQuota(
+  request: Request,
+  user: SessionUser,
+): void {
+  enforce(
+    [
+      [limits.bookingWriteUser, user.id],
+      [limits.bookingWriteIp, clientIp(request)],
+    ],
+    "Too many booking changes. Try again in a few minutes.",
+  );
 }
