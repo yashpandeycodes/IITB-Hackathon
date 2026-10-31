@@ -1,106 +1,105 @@
-/**
- * CIT Nexus - Frontend Validation Utilities
- * 
- * Strict client-side validation rules for the prototype.
- * NOTE: No credentials are submitted to any server or persisted anywhere.
- */
+import { z } from 'zod';
+import { UserRole } from './db/models/user.model';
 
-export type UserRole = 'Admin' | 'Department Coordinator' | 'Faculty' | 'Club Representative';
+export type { UserRole };
 
-export interface SignupFormData {
-  fullName: string;
-  email: string;
-  role: UserRole;
-  password: string;
-  confirmPassword: string;
-  agreedToTerms: boolean;
-}
+// 1. Password Strength Criteria: Min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special character
+export const passwordSchema = z
+  .string()
+  .min(8, 'Password must be at least 8 characters long')
+  .max(100, 'Password must not exceed 100 characters')
+  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter (A-Z)')
+  .regex(/[a-z]/, 'Password must contain at least one lowercase letter (a-z)')
+  .regex(/[0-9]/, 'Password must contain at least one digit (0-9)')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character (!@#$%^&*...)');
 
-export interface LoginFormData {
-  email: string;
-  password: string;
-  rememberPreference?: boolean;
-}
+// 2. Signup Schema
+export const signupSchema = z
+  .object({
+    fullName: z
+      .string()
+      .min(2, 'Full name must be at least 2 characters')
+      .max(80, 'Full name cannot exceed 80 characters'),
+    email: z
+      .string()
+      .email('Please enter a valid email address')
+      .toLowerCase()
+      .trim(),
+    role: z.enum(
+      ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'],
+      { message: 'Please select a valid institutional role' }
+    ),
+    password: passwordSchema,
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+    agreedToTerms: z
+      .boolean()
+      .refine((val) => val === true, 'You must acknowledge the platform terms'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+export type SignupFormData = z.infer<typeof signupSchema>;
+
+// 3. Login Schema
+export const loginSchema = z.object({
+  email: z
+    .string()
+    .email('Please enter a valid email address')
+    .toLowerCase()
+    .trim(),
+  password: z.string().min(1, 'Password is required'),
+});
+
+export type LoginFormData = z.infer<typeof loginSchema>;
+
+// 4. Verify OTP Schema
+export const verifyOtpSchema = z.object({
+  email: z.string().email('Valid email is required').toLowerCase().trim(),
+  otp: z
+    .string()
+    .length(6, 'Verification code must be exactly 6 digits')
+    .regex(/^\d{6}$/, 'Verification code must contain only numbers'),
+});
+
+export type VerifyOtpData = z.infer<typeof verifyOtpSchema>;
+
+// 5. Resend OTP Schema
+export const resendOtpSchema = z.object({
+  email: z.string().email('Valid email is required').toLowerCase().trim(),
+});
+
+export type ResendOtpData = z.infer<typeof resendOtpSchema>;
 
 export interface ValidationErrors {
   [key: string]: string | undefined;
 }
 
-const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-
-export function validateEmail(email: string): string | null {
-  const trimmed = email.trim();
-  if (!trimmed) {
-    return 'Institutional email is required.';
-  }
-  if (!EMAIL_REGEX.test(trimmed)) {
-    return 'Please enter a valid email address (e.g. name@cit.edu.in).';
-  }
-  return null;
-}
-
-export function validatePassword(password: string): string | null {
-  if (!password) {
-    return 'Password is required.';
-  }
-  if (password.length < 8) {
-    return 'Password must be at least 8 characters long.';
-  }
-  if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
-    return 'Password should include at least one letter and one number for prototype security.';
-  }
-  return null;
-}
-
 export function validateSignupForm(data: SignupFormData): ValidationErrors {
+  const result = signupSchema.safeParse(data);
+  if (result.success) return {};
+
   const errors: ValidationErrors = {};
-
-  if (!data.fullName.trim()) {
-    errors.fullName = 'Full name is required.';
-  } else if (data.fullName.trim().length < 2) {
-    errors.fullName = 'Name must be at least 2 characters.';
+  for (const issue of result.error.issues) {
+    const field = issue.path[0]?.toString() || 'form';
+    if (!errors[field]) {
+      errors[field] = issue.message;
+    }
   }
-
-  const emailError = validateEmail(data.email);
-  if (emailError) {
-    errors.email = emailError;
-  }
-
-  if (!data.role) {
-    errors.role = 'Please select your intended role.';
-  }
-
-  const passwordError = validatePassword(data.password);
-  if (passwordError) {
-    errors.password = passwordError;
-  }
-
-  if (!data.confirmPassword) {
-    errors.confirmPassword = 'Confirmation password is required.';
-  } else if (data.password !== data.confirmPassword) {
-    errors.confirmPassword = 'Passwords do not match.';
-  }
-
-  if (!data.agreedToTerms) {
-    errors.agreedToTerms = 'You must acknowledge the prototype terms of use.';
-  }
-
   return errors;
 }
 
 export function validateLoginForm(data: LoginFormData): ValidationErrors {
+  const result = loginSchema.safeParse(data);
+  if (result.success) return {};
+
   const errors: ValidationErrors = {};
-
-  const emailError = validateEmail(data.email);
-  if (emailError) {
-    errors.email = emailError;
+  for (const issue of result.error.issues) {
+    const field = issue.path[0]?.toString() || 'form';
+    if (!errors[field]) {
+      errors[field] = issue.message;
+    }
   }
-
-  if (!data.password) {
-    errors.password = 'Password is required.';
-  } else if (data.password.length < 6) {
-    errors.password = 'Password must be at least 6 characters.';
-  }
-
   return errors;
 }

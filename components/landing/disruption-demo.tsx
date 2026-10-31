@@ -33,70 +33,73 @@ export const DisruptionDemo: React.FC = () => {
   };
 
   return (
-    <section id="disruption-demo" className="relative py-20 lg:py-32 scroll-mt-20 border-t border-[#F4F7FB]/08">
+    <section id="disruption-demo" className="relative py-24 lg:py-36 scroll-mt-20 border-t border-[#a855f7]/25">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center max-w-3xl mx-auto mb-14">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#101A2B] border border-[#F59E0B]/25 mb-4 text-xs font-mono text-[#F59E0B]">
-            <RotateCcw className="w-3.5 h-3.5" />
+        <div className="text-center max-w-4xl mx-auto mb-16">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#190938] to-[#2c0b4d] border-2 border-[#f59e0b]/60 mb-5 text-sm font-mono font-bold text-[#fde047] shadow-[0_0_20px_rgba(245,158,11,0.3)]">
+            <RotateCcw className="w-4 h-4 text-[#f59e0b]" />
             <span>INTERACTIVE DISRUPTION SIMULATION</span>
           </div>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#F4F7FB] tracking-tight mb-4">
-            Dynamic Disruption Repair in Action
+          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight mb-6">
+            Dynamic Disruption Repair{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#c084fc] via-[#f43f5e] to-[#fbbf24]">
+              in Action
+            </span>
           </h2>
-          <p className="text-base sm:text-lg text-[#98A6BB]">
+          <p className="text-lg sm:text-xl text-[#f1f5f9] font-medium leading-relaxed">
             Experience how CIT Nexus isolates an unexpected room outage and proposes an optimal alternative space with minimal student transit and zero cascade clashing.
           </p>
         </div>
 
         {/* Interactive Sandbox Card */}
-        <div className="max-w-4xl mx-auto rounded-3xl bg-[#0B1220] border border-[#F4F7FB]/12 p-6 sm:p-8 shadow-2xl shadow-black/70">
+        <div className="max-w-5xl mx-auto rounded-3xl bg-[#0e0424] border-2 border-[#a855f7]/40 p-8 sm:p-12 shadow-[0_20px_70px_rgba(0,0,0,0.8)] backdrop-blur-3xl">
           {/* Top Bar with Controller Button & State Label */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-[#F4F7FB]/10 gap-4">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-8 border-b border-white/10 gap-6">
+            <div className="flex items-center gap-4">
               <span
-                className={`w-3 h-3 rounded-full ${
+                className={`w-4 h-4 rounded-full ${
                   isRepaired
-                    ? 'bg-[#10B981]'
+                    ? 'bg-[#10b981] shadow-[0_0_12px_#10b981]'
                     : isDisrupted
-                    ? 'bg-[#EF4444] animate-ping'
-                    : 'bg-[#66E3F0]'
+                    ? 'bg-[#ef4444] animate-ping shadow-[0_0_12px_#ef4444]'
+                    : 'bg-[#fbbf24] shadow-[0_0_12px_#fbbf24]'
                 }`}
               />
               <div>
-                <div className="text-xs font-mono font-bold text-[#F4F7FB]">
+                <div className="text-base font-mono font-black text-white tracking-wider">
                   SIMULATION STATE:{' '}
                   {isRepaired
-                    ? 'REPAIR APPLIED (SCHEDULE RESTORED)'
+                    ? 'REPAIR COMMITTED (SCHEDULE RESTORED)'
                     : isDisrupted
                     ? 'UNPLANNED OUTAGE DETECTED'
                     : 'BASELINE SCHEDULE (OPTIMAL)'}
                 </div>
-                <div className="text-[11px] text-[#98A6BB]">
-                  Target: {MOCK_DISRUPTION.triggerVenue} • Time: {MOCK_DISRUPTION.triggerTime}
+                <div className="text-sm font-medium text-[#cbd5e1] mt-0.5">
+                  Target: <strong className="text-white">{MOCK_DISRUPTION.triggerVenue}</strong> • Window: {MOCK_DISRUPTION.triggerTime}
                 </div>
               </div>
             </div>
 
             {/* Toggle Action Button */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <button
                 type="button"
                 onClick={handleToggle}
-                className={`px-5 py-2.5 rounded-xl text-xs font-mono font-semibold transition-all duration-200 flex items-center gap-2 ${
+                className={`px-6 py-3.5 rounded-2xl text-sm font-mono font-black transition-all duration-300 flex items-center gap-2.5 shadow-xl hover:scale-105 ${
                   isDisrupted
-                    ? 'bg-[#101A2B] text-[#F4F7FB] border border-[#F4F7FB]/20 hover:bg-[#152238]'
-                    : 'bg-[#EF4444] hover:bg-[#dc2626] text-white shadow-lg shadow-red-500/20'
+                    ? 'bg-[#1c0838] text-white border-2 border-white/30 hover:border-white'
+                    : 'bg-gradient-to-r from-[#ef4444] to-[#f43f5e] text-white shadow-red-500/30'
                 }`}
               >
                 {isDisrupted ? (
                   <>
-                    <RotateCcw className="w-3.5 h-3.5" />
+                    <RotateCcw className="w-4 h-4" />
                     <span>Reset Simulation</span>
                   </>
                 ) : (
                   <>
-                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <AlertTriangle className="w-4 h-4" />
                     <span>Simulate Disruption</span>
                   </>
                 )}
@@ -105,129 +108,129 @@ export const DisruptionDemo: React.FC = () => {
           </div>
 
           {/* Interactive Scenario Stage */}
-          <div className="py-8">
+          <div className="py-10">
             <AnimatePresence mode="wait">
               {!isDisrupted ? (
                 /* 1. BASELINE OPTIMAL STATE */
                 <motion.div
                   key="baseline"
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
+                  exit={{ opacity: 0, y: -15 }}
                   className="space-y-6"
                 >
-                  <div className="p-5 rounded-2xl bg-[#101A2B]/60 border border-[#10B981]/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 rounded-xl bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30">
-                        <CheckCircle2 className="w-6 h-6" />
+                  <div className="p-6 sm:p-8 rounded-3xl bg-[#150733] border-2 border-[#10b981]/50 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="flex items-center gap-5">
+                      <div className="p-4 rounded-2xl bg-[#10b981]/20 text-[#34d399] border-2 border-[#10b981]/50 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                        <CheckCircle2 className="w-8 h-8" />
                       </div>
                       <div>
-                        <div className="text-xs font-mono text-[#10B981] font-semibold">
+                        <div className="text-xs font-mono font-black text-[#34d399] uppercase tracking-wider">
                           PRIMARY VENUE ACTIVE
                         </div>
-                        <div className="text-base font-bold text-[#F4F7FB]">
+                        <div className="text-2xl font-black text-white mt-0.5">
                           {MOCK_DISRUPTION.affectedClass.originalVenue}
                         </div>
-                        <div className="text-xs text-[#98A6BB]">
-                          {MOCK_DISRUPTION.affectedClass.code} • {MOCK_DISRUPTION.affectedClass.name} ({MOCK_DISRUPTION.affectedClass.faculty})
+                        <div className="text-sm font-medium text-[#cbd5e1] mt-1">
+                          <strong className="text-[#fbbf24]">{MOCK_DISRUPTION.affectedClass.code}</strong> • {MOCK_DISRUPTION.affectedClass.name} ({MOCK_DISRUPTION.affectedClass.faculty})
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-4 text-xs font-mono text-[#98A6BB]">
-                      <div className="flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5 text-[#66E3F0]" />
+                    <div className="flex items-center gap-6 text-sm font-mono font-bold text-white">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-[#38bdf8]" />
                         <span>{MOCK_DISRUPTION.affectedClass.students} Enrolled</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-[#8279FF]" />
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-[#c084fc]" />
                         <span>10:15 – 11:45</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="text-center py-6 text-xs text-[#98A6BB] border border-dashed border-[#F4F7FB]/10 rounded-2xl">
-                    Click &ldquo;Simulate Disruption&rdquo; above to trigger an unexpected room outage and view the automatic constraint rerouting process.
+                  <div className="text-center py-10 text-base text-[#cbd5e1] font-medium border-2 border-dashed border-[#a855f7]/30 rounded-3xl bg-white/[0.02]">
+                    Click <strong className="text-[#f43f5e] font-bold">&ldquo;Simulate Disruption&rdquo;</strong> above to trigger an unexpected room outage and view the automatic constraint rerouting process.
                   </div>
                 </motion.div>
               ) : (
                 /* 2. DISRUPTED / REPAIR PROPOSAL STATE */
                 <motion.div
                   key="disrupted"
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="space-y-6"
+                  exit={{ opacity: 0, y: -15 }}
+                  className="space-y-8"
                 >
                   {/* Incident Alert Banner */}
-                  <div className="p-4 rounded-2xl bg-[#EF4444]/15 border border-[#EF4444]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <AlertTriangle className="w-5 h-5 text-[#EF4444] shrink-0" />
+                  <div className="p-6 rounded-3xl bg-[#ef4444]/20 border-2 border-[#ef4444]/60 shadow-[0_0_30px_rgba(239,68,68,0.3)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <AlertTriangle className="w-8 h-8 text-[#ef4444] shrink-0" />
                       <div>
-                        <span className="text-xs font-mono font-bold text-[#EF4444]">
-                          CRITICAL FAULT: {MOCK_DISRUPTION.triggerReason}
+                        <span className="text-sm font-mono font-black text-[#fca5a5] uppercase tracking-wider block">
+                          CRITICAL OUTAGE: {MOCK_DISRUPTION.triggerReason}
                         </span>
-                        <p className="text-xs text-[#F4F7FB]/80">
+                        <p className="text-sm font-medium text-white mt-1">
                           {MOCK_DISRUPTION.triggerVenue} marked unavailable. 82 students in {MOCK_DISRUPTION.affectedClass.code} require emergency reassignment.
                         </p>
                       </div>
                     </div>
-                    <span className="text-[10px] font-mono px-2 py-1 rounded bg-[#EF4444]/20 text-[#EF4444] border border-[#EF4444]/40 whitespace-nowrap self-start sm:self-center">
+                    <span className="text-xs font-mono font-black px-3.5 py-1.5 rounded-lg bg-[#ef4444]/30 text-[#fca5a5] border border-[#ef4444]/60 whitespace-nowrap self-start sm:self-center">
                       ROOM ISOLATED
                     </span>
                   </div>
 
                   {/* Proposed Repair Card */}
-                  <div className="p-6 rounded-2xl bg-[#101A2B] border border-[#10B981]/40 shadow-xl">
-                    <div className="flex items-center justify-between pb-4 mb-4 border-b border-white/08">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-[#10B981]" />
-                        <span className="text-xs font-mono font-bold text-[#10B981]">
+                  <div className="p-8 sm:p-10 rounded-3xl bg-[#14062e] border-2 border-[#34d399]/60 shadow-2xl">
+                    <div className="flex items-center justify-between pb-6 mb-6 border-b border-white/10 flex-wrap gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <Sparkles className="w-5 h-5 text-[#34d399]" />
+                        <span className="text-sm font-mono font-black text-[#34d399] tracking-wider">
                           NEXUS SOLVER PROPOSED REPAIR CANDIDATE
                         </span>
                       </div>
-                      <span className="text-xs font-mono font-bold text-[#10B981] px-2.5 py-0.5 rounded-full bg-[#10B981]/15 border border-[#10B981]/30">
+                      <span className="text-xs font-mono font-black text-[#04010a] px-3.5 py-1 rounded-full bg-gradient-to-r from-[#34d399] to-[#fbbf24] shadow-md">
                         CONFIDENCE: {MOCK_DISRUPTION.repairRecommendation.confidenceScore}%
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                       <div>
-                        <div className="text-xs text-[#98A6BB] mb-1 font-mono">RECOMMENDED REASSIGNMENT</div>
-                        <h4 className="text-xl font-bold text-[#F4F7FB] mb-3">
+                        <div className="text-xs text-[#fbbf24] mb-1 font-mono font-bold tracking-wider">RECOMMENDED REASSIGNMENT</div>
+                        <h4 className="text-2xl font-black text-white mb-4">
                           {MOCK_DISRUPTION.repairRecommendation.recommendedVenue}
                         </h4>
 
-                        <div className="space-y-2 text-xs text-[#98A6BB]">
-                          <div className="flex items-center gap-2">
-                            <Users className="w-3.5 h-3.5 text-[#66E3F0]" />
+                        <div className="space-y-3 text-sm font-medium text-[#cbd5e1]">
+                          <div className="flex items-center gap-3">
+                            <Users className="w-4 h-4 text-[#38bdf8]" />
                             <span>{MOCK_DISRUPTION.repairRecommendation.capacityDelta}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Navigation className="w-3.5 h-3.5 text-[#8279FF]" />
+                          <div className="flex items-center gap-3">
+                            <Navigation className="w-4 h-4 text-[#c084fc]" />
                             <span>Transit Distance: {MOCK_DISRUPTION.repairRecommendation.distance}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981]" />
+                          <div className="flex items-center gap-3">
+                            <CheckCircle2 className="w-4 h-4 text-[#34d399]" />
                             <span>AV Specs: {MOCK_DISRUPTION.repairRecommendation.avCompatibility}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <RotateCcw className="w-3.5 h-3.5 text-[#38BDF8]" />
+                          <div className="flex items-center gap-3">
+                            <RotateCcw className="w-4 h-4 text-[#fbbf24]" />
                             <span>Downstream Conflicts: {MOCK_DISRUPTION.repairRecommendation.cascadeConflictsCount} (Isolated)</span>
                           </div>
                         </div>
                       </div>
 
                       {/* Rejected Alternatives Diagnostic */}
-                      <div className="p-4 rounded-xl bg-[#070A12] border border-white/06 space-y-2">
-                        <div className="text-[11px] font-mono text-[#98A6BB] font-bold">
+                      <div className="p-6 rounded-2xl bg-[#080214] border-2 border-white/10 space-y-3">
+                        <div className="text-xs font-mono text-[#fbbf24] font-black uppercase tracking-wider">
                           REJECTED CANDIDATES EVALUATED:
                         </div>
                         {MOCK_DISRUPTION.rejectedCandidates.map((rej, i) => (
-                          <div key={i} className="text-[11px] text-[#98A6BB] flex items-start gap-2">
-                            <XCircle className="w-3.5 h-3.5 text-[#EF4444] shrink-0 mt-0.5" />
+                          <div key={i} className="text-xs font-medium text-[#cbd5e1] flex items-start gap-2.5">
+                            <XCircle className="w-4 h-4 text-[#ef4444] shrink-0 mt-0.5" />
                             <div>
-                              <strong className="text-[#F4F7FB]">{rej.venue}</strong>: {rej.reason}
+                              <strong className="text-white font-bold">{rej.venue}</strong>: {rej.reason}
                             </div>
                           </div>
                         ))}
@@ -235,8 +238,8 @@ export const DisruptionDemo: React.FC = () => {
                     </div>
 
                     {/* Commit Repair Action */}
-                    <div className="mt-6 pt-4 border-t border-white/08 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <span className="text-xs text-[#98A6BB] font-mono">
+                    <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <span className="text-sm text-[#cbd5e1] font-mono">
                         Authorizing will automatically notify Prof. Ray and 82 enrolled students via push notifications.
                       </span>
 
@@ -244,14 +247,14 @@ export const DisruptionDemo: React.FC = () => {
                         <button
                           type="button"
                           onClick={handleApplyRepair}
-                          className="px-5 py-2 rounded-xl text-xs font-semibold text-[#070A12] bg-[#10B981] hover:bg-[#34d399] transition-all flex items-center justify-center gap-2 self-start sm:self-center whitespace-nowrap shadow-lg shadow-emerald-500/20"
+                          className="px-8 py-3.5 rounded-2xl text-sm font-black text-[#04010a] bg-gradient-to-r from-[#34d399] to-[#fbbf24] hover:opacity-95 transition-all flex items-center justify-center gap-2.5 self-start sm:self-center whitespace-nowrap shadow-[0_0_25px_rgba(52,211,153,0.5)] hover:scale-105"
                         >
-                          <CheckCircle2 className="w-4 h-4" />
+                          <CheckCircle2 className="w-5 h-5 stroke-[3]" />
                           <span>Approve & Dispatch Reroute</span>
                         </button>
                       ) : (
-                        <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#10B981]/20 text-[#10B981] text-xs font-mono font-bold border border-[#10B981]/40">
-                          <CheckCircle2 className="w-4 h-4" />
+                        <span className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-[#10b981]/25 text-[#34d399] text-sm font-mono font-black border-2 border-[#10b981] shadow-lg">
+                          <CheckCircle2 className="w-5 h-5 stroke-[3]" />
                           <span>REROUTE COMMITTED • NOTIFICATIONS SENT</span>
                         </span>
                       )}
@@ -263,12 +266,12 @@ export const DisruptionDemo: React.FC = () => {
           </div>
 
           {/* Transparent Simulation Disclaimer Note */}
-          <div className="pt-4 border-t border-[#F4F7FB]/08 flex items-center justify-between text-[11px] font-mono text-[#98A6BB]">
-            <div className="flex items-center gap-2">
-              <Info className="w-3.5 h-3.5 text-[#66E3F0]" />
+          <div className="pt-6 border-t border-white/10 flex items-center justify-between text-xs font-mono font-bold text-[#cbd5e1]">
+            <div className="flex items-center gap-2.5">
+              <Info className="w-4 h-4 text-[#fbbf24]" />
               <span>Deterministic frontend demonstration model. Production uses mathematical constraint solvers.</span>
             </div>
-            <span className="hidden sm:inline text-white/30">CIT NEXUS REPAIR SIM v1.0</span>
+            <span className="hidden sm:inline text-white/40">CIT NEXUS REPAIR SIM v1.0</span>
           </div>
         </div>
       </div>
