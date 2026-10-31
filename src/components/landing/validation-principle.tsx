@@ -7,8 +7,6 @@ import {
   Cpu,
   UserCheck2,
   CalendarCheck2,
-  AlertOctagon,
-  ShieldAlert,
   CheckCircle,
 } from 'lucide-react';
 
@@ -25,7 +23,7 @@ export const ValidationPrinciple: React.FC = () => {
         'A faculty member, department coordinator, or club representative inputs a request—either through an everyday natural-language prompt or standard requisition form.',
       icon: MessageSquareQuote,
       badge: 'INPUT LAYER',
-      accent: '#38bdf8',
+      accent: '#6366F1',
     },
     {
       step: '02',
@@ -36,7 +34,7 @@ export const ValidationPrinciple: React.FC = () => {
         'The natural-language assistant extracts requirements: intended headcounts, pedagogical category, time windows, and technical audiovisual provisions into an editable draft.',
       icon: FileCode2,
       badge: 'NON-AUTHORITATIVE',
-      accent: '#c084fc',
+      accent: '#818CF8',
     },
     {
       step: '03',
@@ -47,7 +45,7 @@ export const ValidationPrinciple: React.FC = () => {
         'The scheduling rules engine runs hard mathematical checks: zero double-booking overlaps, capacity thresholds, student cohort timetables, building access quotas, and fire codes.',
       icon: Cpu,
       badge: 'MATHEMATICAL TRUTH',
-      accent: '#34d399',
+      accent: '#22D3EE',
     },
     {
       step: '04',
@@ -58,7 +56,7 @@ export const ValidationPrinciple: React.FC = () => {
         'A designated faculty dean or venue administrator reviews the verified requisition. Requesters are strictly prohibited from approving their own bookings.',
       icon: UserCheck2,
       badge: 'GOVERNANCE CHECK',
-      accent: '#fbbf24',
+      accent: '#F59E0B',
     },
     {
       step: '05',
@@ -69,32 +67,32 @@ export const ValidationPrinciple: React.FC = () => {
         'Once sanctioned by both deterministic constraints and human signoff, the booking is broadcasted to institute master timetables, electronic door locks, and student portals.',
       icon: CalendarCheck2,
       badge: 'COMMITTED STATE',
-      accent: '#f43f5e',
+      accent: '#10B981',
     },
   ];
 
   return (
-    <section id="validation-principle" className="relative py-24 lg:py-36 scroll-mt-20 border-t border-[#a855f7]/25">
+    <section id="validation-principle" className="relative py-20 lg:py-32 scroll-mt-20 border-t border-[rgba(255, 255, 255, 0.08)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <div className="max-w-4xl mb-20">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#190938] to-[#2c0b4d] border-2 border-[#34d399]/60 mb-5 text-sm font-mono font-bold text-[#6ee7b7] shadow-[0_0_20px_rgba(52,211,153,0.3)]">
-            <CheckCircle className="w-4 h-4 text-[#34d399]" />
+        <div className="max-w-3xl mb-16">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(255, 255, 255, 0.08)] mb-4 text-xs font-mono font-semibold text-[#10B981] shadow-sm">
+            <CheckCircle className="w-3.5 h-3.5 text-[#10B981]" />
             <span>FOUNDATIONAL ARCHITECTURE PRINCIPLE</span>
           </div>
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.08] mb-6">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#F8FAFC] tracking-tight leading-[1.12] mb-4">
             Intelligence proposes.{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#c084fc] via-[#f43f5e] to-[#fbbf24]">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#6366F1] via-[#818CF8] to-[#22D3EE]">
               Constraints decide.
             </span>
           </h2>
-          <p className="text-lg sm:text-xl text-[#f1f5f9] font-medium leading-relaxed">
+          <p className="text-base sm:text-lg text-[#A7B3C9] font-normal leading-relaxed">
             In university administration, hallucinated room bookings or automated self-approvals cause campus-wide chaos. CIT Nexus strictly decouples intelligent natural-language drafting from deterministic mathematical policy enforcement.
           </p>
         </div>
 
         {/* 5-Step Pipeline Flow */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-5 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-12">
           {steps.map((st, idx) => {
             const Icon = st.icon;
             const isHighlighted = activeStep === idx;
@@ -102,105 +100,116 @@ export const ValidationPrinciple: React.FC = () => {
               <div
                 key={st.step}
                 onClick={() => setActiveStep(idx)}
-                className={`p-6 rounded-3xl border-2 cursor-pointer transition-all duration-300 flex flex-col justify-between ${
+                className={`p-5 rounded-2xl border cursor-pointer transition-all duration-200 flex flex-col justify-between ${
                   isHighlighted
-                    ? 'bg-[#180838] border-[#fbbf24] shadow-[0_0_30px_rgba(251,191,36,0.5)] scale-105'
-                    : 'bg-[#0f0426]/80 border-[#a855f7]/30 hover:border-[#a855f7]/70 hover:bg-[#140633]'
+                    ? 'bg-[#111B30] border-[#22D3EE] shadow-[0_4px_24px_rgba(34,211,238,0.2)]'
+                    : 'bg-[#0D1426] border-[rgba(255, 255, 255, 0.08)] hover:border-[#6366F1]/50 hover:bg-[#111B30]/60'
                 }`}
               >
                 <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="font-mono text-sm font-black text-white">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-mono text-xs font-bold text-[#A7B3C9]">
                       STEP {st.step}
                     </span>
                     <span
-                      className="text-[10px] font-mono font-black px-2.5 py-0.5 rounded-full border shadow-sm"
+                      className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full border"
                       style={{
                         color: st.accent,
-                        backgroundColor: `${st.accent}20`,
-                        borderColor: `${st.accent}60`,
+                        backgroundColor: `${st.accent}15`,
+                        borderColor: `${st.accent}30`,
                       }}
                     >
                       {st.badge}
                     </span>
                   </div>
 
-                  <div className="p-3.5 rounded-2xl bg-[#080214] border border-white/10 inline-block mb-4">
-                    <Icon className="w-6 h-6" style={{ color: st.accent }} />
+                  <div className="flex items-center gap-2 mb-3">
+                    <div
+                      className="p-2 rounded-lg border shrink-0"
+                      style={{
+                        backgroundColor: `${st.accent}15`,
+                        borderColor: `${st.accent}35`,
+                        color: st.accent,
+                      }}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-mono font-bold text-[#F8FAFC]">
+                      {st.role}
+                    </span>
                   </div>
 
-                  <h3 className="text-base font-black text-white mb-1.5 leading-snug">
+                  <h3 className="text-sm font-bold text-[#F8FAFC] leading-snug mb-2">
                     {st.title}
                   </h3>
-                  <div className="text-xs font-mono font-black text-[#fbbf24] mb-3">
-                    {st.role}
-                  </div>
+
+                  <p className="text-xs text-[#A7B3C9] leading-relaxed">
+                    {st.description}
+                  </p>
                 </div>
 
-                <p className="text-sm text-[#cbd5e1] font-medium leading-relaxed pt-3 border-t border-white/10">
-                  {st.description}
-                </p>
+                <div className="mt-4 pt-3 border-t border-[rgba(148,163,184,0.1)] text-[10px] font-mono text-[#A7B3C9]">
+                  {isHighlighted ? '● Active Inspector' : 'Click to inspect'}
+                </div>
               </div>
             );
           })}
         </div>
 
-        {/* Strict Authority Boundary Callout Matrix */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 rounded-3xl bg-[#0f0426]/90 border-2 border-[#a855f7]/40 p-8 sm:p-10 shadow-2xl backdrop-blur-2xl">
-          <div className="p-6 sm:p-8 rounded-2xl bg-[#080214] border-2 border-[#c084fc]/30 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2.5 text-xs font-mono font-black text-[#c084fc] mb-3">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#c084fc] shadow-[0_0_8px_#c084fc]" />
-                WHAT AI DOES
-              </div>
-              <h4 className="text-xl font-black text-white mb-3">
-                Synthesize, Draft & Explain
-              </h4>
-              <p className="text-sm text-[#cbd5e1] font-medium leading-relaxed">
-                Interprets natural-language emails into structured request schemas, suggests suitable venues matching capacity, and provides human-readable explanations of schedule conflicts.
-              </p>
-            </div>
-            <div className="mt-6 pt-4 border-t border-white/10 text-xs font-mono font-bold text-[#c084fc]">
-              &bull; Advisory & drafting only
-            </div>
-          </div>
+        {/* Selected Step Detailed Diagnostic Box */}
+        {(() => {
+          const sel = steps[activeStep];
+          return (
+            <div className="p-6 rounded-2xl bg-[#0D1426] border border-[rgba(255, 255, 255, 0.08)] shadow-lg">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-start gap-4">
+                  <div
+                    className="p-3 rounded-xl border shrink-0 mt-0.5"
+                    style={{
+                      backgroundColor: `${sel.accent}15`,
+                      borderColor: `${sel.accent}35`,
+                      color: sel.accent,
+                    }}
+                  >
+                    {React.createElement(sel.icon, { className: 'w-6 h-6' })}
+                  </div>
 
-          <div className="p-6 sm:p-8 rounded-2xl bg-[#080214] border-2 border-[#ef4444]/40 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2.5 text-xs font-mono font-black text-[#f87171] mb-3">
-                <AlertOctagon className="w-4 h-4 text-[#ef4444]" />
-                WHAT AI NEVER DOES
-              </div>
-              <h4 className="text-xl font-black text-white mb-3">
-                No Final Grant & No Override
-              </h4>
-              <p className="text-sm text-[#cbd5e1] font-medium leading-relaxed">
-                The AI cannot approve bookings, cannot override campus hard constraints, cannot bypass department authority, and cannot alter scheduled examinations autonomously.
-              </p>
-            </div>
-            <div className="mt-6 pt-4 border-t border-white/10 text-xs font-mono font-bold text-[#f87171]">
-              &bull; Zero unverified AI authority
-            </div>
-          </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-xs font-bold text-[#A7B3C9]">
+                        STAGE {sel.step} RECONCILIATION DETAIL:
+                      </span>
+                      <span
+                        className="text-[10px] font-mono font-bold px-2 py-0.5 rounded"
+                        style={{ color: sel.accent, backgroundColor: `${sel.accent}15` }}
+                      >
+                        {sel.role}
+                      </span>
+                    </div>
 
-          <div className="p-6 sm:p-8 rounded-2xl bg-[#080214] border-2 border-[#34d399]/40 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2.5 text-xs font-mono font-black text-[#34d399] mb-3">
-                <ShieldAlert className="w-4 h-4 text-[#34d399]" />
-                DETERMINISTIC GUARANTEE
+                    <h4 className="text-lg font-bold text-[#F8FAFC] mb-1">
+                      {sel.title}
+                    </h4>
+
+                    <p className="text-xs sm:text-sm text-[#A7B3C9] max-w-3xl">
+                      {sel.description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 self-end md:self-center shrink-0">
+                  <div className="text-right">
+                    <div className="text-[10px] font-mono text-[#A7B3C9] uppercase">Verification Status</div>
+                    <div className="text-xs font-bold text-[#10B981] flex items-center gap-1 mt-0.5">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Passed Integrity Checks
+                    </div>
+                  </div>
+                </div>
               </div>
-              <h4 className="text-xl font-black text-white mb-3">
-                Strict Rules & Human Authorization
-              </h4>
-              <p className="text-sm text-[#cbd5e1] font-medium leading-relaxed">
-                Every calendar commit requires mathematical zero-overlap proof from the hard rules solver plus explicit cryptographic signoff from the responsible human department administrator.
-              </p>
             </div>
-            <div className="mt-6 pt-4 border-t border-white/10 text-xs font-mono font-bold text-[#34d399]">
-              &bull; 100% human-in-the-loop audit trail
-            </div>
-          </div>
-        </div>
+          );
+        })()}
       </div>
     </section>
   );
