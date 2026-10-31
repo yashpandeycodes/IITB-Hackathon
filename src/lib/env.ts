@@ -72,7 +72,13 @@ const EnvSchema = z.object({
   LLM_ENABLED: boolFlag.default(true),
   LLM_TIMEOUT_MS: positiveMs.default(8000),
   // Solver
-  SOLVER_TIME_BUDGET_MS: positiveMs.default(8000),
+  /** Safety cap on active solver time; the request schema allows the same maximum (30 s). */
+  SOLVER_TIME_BUDGET_MS: z.coerce
+    .number()
+    .int()
+    .min(200)
+    .max(30_000)
+    .default(8000),
   SOLVER_SEED: z.coerce.number().int().min(0).max(0xffff_ffff).default(42),
   // App
   TEAM_NAME: z.string().trim().min(1).default("CIT Crunch Week"),

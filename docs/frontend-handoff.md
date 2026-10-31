@@ -1,6 +1,6 @@
 # Frontend Handoff
 
-> For the frontend teammates. The backend is being built phase by phase on the `Aryan` branch. Phase 2 is done (engine checker, data layer, auth, read APIs); generation, exports, bookings, the AI layer and rescheduling come in Phases 3–5. This page lists what the backend provides now and the items found in review that live in frontend files. API details: [api.md](./api.md). Data shapes: `src/lib/contracts` (import types from `@/lib/contracts`).
+> For the frontend teammates. The backend is being built phase by phase on the `Aryan` branch. Phases 2–3 are done (engine checker, data layer, auth, read APIs; timetable generation, exams, Spectra decisions, export and the validator report); bookings, the AI layer and rescheduling come in Phases 4–5. This page lists what the backend provides now and the items found in review that live in frontend files. The end-of-Phase-3 review of the merged frontend (what's wired, what's fake, what to fix first) is in [project-status.md](./project-status.md). API details: [api.md](./api.md). Data shapes: `src/lib/contracts` (import types from `@/lib/contracts`).
 
 ## Working on the shared layout
 
@@ -11,7 +11,7 @@
 
 ## Backend endpoints you can use now
 
-_As of Phase 2 (auth, data, read views). Request/response shapes and examples: [api.md](./api.md)._
+_As of Phase 3 (auth, data, read views, generation, exams, Spectra, export). Request/response shapes and examples: [api.md](./api.md)._
 
 | UI | Endpoint | Notes |
 |---|---|---|
@@ -21,13 +21,19 @@ _As of Phase 2 (auth, data, read views). Request/response shapes and examples: [
 | Current user (app shell, user menu, role badge) | `GET /api/auth/me` | `data` = `User`; `401` when signed out. |
 | Sign out | `POST /api/auth/logout` | POST only (`logout-button.tsx` already does this). |
 | Dashboard KPIs, pending approvals, room-utilisation heat map | `GET /api/dashboard` | Role-aware. Counts are 0 and version fields `null` before a timetable is generated. |
-| Timetable grids (group / faculty / room; Regular / Spectra) | `GET /api/timetable?view=group&id=CSE-2&week=regular` | `version_id: null` + empty `cells` until generation lands (Phase 3): show the empty state, not an error. Unknown id → `404`. |
+| Timetable grids (group / faculty / room; Regular / Spectra) | `GET /api/timetable?view=group&id=CSE-2&week=regular` | `version_id: null` + empty `cells` until a timetable is generated (a reset generates and activates one): show the empty state, not an error. Unknown id → `404`. |
 | Live check while dragging a session | `POST /api/timetable/check` `{"assignments":[…]}` | Returns `violations` + `soft_penalty` for the merged timetable and `soft_delta` against the active one (`null` until there is one); nothing is saved. |
 | Find a room | `GET /api/rooms/available?day=THU&from_period=10&to_period=12&min_capacity=150&needs=stage` | Week-7 picture. `use` defaults to `event` (pass `use=lab` etc. for other purposes). Free rooms first; `busy_with` says what holds each busy one. |
-| Admin › Reset demo data | `POST /api/admin/reset` (optional `{"from":"stored"}` to keep the last upload) | Admin only. Loads the bundled dataset by default; returns counts per collection. `409 CONFLICT` while another reset/import runs. |
-| Admin › Load dataset | `POST /api/admin/dataset` with the file's text as the JSON body | Admin only, ≤ 2 MB. On `400`, list `error.details.issues` (`{ path, message }`, incl. unknown ids); `409` while a reset/import runs. |
+| Admin › Reset demo data | `POST /api/admin/reset` (optional `{"from":"stored"}` to keep the last upload) | Admin only. Loads the bundled dataset by default; returns counts per collection. `409 CONFLICT` while another reset, import or schedule run holds the lock. |
+| Admin › Load dataset | `POST /api/admin/dataset` with the file's text as the JSON body | Admin only, ≤ 2 MB. On `400`, list `error.details.issues` (`{ path, message }`, incl. unknown ids); `409` while a reset, import or schedule run holds the lock. |
 | Admin › Settings (priority order, LLM toggle, reference date, seed) | `GET /api/settings` · `PATCH /api/settings` | GET for any role; PATCH admin only, any subset of fields. |
 | Status indicator | `GET /api/health` | Public; `db: "up" \| "down"`. |
+| Admin › **Generate timetable** (with a live progress bar) | `POST /api/timetable/generate` `{"activate":true}` with `Accept: text/event-stream` | Admin only. Read the body with `fetch` + `response.body.getReader()` (not `EventSource`, which can't POST). Frames: `event: progress` (`SolverProgress`: `phase`, `iteration`, `hard`, `soft`, `fest`, `best`, `ms`) many times, then one `event: result` (`GenerateTimetableResult`) or `event: error` (`{code, message}`). Without the header it returns the normal JSON envelope. `409` while another run/reset holds the lock; `422 INFEASIBLE` if sessions can't all be placed. Takes a few seconds. |
+| Admin › Timetable versions (history, activate) | `GET /api/timetable/versions` · `POST /api/timetable/versions/{id}/activate` | Admin only. The list has no assignments (`assignment_count` instead). Activation re-checks the version and re-runs Spectra decisions; it returns `{version, spectra}` (booking score, approved/alternatives/rejected counts). `409 STALE_VERSION` if the version belongs to another dataset. |
+| Exams page | `GET /api/exams` (any role) · `POST /api/exams/generate` (admin) | `data` = the active `ExamSchedule` (`exams[]`: `{exam_id, day, session: "AM"\|"PM", rooms[]}`, `penalty`) or `null` before one exists. Reset generates one automatically. |
+| Spectra › **Run decisions** | `POST /api/spectra/run` | Admin only. Re-decides every Week-7 request against the active timetable. `data` = summary (`booking_score` / `booking_score_max_if_all_approved`, counts, `priority_inversions`) + `decisions[]` (each with `status`, slot, `reason`, `reason_code`, `effective_category`, `category_capped` → show a "category capped" badge, `requires_admin_approval`) + `overrides[]` (sessions moved for Week 7). `404` before a timetable exists. The Spectra-week timetable view (`week=spectra`) already shows the results. |
+| Admin › **Export schedule.json** | `GET /api/export?file=schedule` | Admin only. The response is the file (`content-disposition: attachment`). Check `GET /api/validate` first and only enable the download link when `hard_violation_count === 0`; otherwise the export answers `409 HARD_CONSTRAINT` (or `409 CONFLICT` if Spectra decisions are missing) and you should show the validator panel. |
+| Admin › **Validator report** panel | `GET /api/validate` | Admin only. `data` = `ValidatorReport`, the same sections as the official `validator.py`: `hard_violation_count`, `hard_by_rule`, `hard_violations[]` (`rule`, `where`, `detail`), `soft_penalties` S1–S6 + `soft_total`, `bookings` (score, max, approved/alternatives/rejected, `priority_inversions`), `exam_soft_penalty`, `warnings[]`. |
 
 **Auth notes for the UI**
 
@@ -40,8 +46,10 @@ _As of Phase 2 (auth, data, read views). Request/response shapes and examples: [
 - **Sign-up is Club Representative only.** Faculty gets `403` ("Faculty accounts are set up by the Dean's office…"), Admin and Department Coordinator too. Hide all three in the role picker (`signup-form.tsx` currently defaults to Faculty).
 - **Keep the OTP step in the same browser.** Sign-up (and sign-in to an unverified account) sets an httpOnly verification cookie that `verify-otp` and `resend-otp` require; another browser gets `400`, and a second sign-up for the same email from elsewhere gets `409 CONFLICT` while the code is active.
 - **Google sign-in isn't available.** `/api/auth/google` always redirects to `/login?error=google_unavailable`. Hide the button (`login-form.tsx` links to it) or show a message when that query parameter is present.
-- **Downloads (Phase 3+).** Export links to `/api/export` will be plain `<a download>` anchors, not `fetch` calls.
-- **App shell role.** `src/app/(app)/layout.tsx` still hard-codes `role = "admin"`; read the user from `GET /api/auth/me` (or the session on the server) instead.
+- **Downloads.** A plain `<a href="/api/export?file=schedule" download>` works (the browser sends the session cookie), but it can't see an error status: call `GET /api/validate` first and enable the link only when `hard_violation_count === 0`, or `fetch` the export and save the blob.
+- **Schedule runs are rate-limited.** Generate, activate, exam generation and Spectra share a quota (30 per admin per 10 minutes): show the `429` message and disable the buttons while a run is in progress.
+- **After a reset the app has data.** `POST /api/admin/reset` now generates and activates a timetable, schedules exams and runs Spectra (a few seconds), so the timetable grids, dashboard and Spectra views are populated straight away. Show a spinner on the reset button.
+- **App shell role.** `src/components/layout/app-shell.tsx` defaults to role "Admin" and the name "Dr. Rajesh Verma", and most pages pass nothing; read the user once from `GET /api/auth/me` (or the session on the server, in one shared layout) and pass it down. Full review: [project-status.md](./project-status.md).
 
 ## Items in frontend files (found in review)
 

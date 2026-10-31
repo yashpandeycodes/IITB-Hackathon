@@ -4,11 +4,30 @@
  */
 import type { Db } from "mongodb";
 import type {
+  Assignment,
+  ExamDay,
+  ExamPlacement,
+  SessionOverride,
   SessionUser,
   SoftPenaltySummary,
+  SolverProgress,
   StoredBookingDecision,
 } from "@/lib/contracts";
 import { getBundledDataset } from "@/lib/dataset";
+import type {
+  BookingFacts,
+  EngineBookingDecision,
+  ExamSolveResult,
+  Instance,
+  SolverOptions,
+  SolverResult,
+  SpectraDecisionResult,
+} from "@/lib/engine";
+// Direct module imports, so the fakes stay real when a test mocks the `@/lib/engine` barrel.
+import { checkBookings } from "@/lib/engine/bookings-check";
+import { checkTimetable, toAssignMap } from "@/lib/engine/checker";
+import { checkExams } from "@/lib/engine/exams-check";
+import { softScore } from "@/lib/engine/soft";
 import { replaceBookingDecisions } from "@/lib/db/repos/booking-decisions";
 import { replaceSessionOverrides } from "@/lib/db/repos/session-overrides";
 import {
@@ -196,6 +215,7 @@ export const ZERO_SOFT: SoftPenaltySummary = {
 const decisionBase = {
   effective_category: "club_event",
   category_capped: false,
+  requires_admin_approval: false,
   auto: true,
   decided_by: "engine",
   approved_by: null,
@@ -314,3 +334,209 @@ export const USERS = {
     club: "Drama Club",
   },
 } as const satisfies Record<string, SessionUser>;
+
+// ------------------------------------------------------------------ Phase 3 engine fakes
+
+/**
+ * The tiny dataset with BR-02 turned into an admin's institute event, so it may displace a
+ * class (guest lectures may not), and AUD open for exams (no tiny room is): the fakes below then
+ * produce a fully valid schedule.
+ */
+export function phase3Dataset() {
+  const dataset = tinyDataset();
+  return {
+    ...dataset,
+    rooms: dataset.rooms.map((room) =>
+      room.id === "AUD"
+        ? { ...room, allowed_uses: [...room.allowed_uses, "exam"] }
+        : room,
+    ),
+    booking_requests: dataset.booking_requests.map((request) =>
+      request.id === "BR-02"
+        ? {
+            ...request,
+            requester: "Dean's Office",
+            role: "admin",
+            requested_category: "institute_event",
+            title: "Institute address",
+          }
+        : request,
+    ),
+  };
+}
+
+/** A valid regular week for the tiny dataset (labs start at P2 or P6). */
+export const TINY_ASSIGNMENTS: Assignment[] = [
+  { session_id: "C1-L1", day: "MON", start_period: 1, room_id: "CR-1" },
+  { session_id: "C1-L2", day: "THU", start_period: 3, room_id: "LH-1" },
+  { session_id: "C1-P1", day: "TUE", start_period: 2, room_id: "CS-LAB" },
+];
+
+const FAKE_PROGRESS: SolverProgress[] = [
+  {
+    phase: "construct",
+    iteration: 3,
+    hard: 0,
+    soft: 9,
+    fest: 2,
+    best: 11,
+    temperature: null,
+    ms: 1,
+  },
+  {
+    phase: "anneal",
+    iteration: 1200,
+    hard: 0,
+    soft: 4,
+    fest: 0,
+    best: 4,
+    temperature: 0.5,
+    ms: 10,
+  },
+];
+
+/**
+ * A stand-in for `solveSteps`: yields two snapshots, then returns `assignments` (kept to the
+ * instance's sessions) with real `checkTimetable`/`softScore` results, so a missing session
+ * comes back unplaced with an H1, as the real solver reports it.
+ */
+export function fakeSolveSteps(
+  assignments: readonly Assignment[] = TINY_ASSIGNMENTS,
+  extra: Partial<SolverResult> = {},
+) {
+  return function* (
+    instance: Instance,
+    options: SolverOptions,
+  ): Generator<SolverProgress, SolverResult, void> {
+    for (const progress of FAKE_PROGRESS) yield progress;
+    const placed = assignments.filter((a) =>
+      instance.sessions.has(a.session_id),
+    );
+    const placedIds = new Set(placed.map((a) => a.session_id));
+    return {
+      assignments: placed,
+      unplaced: [...instance.sessions.keys()].filter(
+        (id) => !placedIds.has(id),
+      ),
+      hard: checkTimetable(instance, placed).violations,
+      soft: softScore(instance, placed),
+      fest: { cost: 3, weight_per_point: 2, demands: [], blocked: [] },
+      seed: options.seed,
+      iterations: 1234,
+      ms: 12.6,
+      stopped_by: "converged",
+      algorithm: "fake-solver",
+      issues: [],
+      ...extra,
+    };
+  };
+}
+
+const FAKE_FACTS: BookingFacts = {
+  attendance: 0,
+  duration: 1,
+  series_id: null,
+  requested_room: null,
+  requested_room_known: true,
+  room_suggestion: null,
+  requested_room_missing: [],
+  candidate_rooms: [],
+  largest_room: null,
+  blocked_by: [],
+  displaced: [],
+};
+
+/**
+ * A stand-in for `decideBookings` on {@link phase3Dataset}: BR-01 approved in AUD, BR-02
+ * approved with C1-L2 moved to THU P5 for Week 7, BR-03 rejected as cancelled. Stats and
+ * violations come from the real `checkBookings`, as the engine's self-check does.
+ */
+export function fakeDecideBookings(
+  instance: Instance,
+  base: readonly Assignment[],
+): SpectraDecisionResult {
+  const decisions: EngineBookingDecision[] = [
+    {
+      request_id: "BR-01",
+      status: "approved",
+      day: "THU",
+      start_period: 10,
+      end_period: 12,
+      room_id: "AUD",
+      reason: "",
+      reason_code: "APPROVED_AS_REQUESTED",
+      effective_category: "club_event",
+      category_capped: false,
+      requires_admin_approval: false,
+      facts: FAKE_FACTS,
+    },
+    {
+      request_id: "BR-02",
+      status: "approved",
+      day: "THU",
+      start_period: 3,
+      end_period: 3,
+      room_id: "LH-1",
+      reason: "C1-L2 moves to THU P5 for Week 7.",
+      reason_code: "APPROVED_WITH_DISPLACEMENT",
+      effective_category: "institute_event",
+      category_capped: false,
+      requires_admin_approval: true,
+      facts: FAKE_FACTS,
+    },
+    {
+      request_id: "BR-03",
+      status: "rejected",
+      reason: "The request was cancelled.",
+      reason_code: "REJ_CANCELLED",
+      effective_category: "club_event",
+      category_capped: false,
+      requires_admin_approval: false,
+      facts: FAKE_FACTS,
+    },
+  ].filter((d) =>
+    instance.requests.has(d.request_id),
+  ) as EngineBookingDecision[];
+  const overrides: SessionOverride[] = [
+    {
+      session_id: "C1-L2",
+      day: "THU",
+      start_period: 5,
+      room_id: "LH-1",
+      displaced_by: "BR-02",
+    },
+  ];
+  const check = checkBookings(instance, toAssignMap(base).assign, {
+    bookings: decisions,
+    session_overrides: overrides,
+  });
+  return {
+    decisions,
+    overrides,
+    order: ["BR-02", "BR-01", "BR-03"],
+    week: [],
+    stats: check.stats,
+    violations: check.violations,
+    warnings: check.warnings,
+  };
+}
+
+/** A stand-in for `scheduleExams`: exam i in AUD on exam day i (AM), checked for real. */
+export function fakeScheduleExams(instance: Instance): ExamSolveResult {
+  const exams: ExamPlacement[] = [...instance.exams.keys()].map(
+    (exam_id, i) => ({
+      exam_id,
+      day: instance.exam_days[i % instance.exam_days.length] as ExamDay,
+      session: "AM",
+      rooms: ["AUD"],
+    }),
+  );
+  const check = checkExams(instance, exams);
+  return {
+    exams,
+    violations: check.violations,
+    penalty: check.penalty,
+    unplaced: [],
+    iterations: 7,
+  };
+}

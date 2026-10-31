@@ -15,8 +15,9 @@ export type SpectraCleared = {
 
 /**
  * Deletes Spectra-week state: everything, or with `versionId` only what was computed for that
- * timetable version. Timetable activation and generation call this before a new Spectra run.
- * Request `state`s are left alone; the Spectra run that follows sets them.
+ * timetable version. Spectra runs and activation replace the stored state instead
+ * (`replaceBookingDecisions` / `replaceSessionOverrides`); this is for tooling and tests.
+ * Request `state`s are left alone.
  */
 export async function clearSpectraState(
   db: Db,

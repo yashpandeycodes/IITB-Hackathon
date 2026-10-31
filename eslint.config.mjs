@@ -188,6 +188,44 @@ const eslintConfig = defineConfig([
       ),
     },
   },
+  {
+    // CIT Nexus screens merged from main (frontend team). These findings stay visible as
+    // warnings until the frontend team fixes them (listed in docs/project-status.md); every
+    // other file keeps the strict rules.
+    files: [
+      "src/app/admin/page.tsx",
+      "src/app/assistant/page.tsx",
+      "src/components/auth/login-form.tsx",
+      "src/components/timetable/agenda-list.tsx",
+      "src/lib/contracts/ui.ts",
+    ],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "react-hooks/purity": "warn",
+    },
+  },
+  {
+    // These two read the hard-coded fixture data in src/lib/dataset/cit-data.ts; they should go
+    // through the API client instead (frontend team, docs/project-status.md).
+    files: [
+      "src/components/auth/login-form.tsx",
+      "src/components/layout/command-palette.tsx",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "warn",
+        {
+          patterns: [
+            {
+              group: [...SERVER_ONLY_MODULES, ...LANDING_ONLY_MODULES],
+              message:
+                "UI code must not import server-only modules or fixture data; go through the API client or a server component.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   globalIgnores([
     ".next/**",
     "out/**",

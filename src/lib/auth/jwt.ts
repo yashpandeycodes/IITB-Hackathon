@@ -1,7 +1,7 @@
 import "server-only";
 import type { SessionUser } from "@/lib/contracts/user";
-import { ROLE_LABEL, roleFromLabel, type UserRole } from "./roles";
-import { SESSION_COOKIE, signSession, verifySession } from "./session";
+import { ROLE_LABEL, type UserRole } from "./roles";
+import { SESSION_COOKIE, verifySession } from "./session";
 
 /**
  * Compatibility facade for the CIT Nexus role pages, which read display-label roles.
@@ -36,20 +36,4 @@ export async function verifySessionToken(
 ): Promise<UserPayload | null> {
   const user = await verifySession(token);
   return user ? toUserPayload(user) : null;
-}
-
-export async function signSessionToken(
-  payload: UserPayload,
-): Promise<string> {
-  const role = roleFromLabel(payload.role) ?? "admin";
-  const user: SessionUser = {
-    id: payload.id,
-    name: payload.name,
-    email: payload.email,
-    role,
-    department: role === "department_coordinator" || role === "faculty" ? "CSE" : null,
-    faculty_id: role === "faculty" ? "fac_1" : null,
-    club: role === "club" ? "Tech Club" : null,
-  };
-  return signSession(user);
 }

@@ -20,6 +20,9 @@ export * from "./audit";
 export * from "./dashboard";
 export * from "./admin";
 
+// Frontend view-model types (`ui.ts`, owned by the frontend team). Its `BookingDraft` and
+// `bookingDraftSchema` are not re-exported here: `BookingDraft` from this index is the API
+// contract in `booking.ts` (import the UI one from "@/lib/contracts/ui" if needed).
 export type {
   DayCode,
   PeriodId,
@@ -32,8 +35,6 @@ export type {
   CampusRoom,
   BookingItem,
   ReschedulingMove,
-  BookingDraft,
   AssistantOptionCard,
   ChatMessage,
 } from "./ui";
-export { bookingDraftSchema } from "./ui";

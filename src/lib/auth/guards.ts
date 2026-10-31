@@ -4,6 +4,8 @@ import type { SessionUser, User } from "@/lib/contracts/user";
 import { getDb } from "@/lib/db/client";
 import { findUserById, isSessionRevoked, toUser } from "@/lib/db/repos/users";
 import { forbidden, selfApproval, unauthenticated } from "@/lib/errors";
+import { clientIp, rateLimited } from "./http";
+import { limits } from "./rate-limit";
 import { readSessionClaims } from "./session";
 
 /**
@@ -56,4 +58,27 @@ export function assertNotSelf(
   requesterId: string | null,
 ): void {
   if (requesterId !== null && approverId === requesterId) throw selfApproval();
+}
+
+/**
+ * Counts one schedule run (generate, activate, exam generation, Spectra) against the per-admin
+ * and per-IP limits; `429 RATE_LIMITED` with `Retry-After` when either is used up. Runs store
+ * data and hold the dataset lock, and the demo admin account is public.
+ */
+export function requireScheduleRunQuota(
+  request: Request,
+  user: SessionUser,
+): void {
+  for (const [limiter, key] of [
+    [limits.scheduleRunUser, user.id],
+    [limits.scheduleRunIp, clientIp(request)],
+  ] as const) {
+    const result = limiter.hit(key);
+    if (!result.allowed) {
+      throw rateLimited(
+        "Too many schedule runs. Try again in a few minutes.",
+        result.retryAfterSeconds,
+      );
+    }
+  }
 }

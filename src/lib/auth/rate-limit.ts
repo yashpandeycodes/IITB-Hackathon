@@ -119,4 +119,10 @@ export const limits = {
   /** Verification emails across all addresses, protecting the mail quota. */
   otpMailGlobal: limiter("otp-mail-global", 60, ONE_HOUR),
   demoLoginIp: limiter("demo-login-ip", 30),
+  /**
+   * Schedule runs (generate, activate, exams, Spectra) per admin and per IP. Each run stores
+   * data and holds the dataset lock, and the demo admin is public.
+   */
+  scheduleRunUser: limiter("schedule-run-user", 30),
+  scheduleRunIp: limiter("schedule-run-ip", 60),
 } as const;

@@ -1,0 +1,4 @@
+# Organiser data and app-produced exports are stored byte-for-byte: no line-ending conversion.
+CrunchWeek_StarterPack/** -text
+data/** -text
+exports/** -text

@@ -139,14 +139,15 @@ solve(instance, seed, budgetMs):
   assert check(assignments).hard == 0      // independent re-check with the validator port
   // Phase 3: soft optimisation (simulated annealing, hard stays 0)
   moves: relocate unit (time and/or room) · swap times of two units · room-only change
-  accept if no hard violation and (Δ ≤ 0 or rand < exp(-Δ/T)); T: 5 → 0.05 geometric over remaining budget
+  accept if no hard violation and (Δ ≤ 0 or rand < exp(-Δ/T)); T: 3 → 0.05 geometric over remaining budget (`T0` / `T_END` in `solver-search.ts`)
   return best-seen assignments
 ```
 
 - **Incremental soft cost:** only re-score the (group, day) and (faculty, day) pairs touched by a move. S2, S3 and S4 are per group-day. S1 is per faculty hour. S5 and S6 are per session.
 - **Room choice heuristic:** smallest room that fits (keeps the S5 "<40 % fill" penalty low and saves AUD/LH-1/LH-2 for big classes and events).
-- **`festCost` (C1):** for each non-cancelled Week-7 request with effective category above club, add a small penalty when a session uses the only rooms that could host it inside its window, or occupies a `mandatory_for_groups` group in its window. The weight is tuned so it never trades off against hard constraints.
-- **Budget:** 8 s default on the server (`SOLVER_TIME_BUDGET_MS`). The same code runs in a Web Worker as a fallback.
+- **`festCost` (C1, `engine/fest.ts`):** every non-cancelled Week-7 request that a timetable *could* block becomes a demand (on the public data: BR-01, 02, 03, 08, 12, 18, 19, 20; evening and seminar-hall/OAT requests can't be blocked by classes). Its options are the in-window (room, day, start) placements that fit type, capacity, needs and event use. Cost = Σ over demands of `2 × category weight × min over options of blocking cells` (occupied room periods + busy compulsory-group periods, P1–P9). It is 0 exactly when every demand has a free option, and it gives the annealer a gradient otherwise. Hard constraints are never traded: hard stays 0 throughout the search.
+- **Budget:** a deterministic iteration cap (`DEFAULT_SOLVER_ITERATIONS`: about 3–4 s on a laptop when it binds, up to about 6.5 s on an infeasible input) with `SOLVER_TIME_BUDGET_MS` (8 s by default; a request may raise it to 30 s with `time_budget_ms`) as a safety cap on active solver time (`solver_meta.stopped_by` records which one ended the run); the search also stops as soon as soft reaches its proven lower bound with fest cost 0. The engine is pure, so the same code can run in a Web Worker if a host's time limit ever requires it.
+- **Measured (public data):** 0 hard, soft 3 (the proven floor: F08's three CS204 lectures fit only TUE/THU, so S4 ≥ 3), fest cost 0. Seed 42 finishes in about 25 ms straight from construction; seeds 1–10 all reach soft 3 (the slowest anneals for about 2 s).
 
 ### 3.3 Exam scheduler (M4)
 
@@ -154,6 +155,7 @@ solve(instance, seed, budgetMs):
 - **Conflict graph:** two exams conflict if they share a group (`EX-OE-BASKET` lists all Year-3 groups).
 - **DSATUR colouring** into slots with cost = 5 × (extra exams the same group has that day). Each group has ≤ 5 exams and there are 6 days, so **exam penalty 0 is reachable**. Spread the days first, then pick AM/PM.
 - **Room packing per slot:** exams sorted by size descending. Best-fit-decreasing over half-capacity rooms (fewest rooms, least waste). Must reach `Σ ⌊cap/2⌋ ≥ size`. If a slot runs out of seats, move the smallest exam to the next compatible slot.
+- **Measured (Phase 3, `engine/exams.ts`):** all 41 exams placed, 0 hard, exam penalty **0**, in a few milliseconds. Rooms under maintenance at the exam's periods (LH-4 on THU, CR-103 FRI afternoon) are avoided as a preference, although the validator ignores them.
 
 ### 3.4 Spectra booking decision engine (M5)
 
@@ -267,6 +269,8 @@ These are already in `cit_public.json`. Judges' tricky set will probe the same p
 
 **Score target:** maximum possible is 70 (sum of category weights over non-cancelled requests). The realistic ceiling is **67**. Check with `validator.py` and track it on the dashboard.
 
+**Measured (Phase 3):** **67 / 70** on the app's export (22 approved, 1 alternative = BR-17, 2 rejected = BR-04 cancelled and BR-09 too large), 0 session overrides and 0 priority inversions, confirmed by `validator.py`. Fest-aware generation keeps every daytime window free, so no class has to move.
+
 ---
 
 ## 5. AI layer (Gemini)
@@ -360,12 +364,14 @@ With `LLM_ENABLED=false` or a 503, the UI shows "AI is unavailable, the form bel
 | Service (`lib/services/`) | Engine modules used | Routes ([architecture.md §6](./architecture.md#6-api-catalogue)) | Owner |
 |---|---|---|:-:|
 | `datasetService` | — | `/api/admin/dataset`, `/api/admin/reset` | B |
-| `timetableService` | `solver`, `checker`, `fest` | `/api/timetable/*`, `/api/manual/place` | A + B |
-| `examService` | `exams`, `checker` | `/api/exams/generate` | A |
-| `bookingService` | `bookings`, `checker`, `explain` | `/api/bookings/*`, `/api/spectra/run`, `/api/rooms/available` | B |
+| `timetable` (+ `timetable-view`) | `solver`, `fest`, `checker`, `soft` | `/api/timetable`, `/check`, `/generate`, `/versions`, `/versions/:id/activate`; later `/api/manual/place` | A + B |
+| `exams` | `exams`, `exams-check` | `/api/exams`, `/api/exams/generate` | A |
+| `spectra` | `bookings`, `bookings-check` | `/api/spectra/run` (and every activation) | B |
+| `bookings` (P4) | `bookings`, `checker`, `explain` | `/api/bookings/*` | B |
+| `rooms` | — (reads the Week-7 picture) | `/api/rooms/available` | B |
 | `changeService` | `reschedule`, `checker`, `explain` | `/api/changes/*` | A + B |
 | `aiService` | (calls the services above for facts) | `/api/bookings/parse`, `/api/assistant`, `/api/explain` | B |
-| `exportService` | `checker` (gate) | `/api/export`, `/api/validate` | B |
+| `export` | `validate` (gate) | `/api/export`, `/api/validate` | B |
 | `dashboardService` | `checker`, utilisation | `/api/dashboard` | B |
 | `authService` | — | `/api/auth/*` | B |
 

@@ -14,6 +14,7 @@ import {
   SessionKind,
   TeachingPeriod,
 } from "./enums";
+import { SpectraRunSummarySchema } from "./booking";
 import { AssignmentSchema } from "./schedule";
 import { Count, Id, Timestamp } from "./util";
 import { SoftPenaltiesSchema, ViolationSchema } from "./violation";
@@ -31,12 +32,20 @@ export const SoftPenaltySummarySchema = z.strictObject({
 });
 export type SoftPenaltySummary = z.infer<typeof SoftPenaltySummarySchema>;
 
+export const SolverStopReason = z.enum(["iterations", "time", "converged"]);
+export type SolverStopReason = z.infer<typeof SolverStopReason>;
+
 export const SolverMetaSchema = z.strictObject({
   seed: z.number().int(),
   ms: Count,
   iterations: Count.optional(),
   /** e.g. "greedy+repair+SA". */
   algorithm: z.string().min(1),
+  /**
+   * Why the run ended. `time` means the safety cap cut it short, so the result may differ on a
+   * slower or faster machine; `iterations` and `converged` runs are reproducible from the seed.
+   */
+  stopped_by: SolverStopReason.optional(),
 });
 export type SolverMeta = z.infer<typeof SolverMetaSchema>;
 
@@ -56,6 +65,90 @@ export const TimetableVersionSchema = z.strictObject({
   created_at: Timestamp,
 });
 export type TimetableVersion = z.infer<typeof TimetableVersionSchema>;
+
+/** A version without its assignments (`GET /api/timetable/versions`). */
+export const TimetableVersionSummarySchema = TimetableVersionSchema.omit({
+  assignments: true,
+})
+  .extend({ assignment_count: Count })
+  .strict();
+export type TimetableVersionSummary = z.infer<
+  typeof TimetableVersionSummarySchema
+>;
+
+// ---------------------------------------------------------------------------------- generation
+
+/** A data problem the solver found while building domains (reported, never thrown). */
+export const ModelIssueSchema = z.strictObject({
+  kind: z.enum([
+    "empty_domain",
+    "domain_relaxed",
+    "basket_conflict",
+    "fixed_slot_invalid",
+  ]),
+  session_ids: z.array(Id),
+  detail: z.string(),
+});
+export type ModelIssue = z.infer<typeof ModelIssueSchema>;
+
+/**
+ * `POST /api/timetable/generate`. Every field is optional: the seed defaults to
+ * `settings.solver_seed`, the budget to `SOLVER_TIME_BUDGET_MS`. With `activate`, the new version
+ * becomes active and Spectra decisions are re-run for it.
+ */
+export const GenerateTimetableRequestSchema = z.strictObject({
+  seed: z.number().int().min(0).max(0xffff_ffff).optional(),
+  /** Wall-clock safety cap; the solver's iteration budget normally ends the run first. */
+  time_budget_ms: z.number().int().min(200).max(30_000).optional(),
+  activate: z.boolean().default(false),
+});
+export type GenerateTimetableRequest = z.infer<
+  typeof GenerateTimetableRequestSchema
+>;
+
+export const SolverPhase = z.enum(["construct", "repair", "anneal", "verify"]);
+export type SolverPhase = z.infer<typeof SolverPhase>;
+
+/**
+ * One progress snapshot from the solver, streamed as an SSE `progress` event by
+ * `POST /api/timetable/generate` (with `Accept: text/event-stream`).
+ */
+export const SolverProgressSchema = z.strictObject({
+  phase: SolverPhase,
+  iteration: Count,
+  /** Sessions not yet placed (each is one hard violation). */
+  hard: Count,
+  /** Current soft penalty (S1–S6 total). */
+  soft: Count,
+  /** Current fest-awareness cost (keeps Week-7 booking windows free). */
+  fest: z.number().nonnegative(),
+  /** Best soft + fest seen so far. */
+  best: z.number().nonnegative(),
+  /** Annealing temperature; null outside the anneal phase. */
+  temperature: z.number().nonnegative().nullable(),
+  /** Active solver time so far. */
+  ms: z.number().nonnegative(),
+});
+export type SolverProgress = z.infer<typeof SolverProgressSchema>;
+
+export const GenerateTimetableResultSchema = z.strictObject({
+  version: TimetableVersionSchema,
+  activated: z.boolean(),
+  /** Set when the version was activated (Spectra decisions re-run for it). */
+  spectra: SpectraRunSummarySchema.nullable(),
+});
+export type GenerateTimetableResult = z.infer<
+  typeof GenerateTimetableResultSchema
+>;
+
+/** `POST /api/timetable/versions/:id/activate`. Activation always re-runs Spectra decisions. */
+export const ActivateTimetableResultSchema = z.strictObject({
+  version: TimetableVersionSchema,
+  spectra: SpectraRunSummarySchema,
+});
+export type ActivateTimetableResult = z.infer<
+  typeof ActivateTimetableResultSchema
+>;
 
 // ------------------------------------------------------------------------------------- views
 
