@@ -6,52 +6,60 @@ import { ArrowRight, Sparkles, ShieldCheck } from 'lucide-react';
 
 export const FinalCTA: React.FC = () => {
   return (
-    <section className="relative py-28 lg:py-44 overflow-hidden border-t border-[#a855f7]/30">
-      {/* Background Lighting Flare */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[450px] bg-gradient-to-r from-[#9333ea]/35 via-[#ec4899]/30 to-[#fbbf24]/20 rounded-full blur-[140px] pointer-events-none" />
+    <section className="relative py-24 lg:py-36 overflow-hidden border-t border-[rgba(148,163,184,0.12)]">
+      {/* Subtle Indigo/Cyan Ambient Lighting Glow */}
+      <div
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] rounded-full blur-[130px] pointer-events-none opacity-30"
+        style={{
+          background: 'radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, rgba(34, 211, 238, 0.15) 60%, transparent 80%)',
+        }}
+      />
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
         {/* Brand Pill */}
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#180738] border-2 border-[#fbbf24]/50 mb-8 text-sm font-mono font-bold text-[#fde047] shadow-[0_0_20px_rgba(251,191,36,0.3)]">
-          <Sparkles className="w-4 h-4 text-[#fbbf24]" />
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(148,163,184,0.18)] mb-6 text-xs font-mono font-semibold text-[#22D3EE] shadow-sm">
+          <Sparkles className="w-3.5 h-3.5 text-[#22D3EE]" />
           <span>CHILIKA INSTITUTE OF TECHNOLOGY</span>
         </div>
 
         {/* Headline */}
-        <h2 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white tracking-tight leading-[1.05] mb-8 drop-shadow-2xl">
+        <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#F8FAFC] tracking-tight leading-[1.1] mb-6">
           Make every room, hour, and{' '}
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#c084fc] via-[#f43f5e] to-[#fbbf24] animate-shimmer-text">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#6366F1] via-[#818CF8] to-[#22D3EE]">
             decision count.
           </span>
         </h2>
 
         {/* Supporting Copy */}
-        <p className="text-lg sm:text-xl lg:text-2xl text-[#f1f5f9] max-w-3xl mx-auto mb-12 leading-relaxed font-medium">
-          Bring campus scheduling and venue coordination into one clearer workflow. Experience the next generation of academic spatial intelligence.
+        <p className="text-base sm:text-lg text-[#A7B3C9] max-w-2xl mx-auto mb-10 leading-relaxed font-normal">
+          Bring campus scheduling and venue coordination into one clear, reliable workflow. Experience the next generation of academic operational intelligence.
         </p>
 
         {/* CTAs */}
-        <div className="flex flex-wrap items-center justify-center gap-6">
+        <div className="flex flex-wrap items-center justify-center gap-4">
           <Link
             href="/signup"
-            className="inline-flex items-center gap-3 px-10 py-5 rounded-2xl font-black text-base text-[#04010a] bg-gradient-to-r from-[#c084fc] via-[#f43f5e] to-[#fbbf24] hover:opacity-95 transition-all duration-300 shadow-[0_0_40px_rgba(217,70,239,0.7)] hover:shadow-[0_0_60px_rgba(251,191,36,0.9)] hover:scale-105 transform-gpu group"
+            className="relative inline-flex items-center justify-center p-[1px] overflow-hidden rounded-xl group focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/50 shadow-[0_4px_24px_rgba(99,102,241,0.3)]"
           >
-            <span>Get started today</span>
-            <ArrowRight className="w-5 h-5 stroke-[2.5] transition-transform group-hover:translate-x-1.5" />
+            <span className="absolute inset-0 bg-gradient-to-r from-[#6366F1] via-[#22D3EE] to-[#6366F1] rounded-xl transition-all duration-300 opacity-90 group-hover:opacity-100" />
+            <span className="relative flex items-center justify-center gap-2.5 px-7 py-3.5 text-sm font-bold text-[#F8FAFC] bg-[#0D1426] rounded-[11px] transition-all duration-200 group-hover:bg-[#111B30]">
+              <span>Request Institutional Access</span>
+              <ArrowRight className="w-4 h-4 text-[#22D3EE] transition-transform duration-200 group-hover:translate-x-1" />
+            </span>
           </Link>
 
           <Link
             href="/login"
-            className="inline-flex items-center gap-2.5 px-10 py-5 rounded-2xl font-bold text-base text-white bg-[#150730]/90 hover:bg-[#230c4e] border-2 border-[#a855f7]/40 hover:border-[#fbbf24] transition-all duration-300 shadow-xl hover:scale-105 transform-gpu"
+            className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-sm text-[#F8FAFC] bg-[#111B30] hover:bg-[#16233E] border border-[rgba(148,163,184,0.18)] hover:border-[#6366F1]/50 transition-all duration-200 shadow-sm"
           >
-            <span>Log in to portal</span>
+            <span>Sign In to Console</span>
           </Link>
         </div>
 
-        {/* Micro note */}
-        <div className="mt-12 flex items-center justify-center gap-2.5 text-sm font-mono font-bold text-[#cbd5e1]">
-          <ShieldCheck className="w-4 h-4 text-[#34d399]" />
-          <span>Frontend Demonstration Prototype • Client-Side Evaluation Only</span>
+        {/* Security / Verification Pill */}
+        <div className="mt-10 flex items-center justify-center gap-2 text-xs font-mono text-[#A7B3C9]">
+          <ShieldCheck className="w-4 h-4 text-[#10B981]" />
+          <span>Role-Based Governance • Constraint-Checked Scheduling</span>
         </div>
       </div>
     </section>

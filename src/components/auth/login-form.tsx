@@ -12,7 +12,6 @@ import {
   AlertCircle,
   ArrowRight,
   ShieldCheck,
-  RotateCcw,
   Clock,
   Sparkles,
   ChevronDown,
@@ -42,7 +41,6 @@ export const LoginForm: React.FC = () => {
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [otpError, setOtpError] = useState<string | null>(null);
   const [otpLoading, setOtpLoading] = useState(false);
-  const [resendStatus, setResendStatus] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
 
   // 10-Minute Countdown Timer for OTP
@@ -79,7 +77,7 @@ export const LoginForm: React.FC = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Demo 1-Click Login Handler (§5.1 & Rubric Requirement)
+  // Demo 1-Click Login Handler
   const handleDemoLogin = async (role: string) => {
     setDemoLoadingRole(role);
     setServerError(null);
@@ -205,10 +203,10 @@ export const LoginForm: React.FC = () => {
 
   return (
     <div className="w-full max-w-xl mx-auto">
-      <div className="relative rounded-3xl p-6 sm:p-8 bg-[#0a031a]/90 border border-[#a855f7]/30 shadow-[0_20px_60px_-15px_rgba(112,26,117,0.4)] backdrop-blur-2xl">
-        {/* Glow Accent */}
-        <div className="absolute -top-16 -right-16 w-44 h-44 bg-[#fbbf24]/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-16 -left-16 w-44 h-44 bg-[#c084fc]/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="relative rounded-2xl p-6 sm:p-8 bg-[#0D1426]/90 border border-[rgba(148,163,184,0.18)] shadow-2xl backdrop-blur-xl">
+        {/* Subtle Ambient Glow */}
+        <div className="absolute -top-12 -right-12 w-36 h-36 bg-[#6366F1]/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-12 -left-12 w-36 h-36 bg-[#22D3EE]/10 rounded-full blur-3xl pointer-events-none" />
 
         <AnimatePresence mode="wait">
           {!requiresOtp ? (
@@ -217,28 +215,29 @@ export const LoginForm: React.FC = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
             >
               <div className="mb-6 text-center sm:text-left">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#fbbf24]/10 border border-[#fbbf24]/30 text-[#fbbf24] text-xs font-mono font-bold mb-2">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  INSTANT JUDGE EVALUATION ACCESS
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#6366F1]/15 border border-[#6366F1]/30 text-[#22D3EE] text-[11px] font-mono font-medium mb-3">
+                  <Sparkles className="w-3.5 h-3.5 text-[#22D3EE]" />
+                  FAST-TRACK EVALUATION ACCESS
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F8FAFC] tracking-tight">
                   One-Click Demo Roles
                 </h2>
-                <p className="text-xs sm:text-sm text-[#cbd5e1] mt-1">
+                <p className="text-xs sm:text-sm text-[#A7B3C9] mt-1">
                   Select a pre-configured role to immediately enter the command console.
                 </p>
               </div>
 
               {serverError && (
-                <div className="mb-4 p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center gap-3 text-red-400 text-xs font-medium">
+                <div className="mb-4 p-3.5 rounded-xl bg-red-500/10 border border-red-500/25 flex items-center gap-3 text-red-400 text-xs font-medium">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{serverError}</span>
                 </div>
               )}
 
-              {/* Four Demo Cards (§5.1) */}
+              {/* Four Demo Role Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
                 {DEMO_USERS.map((user) => {
                   const isLoading = demoLoadingRole === user.role;
@@ -248,25 +247,25 @@ export const LoginForm: React.FC = () => {
                       type="button"
                       disabled={demoLoadingRole !== null}
                       onClick={() => handleDemoLogin(user.role)}
-                      className="group text-left p-3.5 rounded-2xl bg-[#130728]/80 hover:bg-[#1f0b3e] border border-white/10 hover:border-[#a855f7]/60 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow-[0_0_20px_rgba(168,85,247,0.25)] flex flex-col justify-between"
+                      className="group text-left p-3.5 rounded-xl bg-[#111B30] hover:bg-[#111B30]/90 border border-[rgba(148,163,184,0.18)] hover:border-[#6366F1]/60 transition-all hover:-translate-y-0.5 active:translate-y-0 shadow-sm flex flex-col justify-between"
                     >
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-2xl">{user.avatar}</span>
-                          <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-white/10 group-hover:bg-[#fbbf24]/20 group-hover:text-[#fbbf24] text-white/70 transition-colors">
+                          <span className="text-[10px] font-mono font-semibold uppercase px-2 py-0.5 rounded bg-[#080D1B] border border-[rgba(148,163,184,0.15)] text-[#A7B3C9] group-hover:text-[#22D3EE] group-hover:border-[#22D3EE]/40 transition-colors">
                             {user.role === 'Admin' ? 'Dean' : user.role === 'Department Coordinator' ? 'Coord' : user.role === 'Club Representative' ? 'Club' : 'Prof'}
                           </span>
                         </div>
-                        <div className="font-bold text-sm text-white group-hover:text-[#fbbf24] transition-colors">
+                        <div className="font-semibold text-sm text-[#F8FAFC] group-hover:text-[#22D3EE] transition-colors">
                           {user.role}
                         </div>
-                        <div className="text-[11px] text-[#cbd5e1]/80 line-clamp-2 mt-1">
+                        <div className="text-[11px] text-[#A7B3C9] line-clamp-2 mt-1">
                           {user.description}
                         </div>
                       </div>
 
-                      <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-xs font-mono font-bold text-[#c084fc] group-hover:text-[#fbbf24]">
-                        <span>{isLoading ? 'Entering Console...' : 'Login as ' + user.role}</span>
+                      <div className="mt-3 pt-2.5 border-t border-[rgba(148,163,184,0.12)] flex items-center justify-between text-xs font-mono font-medium text-[#6366F1] group-hover:text-[#22D3EE]">
+                        <span>{isLoading ? 'Entering Console...' : 'Launch as ' + user.role}</span>
                         <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                       </div>
                     </button>
@@ -274,15 +273,15 @@ export const LoginForm: React.FC = () => {
                 })}
               </div>
 
-              {/* Collapsible Manual Email/Password Form (§5.1) */}
-              <div className="pt-2 border-t border-white/10">
+              {/* Collapsible Manual Email/Password Form */}
+              <div className="pt-2 border-t border-[rgba(148,163,184,0.14)]">
                 <button
                   type="button"
                   onClick={() => setShowManualForm(!showManualForm)}
-                  className="w-full py-2 flex items-center justify-between text-xs font-mono font-bold text-[#cbd5e1] hover:text-white transition-colors"
+                  className="w-full py-2 flex items-center justify-between text-xs font-mono font-medium text-[#A7B3C9] hover:text-[#F8FAFC] transition-colors"
                 >
                   <span className="flex items-center gap-2">
-                    <UserCheck className="w-3.5 h-3.5 text-[#fbbf24]" />
+                    <UserCheck className="w-3.5 h-3.5 text-[#22D3EE]" />
                     Or Sign In with Email & Password
                   </span>
                   {showManualForm ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -298,18 +297,18 @@ export const LoginForm: React.FC = () => {
                       className="space-y-4 pt-3 overflow-hidden"
                     >
                       <div>
-                        <label className="block text-xs font-mono text-[#cbd5e1] mb-1">
+                        <label className="block text-xs font-mono text-[#A7B3C9] mb-1">
                           INSTITUTIONAL EMAIL
                         </label>
                         <div className="relative">
-                          <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                          <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A7B3C9]/50" />
                           <input
                             type="email"
                             name="email"
                             value={formData.email}
                             onChange={handleChange}
                             placeholder="username@citnexus.edu"
-                            className="w-full bg-[#12052b] border border-white/15 focus:border-[#c084fc] rounded-xl py-2.5 pl-10 pr-4 text-xs font-mono text-white placeholder-white/30 outline-none transition-all"
+                            className="w-full bg-[#111B30] border border-[rgba(148,163,184,0.18)] focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1] rounded-xl py-2.5 pl-10 pr-4 text-xs font-mono text-[#F8FAFC] placeholder-[#A7B3C9]/40 outline-none transition-all"
                           />
                         </div>
                         {errors.email && (
@@ -318,23 +317,23 @@ export const LoginForm: React.FC = () => {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-mono text-[#cbd5e1] mb-1">
-                          ENCRYPTED PASSWORD
+                        <label className="block text-xs font-mono text-[#A7B3C9] mb-1">
+                          PASSWORD
                         </label>
                         <div className="relative">
-                          <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                          <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A7B3C9]/50" />
                           <input
                             type={showPassword ? 'text' : 'password'}
                             name="password"
                             value={formData.password}
                             onChange={handleChange}
                             placeholder="••••••••••••"
-                            className="w-full bg-[#12052b] border border-white/15 focus:border-[#c084fc] rounded-xl py-2.5 pl-10 pr-10 text-xs font-mono text-white placeholder-white/30 outline-none transition-all"
+                            className="w-full bg-[#111B30] border border-[rgba(148,163,184,0.18)] focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1] rounded-xl py-2.5 pl-10 pr-10 text-xs font-mono text-[#F8FAFC] placeholder-[#A7B3C9]/40 outline-none transition-all"
                           />
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#A7B3C9] hover:text-[#F8FAFC]"
                           >
                             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
@@ -347,7 +346,7 @@ export const LoginForm: React.FC = () => {
                       <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="w-full py-2.5 px-4 rounded-xl font-mono font-bold text-xs bg-gradient-to-r from-[#a855f7] to-[#e879f9] hover:from-[#9333ea] hover:to-[#d946ef] text-white shadow-lg shadow-[#a855f7]/25 transition-all flex items-center justify-center gap-2"
+                        className="w-full py-2.5 px-4 rounded-xl font-mono font-semibold text-xs bg-gradient-to-r from-[#6366F1] to-[#22D3EE] hover:opacity-95 text-white shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                       >
                         {isSubmitting ? (
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -363,9 +362,9 @@ export const LoginForm: React.FC = () => {
                 </AnimatePresence>
               </div>
 
-              <div className="mt-6 text-center text-xs text-[#cbd5e1]/70 font-mono">
+              <div className="mt-6 text-center text-xs text-[#A7B3C9] font-mono">
                 Need institutional clearance?{' '}
-                <Link href="/signup" className="text-[#fbbf24] hover:underline font-bold">
+                <Link href="/signup" className="text-[#22D3EE] hover:underline font-semibold">
                   Register for CIT Nexus Account
                 </Link>
               </div>
@@ -374,25 +373,26 @@ export const LoginForm: React.FC = () => {
             /* OTP Verification Screen */
             <motion.div
               key="otp-step"
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.3 }}
             >
               <div className="text-center mb-6">
-                <div className="w-12 h-12 rounded-2xl bg-[#a855f7]/20 border border-[#a855f7]/40 flex items-center justify-center mx-auto mb-3 text-[#fbbf24]">
+                <div className="w-12 h-12 rounded-xl bg-[#6366F1]/15 border border-[#6366F1]/30 flex items-center justify-center mx-auto mb-3 text-[#22D3EE]">
                   <Clock className="w-6 h-6 animate-pulse" />
                 </div>
-                <h3 className="text-2xl font-black text-white">Enter Security OTP</h3>
-                <p className="text-xs text-[#cbd5e1] mt-1">
-                  6-digit verification code dispatched to <span className="text-[#fbbf24]">{formData.email}</span>
+                <h3 className="text-2xl font-bold text-[#F8FAFC]">Enter Security OTP</h3>
+                <p className="text-xs text-[#A7B3C9] mt-1">
+                  6-digit verification code dispatched to <span className="text-[#22D3EE]">{formData.email}</span>
                 </p>
-                <div className="inline-block mt-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] font-mono text-[#c084fc]">
-                  Expires in: <span className="text-white font-bold">{formatTime(timeLeft)}</span>
+                <div className="inline-block mt-2 px-3 py-1 rounded-full bg-[#111B30] border border-[rgba(148,163,184,0.18)] text-[11px] font-mono text-[#A7B3C9]">
+                  Expires in: <span className="text-[#F8FAFC] font-semibold">{formatTime(timeLeft)}</span>
                 </div>
               </div>
 
               {otpError && (
-                <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
+                <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{otpError}</span>
                 </div>
@@ -409,7 +409,7 @@ export const LoginForm: React.FC = () => {
                       value={digit}
                       onChange={(e) => handleOtpDigitChange(i, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                      className="w-10 sm:w-12 h-12 sm:h-14 text-center text-xl font-mono font-black rounded-xl bg-[#12052b] border-2 border-white/15 focus:border-[#fbbf24] text-[#fbbf24] outline-none shadow-inner transition-all"
+                      className="w-10 sm:w-12 h-12 sm:h-14 text-center text-xl font-mono font-bold rounded-xl bg-[#111B30] border border-[rgba(148,163,184,0.2)] focus:border-[#22D3EE] text-[#22D3EE] outline-none shadow-sm transition-all"
                     />
                   ))}
                 </div>
@@ -417,10 +417,10 @@ export const LoginForm: React.FC = () => {
                 <button
                   type="submit"
                   disabled={otpLoading}
-                  className="w-full py-3 rounded-xl font-mono font-bold text-sm bg-gradient-to-r from-[#fbbf24] to-[#f59e0b] hover:from-[#f59e0b] hover:to-[#d97706] text-black shadow-lg shadow-[#fbbf24]/20 transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3 rounded-xl font-mono font-semibold text-sm bg-gradient-to-r from-[#6366F1] to-[#22D3EE] hover:opacity-95 text-white shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                 >
                   {otpLoading ? (
-                    <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <>
                       <ShieldCheck className="w-4 h-4" />
@@ -429,11 +429,11 @@ export const LoginForm: React.FC = () => {
                   )}
                 </button>
 
-                <div className="flex items-center justify-between text-xs font-mono text-[#cbd5e1]/70">
+                <div className="flex items-center justify-between text-xs font-mono text-[#A7B3C9]">
                   <button
                     type="button"
                     onClick={() => setRequiresOtp(false)}
-                    className="hover:text-white flex items-center gap-1"
+                    className="hover:text-[#F8FAFC] flex items-center gap-1 cursor-pointer"
                   >
                     ← Back
                   </button>
@@ -441,7 +441,7 @@ export const LoginForm: React.FC = () => {
                     type="button"
                     disabled={resendCooldown > 0}
                     onClick={() => setResendCooldown(60)}
-                    className="text-[#c084fc] hover:text-[#fbbf24] disabled:opacity-50"
+                    className="text-[#22D3EE] hover:underline disabled:opacity-50 cursor-pointer"
                   >
                     {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend OTP Code'}
                   </button>

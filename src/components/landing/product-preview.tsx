@@ -8,8 +8,11 @@ import {
   ClipboardList,
   Users,
   Search,
-  Sparkles,
+  CheckCircle2,
   Info,
+  Clock,
+  Layers,
+  Sparkles,
 } from 'lucide-react';
 import {
   MOCK_TIMETABLE,
@@ -46,131 +49,129 @@ export const ProductPreview: React.FC = () => {
   });
 
   return (
-    <section id="product-preview" className="relative py-24 lg:py-36 scroll-mt-20">
+    <section id="product-preview" className="relative py-20 lg:py-32 scroll-mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <div className="text-center max-w-4xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#190938] to-[#2c0b4d] border-2 border-[#fbbf24]/50 mb-5 text-sm font-mono font-bold text-[#fbbf24] shadow-[0_0_20px_rgba(251,191,36,0.3)]">
-            <Sparkles className="w-4 h-4 text-[#fbbf24]" />
-            <span>INTERACTIVE PRODUCT PREVIEW</span>
+        <div className="text-center max-w-3xl mx-auto mb-14">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(148,163,184,0.18)] mb-4 text-xs font-mono font-semibold text-[#22D3EE] shadow-sm">
+            <Layers className="w-3.5 h-3.5 text-[#22D3EE]" />
+            <span>INTERACTIVE DASHBOARD CONSOLE</span>
           </div>
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight mb-6">
-            A command console built for{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#c084fc] via-[#f43f5e] to-[#fbbf24] animate-shimmer-text">
-              scale and precision
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#F8FAFC] tracking-tight mb-4">
+            Unified operations console built for{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#6366F1] via-[#818CF8] to-[#22D3EE]">
+              institutional precision
             </span>
           </h2>
-          <p className="text-lg sm:text-xl text-[#f1f5f9] font-medium leading-relaxed">
-            Test the live interface. Switch views between multi-cohort schedule matrices, room telemetries, and multi-tier approval pipelines.
+          <p className="text-base sm:text-lg text-[#A7B3C9] font-normal leading-relaxed">
+            Test the live interface. Switch views between multi-cohort schedule matrices, venue availability telemetries, and multi-tier approval pipelines.
           </p>
         </div>
 
-        {/* Dashboard Shell Mockup */}
-        <div className="rounded-3xl bg-[#0c041f]/95 border-2 border-[#a855f7]/40 shadow-[0_20px_70px_-10px_rgba(168,85,247,0.35)] backdrop-blur-2xl overflow-hidden">
+        {/* Dashboard Shell Mockup with Restrained Depth */}
+        <div className="rounded-2xl bg-[#0D1426] border border-[rgba(148,163,184,0.18)] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.7)] backdrop-blur-xl overflow-hidden">
           {/* Top Window / App Frame Chrome */}
-          <div className="bg-[#150733] px-6 py-4 border-b border-white/10 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3.5 h-3.5 rounded-full bg-[#ef4444] shadow-[0_0_8px_#ef4444]" />
-                <div className="w-3.5 h-3.5 rounded-full bg-[#f59e0b] shadow-[0_0_8px_#f59e0b]" />
-                <div className="w-3.5 h-3.5 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981]" />
+          <div className="bg-[#111B30] px-5 py-3.5 border-b border-[rgba(148,163,184,0.14)] flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-[#EF4444]/80" />
+                <div className="w-3 h-3 rounded-full bg-[#F59E0B]/80" />
+                <div className="w-3 h-3 rounded-full bg-[#10B981]/80" />
               </div>
-              <span className="text-sm font-mono font-bold text-white tracking-wider hidden sm:inline">
-                CIT Nexus OS v2.4 • Academic Year 2026-27 • Live Command View
+              <span className="text-xs font-mono font-semibold text-[#A7B3C9] ml-2 hidden sm:inline">
+                cit-nexus-console.prod • AY 2026-27 • Live Coordination Matrix
               </span>
             </div>
 
-            {/* Illustrative Demo Flag */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#f59e0b]/20 border border-[#f59e0b]/50 text-xs font-mono font-extrabold text-[#fde047]">
-              <Info className="w-4 h-4 text-[#fde047]" />
-              <span>ILLUSTRATIVE DEMO DATA</span>
+            {/* Illustrative Demo Badge */}
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#111B30] border border-[rgba(148,163,184,0.18)] text-[11px] font-mono text-[#22D3EE] font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#22D3EE] animate-pulse" />
+              <span>LIVE MOCKUP DATA</span>
             </div>
           </div>
 
-          {/* Interactive Navigation Tabs & Search Controls */}
-          <div className="p-6 bg-[#0f0526] border-b border-white/10 flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+          {/* Navigation Tabs & Search Controls */}
+          <div className="p-4 sm:p-5 bg-[#0D1426] border-b border-[rgba(148,163,184,0.12)] flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             {/* View Switcher Tabs */}
-            <div className="inline-flex p-1.5 rounded-2xl bg-[#050110] border border-[#a855f7]/40 shadow-inner">
+            <div className="inline-flex p-1 rounded-xl bg-[#080D1B] border border-[rgba(148,163,184,0.15)] shadow-inner">
               <button
                 type="button"
                 onClick={() => setActiveTab('timetable')}
-                className={`flex items-center gap-2.5 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
                   activeTab === 'timetable'
-                    ? 'bg-gradient-to-r from-[#c084fc] to-[#a855f7] text-[#04010a] shadow-[0_0_20px_rgba(168,85,247,0.6)] font-black'
-                    : 'text-[#cbd5e1] hover:text-white'
+                    ? 'bg-[#6366F1] text-white shadow-[0_2px_10px_rgba(99,102,241,0.35)]'
+                    : 'text-[#A7B3C9] hover:text-[#F8FAFC]'
                 }`}
               >
-                <Calendar className="w-4 h-4" />
+                <Calendar className="w-3.5 h-3.5" />
                 <span>Timetable Matrix</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('rooms')}
-                className={`flex items-center gap-2.5 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
                   activeTab === 'rooms'
-                    ? 'bg-gradient-to-r from-[#c084fc] to-[#a855f7] text-[#04010a] shadow-[0_0_20px_rgba(168,85,247,0.6)] font-black'
-                    : 'text-[#cbd5e1] hover:text-white'
+                    ? 'bg-[#6366F1] text-white shadow-[0_2px_10px_rgba(99,102,241,0.35)]'
+                    : 'text-[#A7B3C9] hover:text-[#F8FAFC]'
                 }`}
               >
-                <Building className="w-4 h-4" />
-                <span>Room Availability</span>
+                <Building className="w-3.5 h-3.5" />
+                <span>Venue Availability</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('requests')}
-                className={`flex items-center gap-2.5 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
                   activeTab === 'requests'
-                    ? 'bg-gradient-to-r from-[#c084fc] to-[#a855f7] text-[#04010a] shadow-[0_0_20px_rgba(168,85,247,0.6)] font-black'
-                    : 'text-[#cbd5e1] hover:text-white'
+                    ? 'bg-[#6366F1] text-white shadow-[0_2px_10px_rgba(99,102,241,0.35)]'
+                    : 'text-[#A7B3C9] hover:text-[#F8FAFC]'
                 }`}
               >
-                <ClipboardList className="w-4 h-4" />
-                <span>Requisition Pipeline</span>
+                <ClipboardList className="w-3.5 h-3.5" />
+                <span>Requisition Queue</span>
               </button>
             </div>
 
             {/* Filter / Search input */}
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1 md:w-80">
-                <Search className="w-4 h-4 text-[#c084fc] absolute left-4 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Filter by code, hall, faculty..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-[#180938] border border-[#a855f7]/40 rounded-xl pl-11 pr-4 py-2.5 text-sm font-medium text-white placeholder-[#cbd5e1]/60 focus:outline-none focus:border-[#fbbf24] shadow-inner"
-                />
-              </div>
+            <div className="relative flex-1 md:w-72">
+              <Search className="w-3.5 h-3.5 text-[#A7B3C9] absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search course, hall, faculty..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-[#111B30] border border-[rgba(148,163,184,0.18)] rounded-lg pl-9 pr-3.5 py-1.5 text-xs text-[#F8FAFC] placeholder-[#A7B3C9]/60 focus:outline-none focus:border-[#6366F1] transition-colors"
+              />
             </div>
           </div>
 
-          {/* Tab View Content */}
-          <div className="p-6 sm:p-8 min-h-[440px] bg-[#070214]/80">
+          {/* Tab View Content Area */}
+          <div className="p-5 sm:p-7 min-h-[420px] bg-[#080D1B]/60">
             <AnimatePresence mode="wait">
               {/* TAB 1: TIMETABLE */}
               {activeTab === 'timetable' && (
                 <motion.div
                   key="timetable"
-                  initial={{ opacity: 0, y: 15 }}
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  transition={{ duration: 0.25 }}
-                  className="space-y-5"
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-4"
                 >
                   {/* Day filter pills */}
-                  <div className="flex items-center gap-2.5 overflow-x-auto pb-1">
-                    <span className="text-[#fbbf24] font-mono font-bold text-xs mr-2">ACADEMIC DAY:</span>
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    <span className="text-[11px] font-mono font-semibold text-[#A7B3C9] mr-1 uppercase">Day:</span>
                     {(['All', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const).map((day) => (
                       <button
                         key={day}
                         type="button"
                         onClick={() => setSelectedDay(day)}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${
+                        className={`px-3 py-1 rounded-md text-xs font-mono font-medium transition-all ${
                           selectedDay === day
-                            ? 'bg-[#a855f7] text-white border border-white shadow-[0_0_15px_rgba(168,85,247,0.6)]'
-                            : 'text-[#cbd5e1] hover:text-white bg-[#150733] border border-white/10'
+                            ? 'bg-[#22D3EE]/15 text-[#22D3EE] border border-[#22D3EE]/40 font-bold'
+                            : 'text-[#A7B3C9] hover:text-[#F8FAFC] bg-[#111B30] border border-[rgba(148,163,184,0.14)]'
                         }`}
                       >
                         {day}
@@ -179,9 +180,9 @@ export const ProductPreview: React.FC = () => {
                   </div>
 
                   {/* Timetable Cards */}
-                  <div className="space-y-3.5">
+                  <div className="space-y-2.5">
                     {filteredSlots.length === 0 ? (
-                      <div className="text-center py-16 text-white font-mono text-base">
+                      <div className="text-center py-14 text-[#A7B3C9] font-mono text-sm">
                         No scheduled sessions match the filter criteria.
                       </div>
                     ) : (
@@ -190,55 +191,55 @@ export const ProductPreview: React.FC = () => {
                         return (
                           <div
                             key={slot.id}
-                            className="p-5 rounded-2xl bg-[#14082e]/80 border border-[#a855f7]/30 hover:border-[#fbbf24] hover:shadow-[0_0_25px_rgba(168,85,247,0.3)] transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 group"
+                            className="p-4 rounded-xl bg-[#0D1426] border border-[rgba(148,163,184,0.14)] hover:border-[#6366F1]/50 hover:bg-[#111B30]/70 transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 group"
                           >
-                            <div className="flex items-start sm:items-center gap-4">
+                            <div className="flex items-start sm:items-center gap-3.5">
                               {/* Day & Time Block */}
-                              <div className="px-3.5 py-2 rounded-xl bg-[#080214] border border-[#a855f7]/40 text-center min-w-[85px] shadow-inner">
-                                <span className="block text-sm font-mono text-[#fbbf24] font-black">
+                              <div className="px-3 py-1.5 rounded-lg bg-[#111B30] border border-[rgba(148,163,184,0.16)] text-center min-w-[75px]">
+                                <span className="block text-xs font-mono text-[#22D3EE] font-bold">
                                   {slot.day}
                                 </span>
-                                <span className="block text-xs font-mono font-bold text-[#e2e8f0] whitespace-nowrap">
+                                <span className="block text-[11px] font-mono text-[#A7B3C9] whitespace-nowrap">
                                   {slot.timeSlot.split('–')[0]}
                                 </span>
                               </div>
 
                               {/* Course Details */}
                               <div>
-                                <div className="flex items-center gap-2.5 flex-wrap">
-                                  <span className="text-sm font-mono font-black text-[#c084fc] px-2 py-0.5 rounded bg-[#a855f7]/20 border border-[#a855f7]/40">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-mono font-bold text-[#6366F1] px-2 py-0.5 rounded bg-[#6366F1]/10 border border-[#6366F1]/30">
                                     {slot.courseCode}
                                   </span>
-                                  <span className="text-base font-extrabold text-white">
+                                  <span className="text-sm font-bold text-[#F8FAFC]">
                                     {slot.courseName}
                                   </span>
-                                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-white/10 text-[#fbbf24] border border-[#fbbf24]/30">
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/[0.06] text-[#A7B3C9]">
                                     {slot.tag}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-3 text-sm text-[#cbd5e1] mt-1.5 font-medium">
-                                  <span className="text-white">{slot.faculty}</span>
+                                <div className="flex items-center gap-2 text-xs text-[#A7B3C9] mt-1">
+                                  <span className="text-[#F8FAFC] font-medium">{slot.faculty}</span>
                                   <span>•</span>
-                                  <span className="text-[#38bdf8] font-semibold">{slot.venue}</span>
+                                  <span className="text-[#22D3EE]">{slot.venue}</span>
                                 </div>
                               </div>
                             </div>
 
                             {/* Capacity progress & Status Badge */}
-                            <div className="flex items-center gap-5 self-end md:self-center">
+                            <div className="flex items-center gap-4 self-end md:self-center">
                               <div className="text-right">
-                                <div className="flex items-center gap-1.5 justify-end text-xs font-mono font-bold text-white">
-                                  <Users className="w-3.5 h-3.5 text-[#fbbf24]" />
+                                <div className="flex items-center gap-1.5 justify-end text-[11px] font-mono text-[#A7B3C9]">
+                                  <Users className="w-3 h-3 text-[#A7B3C9]" />
                                   <span>
                                     {slot.enrolled}/{slot.capacity} ({occupancy}%)
                                   </span>
                                 </div>
-                                <div className="w-28 h-2 bg-[#080214] rounded-full mt-1.5 overflow-hidden border border-white/10">
+                                <div className="w-24 h-1.5 bg-[#111B30] rounded-full mt-1 overflow-hidden border border-[rgba(148,163,184,0.1)]">
                                   <div
                                     className={`h-full rounded-full ${
                                       occupancy > 90
-                                        ? 'bg-gradient-to-r from-[#f59e0b] to-[#ef4444]'
-                                        : 'bg-gradient-to-r from-[#38bdf8] to-[#c084fc]'
+                                        ? 'bg-[#F59E0B]'
+                                        : 'bg-gradient-to-r from-[#6366F1] to-[#22D3EE]'
                                     }`}
                                     style={{ width: `${occupancy}%` }}
                                   />
@@ -246,12 +247,12 @@ export const ProductPreview: React.FC = () => {
                               </div>
 
                               <span
-                                className={`text-xs font-mono font-extrabold px-3.5 py-1.5 rounded-full border shadow-md ${
+                                className={`text-[11px] font-mono font-semibold px-2.5 py-1 rounded-md border ${
                                   slot.status === 'In Session'
-                                    ? 'bg-[#10b981]/20 text-[#34d399] border-[#10b981]/50'
+                                    ? 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/30'
                                     : slot.status === 'Exam Window'
-                                    ? 'bg-[#f59e0b]/20 text-[#fbbf24] border-[#f59e0b]/50'
-                                    : 'bg-[#a855f7]/20 text-[#c084fc] border-[#a855f7]/50'
+                                    ? 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/30'
+                                    : 'bg-[#6366F1]/10 text-[#818CF8] border-[#6366F1]/30'
                                 }`}
                               >
                                 {slot.status}
@@ -269,77 +270,57 @@ export const ProductPreview: React.FC = () => {
               {activeTab === 'rooms' && (
                 <motion.div
                   key="rooms"
-                  initial={{ opacity: 0, y: 15 }}
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  transition={{ duration: 0.25 }}
-                  className="space-y-5"
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-4"
                 >
-                  {/* Status filter pills */}
-                  <div className="flex items-center gap-2.5 overflow-x-auto pb-1">
-                    <span className="text-[#fbbf24] font-mono font-bold text-xs mr-2">ROOM STATUS:</span>
-                    {(['All', 'Available', 'Occupied', 'Reserved'] as const).map((st) => (
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    <span className="text-[11px] font-mono font-semibold text-[#A7B3C9] mr-1 uppercase">Status:</span>
+                    {(['All', 'Available', 'Occupied', 'Reserved'] as const).map((status) => (
                       <button
-                        key={st}
+                        key={status}
                         type="button"
-                        onClick={() => setRoomFilter(st)}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${
-                          roomFilter === st
-                            ? 'bg-[#a855f7] text-white border border-white shadow-[0_0_15px_rgba(168,85,247,0.6)]'
-                            : 'text-[#cbd5e1] hover:text-white bg-[#150733] border border-white/10'
+                        onClick={() => setRoomFilter(status)}
+                        className={`px-3 py-1 rounded-md text-xs font-mono font-medium transition-all ${
+                          roomFilter === status
+                            ? 'bg-[#22D3EE]/15 text-[#22D3EE] border border-[#22D3EE]/40 font-bold'
+                            : 'text-[#A7B3C9] hover:text-[#F8FAFC] bg-[#111B30] border border-[rgba(148,163,184,0.14)]'
                         }`}
                       >
-                        {st}
+                        {status}
                       </button>
                     ))}
                   </div>
 
-                  {/* Rooms Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {filteredVenues.map((venue) => (
                       <div
                         key={venue.id}
-                        className="p-5 rounded-2xl bg-[#14082e]/80 border border-[#a855f7]/30 hover:border-[#fbbf24] hover:shadow-[0_0_30px_rgba(168,85,247,0.3)] transition-all flex flex-col justify-between"
+                        className="p-4 rounded-xl bg-[#0D1426] border border-[rgba(148,163,184,0.14)] hover:border-[#6366F1]/50 transition-all flex flex-col justify-between"
                       >
                         <div>
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-base font-extrabold text-white">
-                              {venue.name}
-                            </span>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-bold text-[#F8FAFC]">{venue.name}</span>
                             <span
-                              className={`text-xs font-mono font-black px-2.5 py-1 rounded-full border ${
+                              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
                                 venue.currentStatus === 'Available'
-                                  ? 'bg-[#10b981]/25 text-[#34d399] border-[#10b981]/50'
-                                  : venue.currentStatus === 'Reserved'
-                                  ? 'bg-[#c084fc]/25 text-[#e879f9] border-[#c084fc]/50'
-                                  : 'bg-[#f59e0b]/25 text-[#fbbf24] border-[#f59e0b]/50'
+                                  ? 'bg-[#10B981]/15 text-[#10B981]'
+                                  : venue.currentStatus === 'Occupied'
+                                  ? 'bg-[#EF4444]/15 text-[#EF4444]'
+                                  : 'bg-[#F59E0B]/15 text-[#F59E0B]'
                               }`}
                             >
                               {venue.currentStatus}
                             </span>
                           </div>
-
-                          <div className="text-sm font-semibold text-[#cbd5e1] mb-4">
-                            {venue.block} • <strong className="text-[#fbbf24] font-bold">{venue.capacity} seats</strong>
-                          </div>
-
-                          {/* Features */}
-                          <div className="flex flex-wrap gap-2 mb-4">
-                            {venue.features.slice(0, 3).map((f) => (
-                              <span
-                                key={f}
-                                className="text-xs px-2.5 py-1 rounded-lg bg-white/[0.08] text-white border border-white/10 font-medium"
-                              >
-                                {f}
-                              </span>
-                            ))}
-                          </div>
+                          <p className="text-xs text-[#A7B3C9]">{venue.block} • {venue.category}</p>
                         </div>
 
-                        {/* Next Available time & load */}
-                        <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs font-mono font-bold text-[#e2e8f0]">
-                          <span>Next Free: <strong className="text-white">{venue.nextAvailable}</strong></span>
-                          <span className="text-[#38bdf8]">LOAD: {venue.utilizationRate}%</span>
+                        <div className="pt-3 mt-3 border-t border-[rgba(148,163,184,0.1)] flex items-center justify-between text-xs text-[#A7B3C9]">
+                          <span>Capacity: <strong className="text-[#F8FAFC]">{venue.capacity}</strong></span>
+                          <span className="font-mono text-[11px] text-[#22D3EE]">AC: {venue.features.some((f) => f.toLowerCase().includes('ac') || f.toLowerCase().includes('air')) ? 'Yes' : 'No'}</span>
                         </div>
                       </div>
                     ))}
@@ -347,60 +328,41 @@ export const ProductPreview: React.FC = () => {
                 </motion.div>
               )}
 
-              {/* TAB 3: REQUISITION PIPELINE */}
+              {/* TAB 3: REQUISITIONS */}
               {activeTab === 'requests' && (
                 <motion.div
                   key="requests"
-                  initial={{ opacity: 0, y: 15 }}
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  transition={{ duration: 0.25 }}
-                  className="space-y-4"
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-3"
                 >
                   {MOCK_REQUESTS.map((req) => (
                     <div
                       key={req.id}
-                      className="p-5 rounded-2xl bg-[#14082e]/80 border border-[#a855f7]/30 hover:border-[#fbbf24] transition-all flex flex-col md:flex-row md:items-center justify-between gap-5"
+                      className="p-4 rounded-xl bg-[#0D1426] border border-[rgba(148,163,184,0.14)] hover:border-[#6366F1]/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                     >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2.5 mb-2">
-                          <span className="text-xs font-mono font-black px-2.5 py-1 rounded-md bg-[#a855f7]/30 text-[#fbcfe8] border border-[#a855f7]/50">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-mono font-bold text-[#6366F1] px-2 py-0.5 rounded bg-[#6366F1]/10">
                             {req.id}
                           </span>
-                          <span className="text-base font-extrabold text-white">
-                            {req.title}
-                          </span>
+                          <span className="text-sm font-bold text-[#F8FAFC]">{req.title}</span>
                         </div>
-
-                        <div className="flex flex-wrap items-center gap-3 text-sm text-[#cbd5e1] font-medium">
-                          <span>By: <strong className="text-white">{req.requestedBy}</strong> ({req.role})</span>
-                          <span>•</span>
-                          <span>Venue: <strong className="text-[#fbbf24]">{req.venue}</strong></span>
-                          <span>•</span>
-                          <span>Time: {req.date} ({req.attendees} attendees)</span>
-                        </div>
-
-                        <p className="text-sm text-[#e2e8f0] mt-2 italic">
-                          &ldquo;{req.notes}&rdquo;
+                        <p className="text-xs text-[#A7B3C9]">
+                          Requested by <span className="text-[#F8FAFC]">{req.requestedBy}</span> ({req.role}) • Venue: <span className="text-[#22D3EE]">{req.venue}</span> • {req.date} ({req.timeRange})
                         </p>
                       </div>
 
-                      {/* Constraint verification score & Status */}
-                      <div className="flex items-center gap-4 self-end md:self-center">
-                        <div className="text-right">
-                          <div className="text-xs font-mono font-bold text-[#cbd5e1]">CONSTRAINT SCORE</div>
-                          <div className="text-base font-mono font-black text-[#34d399]">
-                            {req.constraintScore}/100 PASSED
-                          </div>
-                        </div>
-
+                      <div className="flex items-center gap-3">
                         <span
-                          className={`text-xs font-mono font-black px-4 py-2 rounded-xl border shadow-lg ${
+                          className={`text-[11px] font-mono font-semibold px-2.5 py-1 rounded-md border ${
                             req.status === 'Approved'
-                              ? 'bg-[#10b981]/20 text-[#34d399] border-[#10b981]/50'
+                              ? 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/30'
                               : req.status === 'Constraint Checked'
-                              ? 'bg-[#38bdf8]/20 text-[#38bdf8] border-[#38bdf8]/50'
-                              : 'bg-[#f59e0b]/20 text-[#fbbf24] border-[#f59e0b]/50'
+                              ? 'bg-[#22D3EE]/10 text-[#22D3EE] border-[#22D3EE]/30'
+                              : 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/30'
                           }`}
                         >
                           {req.status}
@@ -411,34 +373,6 @@ export const ProductPreview: React.FC = () => {
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
-
-          {/* Operational Metrics Bar at Footer of Preview */}
-          <div className="bg-[#14082e] px-6 py-5 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
-            <div>
-              <div className="text-xs font-bold font-mono text-[#cbd5e1]">MONITORED VENUES</div>
-              <div className="text-lg font-black font-mono text-white mt-1">
-                {CAMPUS_METRICS.totalRoomsManaged} Halls & Labs
-              </div>
-            </div>
-            <div>
-              <div className="text-xs font-bold font-mono text-[#cbd5e1]">EVALUATION LATENCY</div>
-              <div className="text-lg font-black font-mono text-[#38bdf8] mt-1">
-                {CAMPUS_METRICS.averageConflictResolutionSecs}s Deterministic
-              </div>
-            </div>
-            <div>
-              <div className="text-xs font-bold font-mono text-[#cbd5e1]">DOUBLE-BOOKING PROOF</div>
-              <div className="text-lg font-black font-mono text-[#34d399] mt-1">
-                {CAMPUS_METRICS.conflictPreventionAccuracy} Zero Clashes
-              </div>
-            </div>
-            <div>
-              <div className="text-xs font-bold font-mono text-[#cbd5e1]">SPACE UTILIZATION GAIN</div>
-              <div className="text-lg font-black font-mono text-[#fbbf24] mt-1">
-                {CAMPUS_METRICS.resourceUtilizationGain}
-              </div>
-            </div>
           </div>
         </div>
       </div>

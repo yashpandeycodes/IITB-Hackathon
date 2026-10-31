@@ -3,122 +3,147 @@
 import React from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ShieldCheck, CheckCircle2, Sparkles, Cpu } from 'lucide-react';
 import { CampusNetworkVisual } from './campus-network-visual';
 
 export const HeroSection: React.FC = () => {
+  const headlineWords = ['Every', 'campus', 'resource.', 'One', 'intelligent', 'system.'];
+
   return (
-    <section className="relative pt-36 pb-24 md:pt-48 md:pb-36 overflow-hidden">
-      {/* Dynamic Ambient Lighting in Section */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[550px] bg-gradient-to-r from-[#9333ea]/25 via-[#ec4899]/20 to-[#fbbf24]/15 rounded-full blur-[140px] pointer-events-none" />
+    <section className="relative pt-32 pb-20 md:pt-44 md:pb-32 overflow-hidden">
+      {/* Subtle Ambient Radial Lighting */}
+      <div
+        className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[850px] h-[500px] rounded-full blur-[140px] pointer-events-none opacity-40"
+        style={{
+          background: 'radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, rgba(34, 211, 238, 0.12) 60%, transparent 80%)',
+        }}
+      />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
-          {/* Left Column: Bold Editorial Typography & Messaging */}
+          {/* Left Column: Institutional SaaS Typography & Messaging */}
           <div className="lg:col-span-6 flex flex-col items-start text-left">
-            {/* High-Impact Animated Eyebrow Badge */}
+            {/* Top Eyebrow Badge */}
             <motion.div
-              initial={{ opacity: 0, y: 15 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-gradient-to-r from-[#190938] to-[#2c0b4d] border-2 border-[#c084fc]/50 mb-6 shadow-[0_0_20px_rgba(168,85,247,0.4)]"
+              transition={{ duration: 0.4 }}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(148,163,184,0.18)] mb-6 shadow-sm"
             >
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#fbbf24] opacity-80" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#fbbf24]" />
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#22D3EE] opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#22D3EE]" />
               </span>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#c084fc] via-[#f43f5e] to-[#fbbf24] text-xs sm:text-sm font-black tracking-widest uppercase">
-                CAMPUS OPERATIONS, CONNECTED
+              <span className="text-[11px] font-mono font-bold tracking-wider text-[#22D3EE] uppercase">
+                CAMPUS OPERATIONS PROTOCOL
               </span>
-              <span className="text-white/30">|</span>
-              <span className="text-white text-xs font-bold hidden sm:inline">
-                A Unified View of Campus Operations
+              <span className="text-white/20">|</span>
+              <span className="text-[11px] text-[#A7B3C9] font-medium hidden sm:inline">
+                Chilika Institute of Technology
               </span>
             </motion.div>
 
-            {/* Giant Head-Turning Headline */}
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-black tracking-tight text-white leading-[1.02] mb-6 drop-shadow-2xl"
-            >
-              Every campus resource.{' '}
-              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-[#c084fc] via-[#f43f5e] to-[#fbbf24] animate-shimmer-text">
-                One intelligent system.
-              </span>
-            </motion.h1>
+            {/* Word-by-Word Revealed Headline */}
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight text-[#F8FAFC] leading-[1.08] mb-6">
+              {headlineWords.map((word, index) => {
+                const isHighlight = word === 'One' || word === 'intelligent' || word === 'system.';
+                return (
+                  <motion.span
+                    key={index}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 0.45,
+                      delay: 0.08 + index * 0.06,
+                      ease: [0.21, 0.47, 0.32, 0.98],
+                    }}
+                    className={`inline-block mr-2.5 sm:mr-3 ${
+                      isHighlight
+                        ? 'text-transparent bg-clip-text bg-gradient-to-r from-[#6366F1] via-[#818CF8] to-[#22D3EE]'
+                        : ''
+                    }`}
+                  >
+                    {word}
+                  </motion.span>
+                );
+              })}
+            </h1>
 
-            {/* Clear, High-Contrast Large Copy */}
+            {/* Supporting Explanation */}
             <motion.p
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-lg sm:text-xl lg:text-2xl text-[#f1f5f9] leading-relaxed max-w-2xl mb-10 font-medium"
+              transition={{ duration: 0.5, delay: 0.45 }}
+              className="text-base sm:text-lg text-[#A7B3C9] leading-relaxed max-w-xl mb-8 font-normal"
             >
-              CIT Nexus brings timetables, examinations, rooms and campus events into one coordinated workspace—so every hour and every space works smarter.
+              CIT Nexus unifies timetables, examinations, 27 physical venues, and student cohorts into one continuous constraint-checked workspace—preventing schedule conflicts before they happen.
             </motion.p>
 
-            {/* Bold Action Buttons */}
+            {/* CTAs */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="flex flex-wrap items-center gap-5 w-full sm:w-auto"
+              transition={{ duration: 0.5, delay: 0.55 }}
+              className="flex flex-wrap items-center gap-3.5 w-full sm:w-auto mb-10"
             >
+              {/* Primary Moving Border / Accent Button */}
               <a
                 href="#product-preview"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl font-black text-base text-[#04010a] bg-gradient-to-r from-[#c084fc] via-[#f43f5e] to-[#fbbf24] hover:opacity-95 transition-all duration-300 shadow-[0_0_35px_rgba(217,70,239,0.6)] hover:shadow-[0_0_50px_rgba(251,191,36,0.8)] hover:scale-105 transform-gpu group"
+                className="w-full sm:w-auto relative inline-flex items-center justify-center p-[1px] overflow-hidden rounded-xl group focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/50 shadow-[0_4px_20px_rgba(99,102,241,0.25)]"
               >
-                <span>Explore the platform</span>
-                <ArrowRight className="w-5 h-5 stroke-[2.5] transition-transform group-hover:translate-x-1.5" />
+                <span className="absolute inset-0 bg-gradient-to-r from-[#6366F1] via-[#22D3EE] to-[#6366F1] rounded-xl transition-all duration-300 opacity-90 group-hover:opacity-100" />
+                <span className="relative flex items-center justify-center gap-2.5 px-6 py-3.5 text-sm font-bold text-[#F8FAFC] bg-[#0D1426] rounded-[11px] transition-all duration-200 group-hover:bg-[#111B30]">
+                  <span>Explore Live Console</span>
+                  <ArrowRight className="w-4 h-4 text-[#22D3EE] transition-transform duration-200 group-hover:translate-x-1" />
+                </span>
               </a>
 
               <Link
                 href="/signup"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl font-bold text-base text-white bg-[#150730]/90 hover:bg-[#230c4e] border-2 border-[#a855f7]/40 hover:border-[#fbbf24] transition-all duration-300 shadow-xl hover:scale-105 transform-gpu"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-semibold text-sm text-[#F8FAFC] bg-[#111B30] hover:bg-[#16233E] border border-[rgba(148,163,184,0.18)] hover:border-[#6366F1]/50 transition-all duration-200 shadow-sm"
               >
-                <span>Create your account</span>
+                <span>Request Account</span>
               </Link>
             </motion.div>
 
-            {/* Large-Format Proof Metrics */}
+            {/* Institutional Trust Matrix Metrics Row */}
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.8, delay: 0.45 }}
-              className="mt-12 pt-8 border-t border-white/15 grid grid-cols-3 gap-6 w-full"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.65 }}
+              className="pt-6 border-t border-[rgba(148,163,184,0.12)] grid grid-cols-3 gap-4 w-full"
             >
               <div>
-                <div className="text-3xl sm:text-4xl lg:text-5xl font-black font-mono text-[#fbbf24] drop-shadow">
-                  68
-                </div>
-                <div className="text-sm font-bold text-[#e2e8f0] mt-1">Campus Spaces Synced</div>
+                <div className="text-xl sm:text-2xl font-black text-[#F8FAFC] font-mono">189</div>
+                <div className="text-[11px] text-[#A7B3C9] mt-0.5">Academic Sessions</div>
               </div>
+
               <div>
-                <div className="text-3xl sm:text-4xl lg:text-5xl font-black font-mono text-[#c084fc] drop-shadow">
+                <div className="text-xl sm:text-2xl font-black text-[#22D3EE] font-mono">27</div>
+                <div className="text-[11px] text-[#A7B3C9] mt-0.5">Monitored Venues</div>
+              </div>
+
+              <div>
+                <div className="text-xl sm:text-2xl font-black text-[#10B981] font-mono flex items-center gap-1">
+                  <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
                   0
                 </div>
-                <div className="text-sm font-bold text-[#e2e8f0] mt-1">Room Clash Tolerance</div>
-              </div>
-              <div>
-                <div className="text-3xl sm:text-4xl lg:text-5xl font-black font-mono text-[#34d399] drop-shadow">
-                  100%
-                </div>
-                <div className="text-sm font-bold text-[#e2e8f0] mt-1">Human Signoff Control</div>
+                <div className="text-[11px] text-[#A7B3C9] mt-0.5">Week 7 Clashes</div>
               </div>
             </motion.div>
           </div>
 
-          {/* Right Column: 3D Interactive Spatial Campus Visual */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="lg:col-span-6 relative"
-          >
-            <CampusNetworkVisual />
-          </motion.div>
+          {/* Right Column: 3D Spatial Network Visual */}
+          <div className="lg:col-span-6 flex justify-center">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.7, delay: 0.3 }}
+              className="w-full"
+            >
+              <CampusNetworkVisual />
+            </motion.div>
+          </div>
         </div>
       </div>
     </section>

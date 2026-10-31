@@ -58,7 +58,7 @@ export const SignupForm: React.FC = () => {
   const [resendCooldown, setResendCooldown] = useState(0);
 
   // 10-Minute Countdown Timer for OTP
-  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(600);
 
   const otpInputRefs = [
     useRef<HTMLInputElement>(null),
@@ -101,7 +101,7 @@ export const SignupForm: React.FC = () => {
   };
 
   const strengthCount = Object.values(passwordChecks).filter(Boolean).length;
-  const strengthColors = ['bg-white/10', 'bg-[#ef4444]', 'bg-[#f97316]', 'bg-[#fbbf24]', 'bg-[#38bdf8]', 'bg-[#34d399]'];
+  const strengthColors = ['bg-white/10', 'bg-red-500', 'bg-orange-500', 'bg-amber-400', 'bg-[#6366F1]', 'bg-[#10B981]'];
   const strengthLabels = ['No password', 'Very Weak', 'Weak', 'Fair', 'Strong', 'Institutional Grade'];
 
   const roles: {
@@ -110,39 +110,34 @@ export const SignupForm: React.FC = () => {
     desc: string;
     icon: React.ElementType;
     accent: string;
-    borderAccent: string;
   }[] = [
     {
       value: 'Admin',
       title: 'Administrator',
       desc: 'Institute policy & global oversight',
       icon: Shield,
-      accent: 'text-[#f43f5e]',
-      borderAccent: '#f43f5e',
+      accent: 'text-[#6366F1]',
     },
     {
       value: 'Department Coordinator',
       title: 'Dept Coordinator',
       desc: 'Curriculum & venue allocations',
       icon: Building2,
-      accent: 'text-[#fbbf24]',
-      borderAccent: '#fbbf24',
+      accent: 'text-[#22D3EE]',
     },
     {
       value: 'Faculty',
       title: 'Faculty Member',
       desc: 'Teaching schedules & cohorts',
       icon: GraduationCap,
-      accent: 'text-[#38bdf8]',
-      borderAccent: '#38bdf8',
+      accent: 'text-[#6366F1]',
     },
     {
       value: 'Club Representative',
       title: 'Club Representative',
       desc: 'Society events & fest pipeline',
       icon: Sparkles,
-      accent: 'text-[#c084fc]',
-      borderAccent: '#c084fc',
+      accent: 'text-[#22D3EE]',
     },
   ];
 
@@ -189,7 +184,7 @@ export const SignupForm: React.FC = () => {
 
       // Transition to OTP verification step
       setIsOtpStep(true);
-      setTimeLeft(600); // 10 minutes
+      setTimeLeft(600);
       setTimeout(() => otpInputRefs[0].current?.focus(), 150);
     } catch {
       setServerError('Network error connecting to backend service.');
@@ -208,7 +203,6 @@ export const SignupForm: React.FC = () => {
       return;
     }
 
-    // If multiple digits pasted
     if (cleaned.length > 1) {
       const digitsArr = cleaned.slice(0, 6).split('');
       const updated = [...otpDigits];
@@ -225,7 +219,6 @@ export const SignupForm: React.FC = () => {
     updated[index] = cleaned[0];
     setOtpDigits(updated);
 
-    // Auto-advance to next input box
     if (index < 5) {
       otpInputRefs[index + 1].current?.focus();
     }
@@ -265,7 +258,6 @@ export const SignupForm: React.FC = () => {
         return;
       }
 
-      // Successful verification! Redirect to dashboard
       router.push('/dashboard');
       router.refresh();
     } catch {
@@ -289,7 +281,7 @@ export const SignupForm: React.FC = () => {
       const data = await res.json();
 
       if (res.ok) {
-        setResendStatus('New 6-digit code sent to your email!');
+        setResendStatus('New 6-digit code sent to your email.');
         setResendCooldown(30);
         setTimeLeft(600);
       } else {
@@ -302,20 +294,20 @@ export const SignupForm: React.FC = () => {
 
   return (
     <div className="w-full max-w-xl mx-auto">
-      {/* Floating Glowing Container */}
-      <div className="relative rounded-3xl bg-gradient-to-b from-[#12052e]/95 via-[#0e0424]/95 to-[#070114]/98 border-2 border-[#a855f7]/40 p-7 sm:p-10 shadow-[0_25px_80px_rgba(168,85,247,0.35)] backdrop-blur-3xl overflow-hidden">
-        {/* Subtle Decorative Ambient Glows */}
-        <div className="absolute -top-24 -right-24 w-60 h-60 bg-[#c084fc]/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -left-24 w-60 h-60 bg-[#fbbf24]/15 rounded-full blur-3xl pointer-events-none" />
+      {/* Container */}
+      <div className="relative rounded-2xl bg-[#0D1426]/90 border border-[rgba(148,163,184,0.18)] p-6 sm:p-9 shadow-2xl backdrop-blur-xl overflow-hidden">
+        {/* Decorative Ambient Glow */}
+        <div className="absolute -top-16 -right-16 w-44 h-44 bg-[#6366F1]/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-16 -left-16 w-44 h-44 bg-[#22D3EE]/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Global Server Error Alert */}
         {serverError && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 rounded-2xl bg-[#ef4444]/20 border-2 border-[#ef4444]/60 text-xs font-mono font-bold text-[#fca5a5] flex items-center gap-3"
+            className="mb-6 p-3.5 rounded-xl bg-red-500/10 border border-red-500/25 text-xs font-mono font-medium text-red-400 flex items-center gap-2.5"
           >
-            <ShieldAlert className="w-5 h-5 text-[#ef4444] shrink-0" />
+            <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
             <span>{serverError}</span>
           </motion.div>
         )}
@@ -325,29 +317,29 @@ export const SignupForm: React.FC = () => {
           {isOtpStep ? (
             <motion.div
               key="otp-step"
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.3 }}
             >
               {/* Header */}
-              <div className="text-center mb-8">
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-[#190938] to-[#2c0b4d] border-2 border-[#fbbf24]/60 mb-4 text-xs font-mono font-black text-[#fde047] shadow-[0_0_20px_rgba(251,191,36,0.3)]">
-                  <KeyRound className="w-3.5 h-3.5 text-[#fbbf24]" />
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#111B30] border border-[rgba(148,163,184,0.18)] mb-3 text-[11px] font-mono font-semibold text-[#22D3EE]">
+                  <KeyRound className="w-3.5 h-3.5 text-[#22D3EE]" />
                   <span>STEP 2 OF 2 • IDENTITY VERIFICATION</span>
                 </div>
 
-                <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F8FAFC] tracking-tight">
                   Verify Security Code
                 </h2>
 
-                <p className="text-sm text-[#cbd5e1] font-medium mt-2 max-w-md mx-auto">
-                  A secure 6-digit one-time code (OTP) was dispatched via Brevo to your institutional inbox:
+                <p className="text-xs sm:text-sm text-[#A7B3C9] font-normal mt-2 max-w-md mx-auto">
+                  A secure 6-digit one-time code (OTP) was dispatched via Brevo to your inbox:
                 </p>
 
                 {/* Email Chip */}
-                <div className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 rounded-full bg-[#180738] border border-[#a855f7]/40 text-xs font-mono font-bold text-[#fbbf24] shadow-inner">
-                  <Mail className="w-3.5 h-3.5 text-[#c084fc]" />
+                <div className="inline-flex items-center gap-2 mt-3 px-3.5 py-1 rounded-full bg-[#111B30] border border-[rgba(148,163,184,0.18)] text-xs font-mono font-medium text-[#22D3EE]">
+                  <Mail className="w-3.5 h-3.5 text-[#6366F1]" />
                   <span>{formData.email}</span>
                 </div>
               </div>
@@ -356,16 +348,16 @@ export const SignupForm: React.FC = () => {
               <form onSubmit={handleVerifyOtp} className="space-y-6">
                 <div>
                   <div className="flex items-center justify-between mb-3 px-1">
-                    <label className="text-xs font-mono font-bold text-[#cbd5e1] uppercase tracking-wider">
+                    <label className="text-xs font-mono font-medium text-[#A7B3C9] uppercase tracking-wider">
                       Enter 6-Digit Code
                     </label>
-                    <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-[#fbbf24]">
+                    <div className="flex items-center gap-1.5 text-xs font-mono text-[#22D3EE]">
                       <Clock className="w-3.5 h-3.5" />
                       <span>Expires in {formatTime(timeLeft)}</span>
                     </div>
                   </div>
 
-                  {/* 6 Individual Futuristic Segmented Cyber Boxes */}
+                  {/* 6 Individual Segmented Boxes */}
                   <div className="grid grid-cols-6 gap-2 sm:gap-3">
                     {otpDigits.map((digit, index) => (
                       <input
@@ -378,10 +370,10 @@ export const SignupForm: React.FC = () => {
                         value={digit}
                         onChange={(e) => handleDigitChange(index, e.target.value)}
                         onKeyDown={(e) => handleDigitKeyDown(index, e)}
-                        className={`h-14 sm:h-16 text-center font-mono text-2xl sm:text-3xl font-black rounded-2xl bg-[#14062e] border-2 transition-all focus:outline-none ${
+                        className={`h-12 sm:h-14 text-center font-mono text-xl sm:text-2xl font-bold rounded-xl bg-[#111B30] border transition-all focus:outline-none ${
                           digit
-                            ? 'border-[#fbbf24] text-[#fbbf24] shadow-[0_0_15px_rgba(251,191,36,0.35)]'
-                            : 'border-[#a855f7]/40 text-white focus:border-[#c084fc] focus:ring-2 focus:ring-[#c084fc]/30'
+                            ? 'border-[#22D3EE] text-[#22D3EE] shadow-sm'
+                            : 'border-[rgba(148,163,184,0.2)] text-[#F8FAFC] focus:border-[#6366F1]'
                         }`}
                       />
                     ))}
@@ -391,7 +383,7 @@ export const SignupForm: React.FC = () => {
                     <motion.p
                       initial={{ opacity: 0, y: -5 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="mt-3 text-xs text-[#f43f5e] flex items-center justify-center gap-1.5 font-mono font-bold text-center"
+                      className="mt-3 text-xs text-red-400 flex items-center justify-center gap-1.5 font-mono text-center"
                     >
                       <AlertCircle className="w-4 h-4 shrink-0" />
                       <span>{otpError}</span>
@@ -403,25 +395,25 @@ export const SignupForm: React.FC = () => {
                 <button
                   type="submit"
                   disabled={otpLoading}
-                  className="w-full py-4 rounded-2xl font-black text-sm text-[#04010a] bg-gradient-to-r from-[#c084fc] via-[#f43f5e] to-[#fbbf24] hover:opacity-95 transition-all flex items-center justify-center gap-2.5 shadow-[0_0_35px_rgba(217,70,239,0.6)] hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-60"
+                  className="w-full py-3.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-[#6366F1] to-[#22D3EE] hover:opacity-95 transition-all flex items-center justify-center gap-2 shadow-md hover:-translate-y-0.5 active:translate-y-0 cursor-pointer disabled:opacity-60"
                 >
                   {otpLoading ? (
-                    <span className="font-mono">Verifying Security Code...</span>
+                    <span className="font-mono text-xs">Verifying Security Code...</span>
                   ) : (
                     <>
-                      <span>Confirm Verification & Launch Console</span>
-                      <ArrowRight className="w-4 h-4 stroke-[3]" />
+                      <span>Confirm Verification & Enter Console</span>
+                      <ArrowRight className="w-4 h-4 stroke-[2]" />
                     </>
                   )}
                 </button>
 
                 {/* Sub Actions Bar */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-mono font-bold pt-4 border-t border-white/10">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-mono pt-3 border-t border-[rgba(148,163,184,0.12)]">
                   <button
                     type="button"
                     onClick={handleResendOtp}
                     disabled={resendCooldown > 0}
-                    className="text-[#c084fc] hover:text-[#fbbf24] disabled:text-white/30 flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                    className="text-[#22D3EE] hover:underline disabled:text-[#A7B3C9]/40 flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed transition-colors"
                   >
                     <RotateCcw className={`w-3.5 h-3.5 ${resendCooldown > 0 ? 'animate-spin' : ''}`} />
                     <span>
@@ -436,7 +428,7 @@ export const SignupForm: React.FC = () => {
                       setOtpDigits(['', '', '', '', '', '']);
                       setOtpError(null);
                     }}
-                    className="text-[#cbd5e1] hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
+                    className="text-[#A7B3C9] hover:text-[#F8FAFC] flex items-center gap-1 cursor-pointer transition-colors"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
                     <span>Change email address</span>
@@ -444,7 +436,7 @@ export const SignupForm: React.FC = () => {
                 </div>
 
                 {resendStatus && (
-                  <p className="text-center text-xs font-mono font-bold text-[#34d399]">
+                  <p className="text-center text-xs font-mono text-[#10B981]">
                     {resendStatus}
                   </p>
                 )}
@@ -460,32 +452,32 @@ export const SignupForm: React.FC = () => {
               transition={{ duration: 0.3 }}
             >
               {/* Header */}
-              <div className="text-center mb-8">
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-[#190938] to-[#2c0b4d] border-2 border-[#c084fc]/50 mb-4 text-xs font-mono font-bold text-[#fde047] shadow-[0_0_15px_rgba(251,191,36,0.3)]">
-                  <Sparkles className="w-3.5 h-3.5 text-[#fbbf24]" />
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#111B30] border border-[rgba(148,163,184,0.18)] mb-3 text-[11px] font-mono font-semibold text-[#22D3EE]">
+                  <Sparkles className="w-3.5 h-3.5 text-[#22D3EE]" />
                   <span>STEP 1 OF 2 • SECURE ENROLLMENT</span>
                 </div>
 
-                <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-[#F8FAFC] tracking-tight">
                   Create Institutional Account
                 </h1>
 
-                <p className="text-sm text-[#cbd5e1] font-medium mt-2">
+                <p className="text-xs sm:text-sm text-[#A7B3C9] font-normal mt-1.5">
                   Access the centralized campus operations and scheduling workspace.
                 </p>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+              <form onSubmit={handleSubmit} className="space-y-4" noValidate>
                 {/* Full Name */}
                 <div>
                   <label
                     htmlFor="fullName"
-                    className="block text-xs font-mono font-bold text-[#cbd5e1] mb-2 uppercase tracking-wider"
+                    className="block text-xs font-mono font-medium text-[#A7B3C9] mb-1.5 uppercase tracking-wider"
                   >
-                    Full Name <span className="text-[#f43f5e]">*</span>
+                    Full Name <span className="text-red-400">*</span>
                   </label>
                   <div className="relative">
-                    <User className="w-5 h-5 text-[#c084fc] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <User className="w-4 h-4 text-[#A7B3C9]/50 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       id="fullName"
                       name="fullName"
@@ -494,15 +486,15 @@ export const SignupForm: React.FC = () => {
                       placeholder="e.g. Dr. Rajesh Mohanty / Aditi Rao"
                       value={formData.fullName}
                       onChange={handleChange}
-                      className={`w-full bg-[#14062e] border rounded-2xl pl-12 pr-4 py-3.5 text-sm font-medium text-white placeholder-white/30 transition-all focus:outline-none ${
+                      className={`w-full bg-[#111B30] border rounded-xl pl-10 pr-4 py-2.5 text-xs font-medium text-[#F8FAFC] placeholder-[#A7B3C9]/40 transition-all focus:outline-none ${
                         errors.fullName
-                          ? 'border-[#f43f5e] focus:ring-2 focus:ring-[#f43f5e]'
-                          : 'border-[#a855f7]/30 focus:border-[#fbbf24] focus:ring-2 focus:ring-[#fbbf24]/30'
+                          ? 'border-red-400 focus:ring-1 focus:ring-red-400'
+                          : 'border-[rgba(148,163,184,0.18)] focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]'
                       }`}
                     />
                   </div>
                   {errors.fullName && (
-                    <p className="mt-1.5 text-xs text-[#f43f5e] flex items-center gap-1 font-mono font-bold">
+                    <p className="mt-1 text-xs text-red-400 flex items-center gap-1 font-mono">
                       <AlertCircle className="w-3.5 h-3.5" />
                       <span>{errors.fullName}</span>
                     </p>
@@ -513,12 +505,12 @@ export const SignupForm: React.FC = () => {
                 <div>
                   <label
                     htmlFor="email"
-                    className="block text-xs font-mono font-bold text-[#cbd5e1] mb-2 uppercase tracking-wider"
+                    className="block text-xs font-mono font-medium text-[#A7B3C9] mb-1.5 uppercase tracking-wider"
                   >
-                    Institutional Email <span className="text-[#f43f5e]">*</span>
+                    Institutional Email <span className="text-red-400">*</span>
                   </label>
                   <div className="relative">
-                    <Mail className="w-5 h-5 text-[#c084fc] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <Mail className="w-4 h-4 text-[#A7B3C9]/50 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       id="email"
                       name="email"
@@ -527,15 +519,15 @@ export const SignupForm: React.FC = () => {
                       placeholder="name@cit.edu.in"
                       value={formData.email}
                       onChange={handleChange}
-                      className={`w-full bg-[#14062e] border rounded-2xl pl-12 pr-4 py-3.5 text-sm font-medium text-white placeholder-white/30 transition-all focus:outline-none ${
+                      className={`w-full bg-[#111B30] border rounded-xl pl-10 pr-4 py-2.5 text-xs font-medium text-[#F8FAFC] placeholder-[#A7B3C9]/40 transition-all focus:outline-none ${
                         errors.email
-                          ? 'border-[#f43f5e] focus:ring-2 focus:ring-[#f43f5e]'
-                          : 'border-[#a855f7]/30 focus:border-[#fbbf24] focus:ring-2 focus:ring-[#fbbf24]/30'
+                          ? 'border-red-400 focus:ring-1 focus:ring-red-400'
+                          : 'border-[rgba(148,163,184,0.18)] focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]'
                       }`}
                     />
                   </div>
                   {errors.email && (
-                    <p className="mt-1.5 text-xs text-[#f43f5e] flex items-center gap-1 font-mono font-bold">
+                    <p className="mt-1 text-xs text-red-400 flex items-center gap-1 font-mono">
                       <AlertCircle className="w-3.5 h-3.5" />
                       <span>{errors.email}</span>
                     </p>
@@ -544,10 +536,10 @@ export const SignupForm: React.FC = () => {
 
                 {/* Intended Role Selection Grid */}
                 <div>
-                  <label className="block text-xs font-mono font-bold text-[#cbd5e1] mb-2 uppercase tracking-wider">
-                    Intended Campus Role (RBAC) <span className="text-[#f43f5e]">*</span>
+                  <label className="block text-xs font-mono font-medium text-[#A7B3C9] mb-1.5 uppercase tracking-wider">
+                    Intended Campus Role (RBAC) <span className="text-red-400">*</span>
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {roles.map((r) => {
                       const isSelected = formData.role === r.value;
                       const IconComp = r.icon;
@@ -556,28 +548,28 @@ export const SignupForm: React.FC = () => {
                           type="button"
                           key={r.value}
                           onClick={() => setFormData((prev) => ({ ...prev, role: r.value }))}
-                          className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative overflow-hidden group ${
+                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer relative overflow-hidden group ${
                             isSelected
-                              ? 'bg-[#1e0a42] border-[#fbbf24] shadow-[0_0_20px_rgba(251,191,36,0.4)]'
-                              : 'bg-[#14062e]/80 border-[#a855f7]/30 hover:border-[#a855f7]/70'
+                              ? 'bg-[#111B30] border-[#22D3EE] shadow-sm'
+                              : 'bg-[#111B30]/70 border-[rgba(148,163,184,0.18)] hover:border-[#6366F1]/50'
                           }`}
                         >
-                          <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center justify-between mb-1">
                             <div className="flex items-center gap-2">
                               <IconComp className={`w-4 h-4 ${r.accent}`} />
-                              <span className="text-sm font-black text-white">{r.title}</span>
+                              <span className="text-xs font-bold text-[#F8FAFC]">{r.title}</span>
                             </div>
                             <span
-                              className={`w-4 h-4 rounded-full flex items-center justify-center transition-all ${
+                              className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-all ${
                                 isSelected
-                                  ? 'bg-[#fbbf24] text-[#04010a]'
-                                  : 'border border-white/20'
+                                  ? 'bg-[#22D3EE] text-[#080D1B]'
+                                  : 'border border-[rgba(148,163,184,0.3)]'
                               }`}
                             >
                               {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
                             </span>
                           </div>
-                          <div className="text-[11px] text-[#cbd5e1] font-medium leading-tight">
+                          <div className="text-[11px] text-[#A7B3C9] font-normal leading-tight">
                             {r.desc}
                           </div>
                         </button>
@@ -590,12 +582,12 @@ export const SignupForm: React.FC = () => {
                 <div>
                   <label
                     htmlFor="password"
-                    className="block text-xs font-mono font-bold text-[#cbd5e1] mb-2 uppercase tracking-wider"
+                    className="block text-xs font-mono font-medium text-[#A7B3C9] mb-1.5 uppercase tracking-wider"
                   >
-                    Password <span className="text-[#f43f5e]">*</span>
+                    Password <span className="text-red-400">*</span>
                   </label>
                   <div className="relative">
-                    <Lock className="w-5 h-5 text-[#c084fc] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <Lock className="w-4 h-4 text-[#A7B3C9]/50 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       id="password"
                       name="password"
@@ -604,35 +596,35 @@ export const SignupForm: React.FC = () => {
                       placeholder="Min 8 chars with upper, lower, number, symbol"
                       value={formData.password}
                       onChange={handleChange}
-                      className={`w-full bg-[#14062e] border rounded-2xl pl-12 pr-12 py-3.5 text-sm font-medium text-white placeholder-white/30 transition-all focus:outline-none ${
+                      className={`w-full bg-[#111B30] border rounded-xl pl-10 pr-10 py-2.5 text-xs font-medium text-[#F8FAFC] placeholder-[#A7B3C9]/40 transition-all focus:outline-none ${
                         errors.password
-                          ? 'border-[#f43f5e] focus:ring-2 focus:ring-[#f43f5e]'
-                          : 'border-[#a855f7]/30 focus:border-[#fbbf24] focus:ring-2 focus:ring-[#fbbf24]/30'
+                          ? 'border-red-400 focus:ring-1 focus:ring-red-400'
+                          : 'border-[rgba(148,163,184,0.18)] focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]'
                       }`}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#cbd5e1] hover:text-white cursor-pointer"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#A7B3C9] hover:text-[#F8FAFC] cursor-pointer"
                     >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
 
                   {/* Password Strength Meter */}
                   {formData.password && (
-                    <div className="mt-3 space-y-2">
+                    <div className="mt-2.5 space-y-1.5">
                       <div className="flex items-center justify-between text-[11px] font-mono">
-                        <span className="text-white/60">Strength</span>
-                        <span className="font-bold text-white">{strengthLabels[strengthCount]}</span>
+                        <span className="text-[#A7B3C9]">Strength</span>
+                        <span className="font-semibold text-[#F8FAFC]">{strengthLabels[strengthCount]}</span>
                       </div>
-                      <div className="grid grid-cols-5 gap-1.5 h-1.5">
+                      <div className="grid grid-cols-5 gap-1.5 h-1">
                         {[1, 2, 3, 4, 5].map((lvl) => (
                           <div
                             key={lvl}
                             className={`rounded-full transition-all duration-300 ${
-                              strengthCount >= lvl ? strengthColors[strengthCount] : 'bg-white/10'
+                              strengthCount >= lvl ? strengthColors[strengthCount] : 'bg-[#111B30] border border-[rgba(148,163,184,0.15)]'
                             }`}
                           />
                         ))}
@@ -641,26 +633,26 @@ export const SignupForm: React.FC = () => {
                   )}
 
                   {/* Live Password Validity Rules Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3 text-[11px] font-mono">
-                    <span className={`flex items-center gap-1.5 ${passwordChecks.length ? 'text-[#34d399]' : 'text-white/40'}`}>
-                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> 8+ Characters
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mt-2.5 text-[10px] font-mono">
+                    <span className={`flex items-center gap-1 ${passwordChecks.length ? 'text-[#10B981]' : 'text-[#A7B3C9]/50'}`}>
+                      <CheckCircle2 className="w-3 h-3 shrink-0" /> 8+ Chars
                     </span>
-                    <span className={`flex items-center gap-1.5 ${passwordChecks.hasUpper ? 'text-[#34d399]' : 'text-white/40'}`}>
-                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Uppercase (A-Z)
+                    <span className={`flex items-center gap-1 ${passwordChecks.hasUpper ? 'text-[#10B981]' : 'text-[#A7B3C9]/50'}`}>
+                      <CheckCircle2 className="w-3 h-3 shrink-0" /> Upper (A-Z)
                     </span>
-                    <span className={`flex items-center gap-1.5 ${passwordChecks.hasLower ? 'text-[#34d399]' : 'text-white/40'}`}>
-                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Lowercase (a-z)
+                    <span className={`flex items-center gap-1 ${passwordChecks.hasLower ? 'text-[#10B981]' : 'text-[#A7B3C9]/50'}`}>
+                      <CheckCircle2 className="w-3 h-3 shrink-0" /> Lower (a-z)
                     </span>
-                    <span className={`flex items-center gap-1.5 ${passwordChecks.hasNumber ? 'text-[#34d399]' : 'text-white/40'}`}>
-                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Number (0-9)
+                    <span className={`flex items-center gap-1 ${passwordChecks.hasNumber ? 'text-[#10B981]' : 'text-[#A7B3C9]/50'}`}>
+                      <CheckCircle2 className="w-3 h-3 shrink-0" /> Number (0-9)
                     </span>
-                    <span className={`flex items-center gap-1.5 ${passwordChecks.hasSpecial ? 'text-[#34d399]' : 'text-white/40'}`}>
-                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Symbol (!@#$)
+                    <span className={`flex items-center gap-1 ${passwordChecks.hasSpecial ? 'text-[#10B981]' : 'text-[#A7B3C9]/50'}`}>
+                      <CheckCircle2 className="w-3 h-3 shrink-0" /> Symbol (!@#$)
                     </span>
                   </div>
 
                   {errors.password && (
-                    <p className="mt-2 text-xs text-[#f43f5e] flex items-center gap-1 font-mono font-bold">
+                    <p className="mt-1.5 text-xs text-red-400 flex items-center gap-1 font-mono">
                       <AlertCircle className="w-3.5 h-3.5" />
                       <span>{errors.password}</span>
                     </p>
@@ -671,12 +663,12 @@ export const SignupForm: React.FC = () => {
                 <div>
                   <label
                     htmlFor="confirmPassword"
-                    className="block text-xs font-mono font-bold text-[#cbd5e1] mb-2 uppercase tracking-wider"
+                    className="block text-xs font-mono font-medium text-[#A7B3C9] mb-1.5 uppercase tracking-wider"
                   >
-                    Confirm Password <span className="text-[#f43f5e]">*</span>
+                    Confirm Password <span className="text-red-400">*</span>
                   </label>
                   <div className="relative">
-                    <Lock className="w-5 h-5 text-[#c084fc] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <Lock className="w-4 h-4 text-[#A7B3C9]/50 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       id="confirmPassword"
                       name="confirmPassword"
@@ -685,23 +677,23 @@ export const SignupForm: React.FC = () => {
                       placeholder="Re-enter password"
                       value={formData.confirmPassword}
                       onChange={handleChange}
-                      className={`w-full bg-[#14062e] border rounded-2xl pl-12 pr-12 py-3.5 text-sm font-medium text-white placeholder-white/30 transition-all focus:outline-none ${
+                      className={`w-full bg-[#111B30] border rounded-xl pl-10 pr-10 py-2.5 text-xs font-medium text-[#F8FAFC] placeholder-[#A7B3C9]/40 transition-all focus:outline-none ${
                         errors.confirmPassword
-                          ? 'border-[#f43f5e] focus:ring-2 focus:ring-[#f43f5e]'
-                          : 'border-[#a855f7]/30 focus:border-[#fbbf24] focus:ring-2 focus:ring-[#fbbf24]/30'
+                          ? 'border-red-400 focus:ring-1 focus:ring-red-400'
+                          : 'border-[rgba(148,163,184,0.18)] focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]'
                       }`}
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#cbd5e1] hover:text-white cursor-pointer"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#A7B3C9] hover:text-[#F8FAFC] cursor-pointer"
                     >
-                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                   {errors.confirmPassword && (
-                    <p className="mt-1.5 text-xs text-[#f43f5e] flex items-center gap-1 font-mono font-bold">
+                    <p className="mt-1 text-xs text-red-400 flex items-center gap-1 font-mono">
                       <AlertCircle className="w-3.5 h-3.5" />
                       <span>{errors.confirmPassword}</span>
                     </p>
@@ -709,22 +701,22 @@ export const SignupForm: React.FC = () => {
                 </div>
 
                 {/* Terms Checkbox */}
-                <div>
-                  <label className="flex items-start gap-3 cursor-pointer select-none">
+                <div className="pt-1">
+                  <label className="flex items-start gap-2.5 cursor-pointer select-none">
                     <input
                       id="agreedToTerms"
                       name="agreedToTerms"
                       type="checkbox"
                       checked={formData.agreedToTerms}
                       onChange={handleChange}
-                      className="mt-1 w-4 h-4 rounded border-white/30 bg-[#14062e] text-[#c084fc] focus:ring-[#fbbf24] cursor-pointer"
+                      className="mt-0.5 w-4 h-4 rounded border-[rgba(148,163,184,0.3)] bg-[#111B30] text-[#6366F1] focus:ring-[#6366F1] cursor-pointer"
                     />
-                    <span className="text-xs text-[#cbd5e1] leading-relaxed font-medium">
-                      I agree to the CIT Nexus platform security policies and consent to receive a 6-digit verification code via Brevo mail service.
+                    <span className="text-xs text-[#A7B3C9] leading-relaxed font-normal">
+                      I agree to the CIT Nexus platform security policies and consent to receive a 6-digit verification code via Brevo.
                     </span>
                   </label>
                   {errors.agreedToTerms && (
-                    <p className="mt-1.5 text-xs text-[#f43f5e] flex items-center gap-1 font-mono font-bold">
+                    <p className="mt-1 text-xs text-red-400 flex items-center gap-1 font-mono">
                       <AlertCircle className="w-3.5 h-3.5" />
                       <span>{errors.agreedToTerms}</span>
                     </p>
@@ -735,14 +727,14 @@ export const SignupForm: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-4 rounded-2xl font-black text-sm text-[#04010a] bg-gradient-to-r from-[#c084fc] via-[#f43f5e] to-[#fbbf24] hover:opacity-95 transition-all flex items-center justify-center gap-2.5 shadow-[0_0_35px_rgba(217,70,239,0.6)] hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-60"
+                  className="w-full py-3 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-[#6366F1] to-[#22D3EE] hover:opacity-95 transition-all flex items-center justify-center gap-2 shadow-md hover:-translate-y-0.5 active:translate-y-0 cursor-pointer disabled:opacity-60"
                 >
                   {isSubmitting ? (
                     <span className="font-mono">Dispatching Brevo Security Code...</span>
                   ) : (
                     <>
                       <span>Create Account & Send OTP</span>
-                      <ArrowRight className="w-4 h-4 stroke-[3]" />
+                      <ArrowRight className="w-4 h-4 stroke-[2]" />
                     </>
                   )}
                 </button>
@@ -752,9 +744,9 @@ export const SignupForm: React.FC = () => {
         </AnimatePresence>
 
         {/* Switch to Login Link */}
-        <div className="mt-8 pt-6 border-t border-white/10 text-center text-xs font-mono font-bold text-[#cbd5e1]">
+        <div className="mt-6 pt-5 border-t border-[rgba(148,163,184,0.12)] text-center text-xs font-mono text-[#A7B3C9]">
           Already registered?{' '}
-          <Link href="/login" className="text-[#fbbf24] hover:underline">
+          <Link href="/login" className="text-[#22D3EE] hover:underline font-semibold">
             Sign in to your account &rarr;
           </Link>
         </div>

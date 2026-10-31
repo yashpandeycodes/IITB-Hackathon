@@ -22,8 +22,8 @@ export const ProblemSection: React.FC = () => {
         'Lectures, mid-term examinations, guest workshops, and club activities compete simultaneously for premium tiered halls and GPU computing labs. Without continuous cross-cohort constraint verification, double bookings are discovered only after faculty and students arrive.',
       impact: 'Up to 14 double-booking incidents per semester in unmanaged environments.',
       icon: Split,
-      glowColor: 'rgba(239, 68, 68, 0.4)',
-      accentColor: '#f87171',
+      glowColor: 'rgba(239, 68, 68, 0.25)',
+      accentColor: '#EF4444',
     },
     {
       num: '02',
@@ -33,8 +33,8 @@ export const ProblemSection: React.FC = () => {
         'Booking requests arrive in scattered formats—informal emails to department heads, WhatsApp threads, or verbal requisitions. Crucial details like microphone needs, projector compatibility, or headcount limits get lost in translation.',
       impact: '80% of booking delays trace back to back-and-forth email clarifications.',
       icon: FileSpreadsheet,
-      glowColor: 'rgba(245, 158, 11, 0.4)',
-      accentColor: '#fbbf24',
+      glowColor: 'rgba(245, 158, 11, 0.25)',
+      accentColor: '#F59E0B',
     },
     {
       num: '03',
@@ -44,8 +44,8 @@ export const ProblemSection: React.FC = () => {
         'When an air conditioning failure or electrical outage strikes a 120-seat lecture theatre, manual coordinators scramble. Relocating that single batch displaces an upcoming elective, which displaces an evening tutorial, causing a domino effect of cancellations.',
       impact: '1 room outage historically cascades into 4 to 6 canceled sessions.',
       icon: Unplug,
-      glowColor: 'rgba(168, 85, 247, 0.5)',
-      accentColor: '#c084fc',
+      glowColor: 'rgba(99, 102, 241, 0.3)',
+      accentColor: '#6366F1',
     },
     {
       num: '04',
@@ -55,69 +55,69 @@ export const ProblemSection: React.FC = () => {
         'Departments guard their seminar rooms in silos while central lecture complexes sit under-utilized or dark. Without real-time spatial analytics, institute administration cannot make informed capital expansion or operational decisions.',
       impact: '24% of campus capacity sits idle during peak academic hours.',
       icon: TrendingDown,
-      glowColor: 'rgba(56, 189, 248, 0.4)',
-      accentColor: '#38bdf8',
+      glowColor: 'rgba(34, 211, 238, 0.25)',
+      accentColor: '#22D3EE',
     },
   ];
 
   return (
-    <section id="problem-narrative" className="relative py-24 lg:py-36 scroll-mt-20 border-t border-[#a855f7]/25">
+    <section id="problem-narrative" className="relative py-20 lg:py-32 scroll-mt-20 border-t border-[rgba(148,163,184,0.12)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Editorial Section Header */}
-        <div className="max-w-4xl mb-20">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#190938] to-[#2c0b4d] border-2 border-[#ef4444]/60 mb-5 text-sm font-mono font-bold text-[#fca5a5] shadow-[0_0_20px_rgba(239,68,68,0.3)]">
-            <AlertCircle className="w-4 h-4 text-[#ef4444]" />
+        {/* Section Header */}
+        <div className="max-w-3xl mb-16">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D1426] border border-[rgba(148,163,184,0.18)] mb-4 text-xs font-mono font-semibold text-[#EF4444] shadow-sm">
+            <AlertCircle className="w-3.5 h-3.5 text-[#EF4444]" />
             <span>THE CAMPUS LOGISTICS CHALLENGE</span>
           </div>
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.08] mb-6">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#F8FAFC] tracking-tight leading-[1.12] mb-4">
             A university is not a static building—it is a{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#f43f5e] via-[#c084fc] to-[#fbbf24]">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#6366F1] via-[#818CF8] to-[#22D3EE]">
               high-frequency synchronization problem.
             </span>
           </h2>
-          <p className="text-lg sm:text-xl text-[#f1f5f9] font-medium leading-relaxed">
+          <p className="text-base sm:text-lg text-[#A7B3C9] font-normal leading-relaxed">
             When academic timetables, examinations, department symposiums, and student initiatives operate in disconnected tools, friction compounds. CIT Nexus reconciles this spatial complexity.
           </p>
         </div>
 
-        {/* 4-Column 3D Tilt Problem Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
+        {/* 4-Card 3D Tilt Problem Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {problems.map((p) => {
             const Icon = p.icon;
             return (
-              <Card3D key={p.num} glowColor={p.glowColor} depth={15}>
-                <div className="p-8 sm:p-10 rounded-3xl bg-[#0f0529]/90 border-2 border-[#a855f7]/30 hover:border-[#fbbf24] transition-all duration-300 flex flex-col justify-between h-full shadow-2xl backdrop-blur-2xl">
+              <Card3D key={p.num} glowColor={p.glowColor} depth={10}>
+                <div className="p-6 sm:p-8 rounded-2xl bg-[#0D1426] border border-[rgba(148,163,184,0.16)] hover:border-[#6366F1]/50 transition-all duration-300 flex flex-col justify-between h-full shadow-lg backdrop-blur-xl">
                   <div>
-                    <div className="flex items-center justify-between mb-6">
-                      <span className="font-mono text-3xl font-black text-[#cbd5e1]/40 group-hover:text-white transition-colors">
+                    <div className="flex items-center justify-between mb-5">
+                      <span className="font-mono text-2xl font-black text-[#A7B3C9]/40">
                         {p.num}
                       </span>
                       <div
-                        className="p-3.5 rounded-2xl bg-[#1b0840] border border-white/10 shadow-lg"
+                        className="p-2.5 rounded-xl bg-[#111B30] border border-[rgba(148,163,184,0.14)] shadow-sm"
                         style={{ color: p.accentColor }}
                       >
-                        <Icon className="w-6 h-6" />
+                        <Icon className="w-5 h-5" />
                       </div>
                     </div>
 
-                    <h3 className="text-2xl font-black text-white mb-2">
+                    <h3 className="text-xl font-bold text-[#F8FAFC] mb-1.5">
                       {p.title}
                     </h3>
                     <div
-                      className="text-sm font-mono font-bold mb-4"
+                      className="text-xs font-mono font-semibold mb-3"
                       style={{ color: p.accentColor }}
                     >
                       {p.subtitle}
                     </div>
-                    <p className="text-base text-[#e2e8f0] font-medium leading-relaxed mb-8">
+                    <p className="text-xs sm:text-sm text-[#A7B3C9] font-normal leading-relaxed mb-6">
                       {p.description}
                     </p>
                   </div>
 
-                  {/* Empirical friction stat */}
-                  <div className="pt-5 border-t border-white/10 flex items-center gap-3 text-sm font-mono font-bold text-[#fbbf24]">
-                    <span className="w-2 h-2 rounded-full bg-[#ef4444] animate-ping" />
-                    <span>{p.impact}</span>
+                  {/* Impact pill */}
+                  <div className="pt-4 border-t border-[rgba(148,163,184,0.12)] flex items-center gap-2 text-xs font-mono text-[#F8FAFC]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#EF4444]" />
+                    <span className="text-[#A7B3C9]">{p.impact}</span>
                   </div>
                 </div>
               </Card3D>
@@ -126,26 +126,27 @@ export const ProblemSection: React.FC = () => {
         </div>
 
         {/* Contrast Transition Banner */}
-        <div className="mt-16 p-8 rounded-3xl bg-gradient-to-r from-[#1b0840] via-[#12042b] to-[#1b0840] border-2 border-[#c084fc]/50 shadow-[0_0_35px_rgba(168,85,247,0.3)] flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-2xl bg-[#fbbf24]/20 text-[#fbbf24] border border-[#fbbf24]/40">
-              <CheckCircle2 className="w-7 h-7" />
+        <div className="mt-12 p-6 sm:p-8 rounded-2xl bg-[#0D1426] border border-[rgba(148,163,184,0.18)] flex flex-col sm:flex-row sm:items-center justify-between gap-5 shadow-xl">
+          <div className="flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 shrink-0">
+              <CheckCircle2 className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-lg font-black text-white">
+              <div className="text-base font-bold text-[#F8FAFC]">
                 The Solution: Spatial Campus Topology
               </div>
-              <div className="text-sm font-medium text-[#e2e8f0]">
+              <div className="text-xs sm:text-sm text-[#A7B3C9] mt-0.5">
                 Every room, time slot, faculty duty, and student batch linked in one unified constraint system.
               </div>
             </div>
           </div>
+
           <a
             href="#platform-modules"
-            className="inline-flex items-center gap-2.5 px-6 py-3 rounded-xl bg-gradient-to-r from-[#c084fc] to-[#fbbf24] text-[#04010a] text-sm font-black whitespace-nowrap self-start sm:self-center shadow-lg hover:scale-105 transition-transform"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#6366F1] to-[#22D3EE] text-[#080D1B] text-xs font-bold whitespace-nowrap self-start sm:self-center shadow-md hover:opacity-95 transition-all"
           >
-            <span>EXPLORE PLATFORM MODULES</span>
-            <ArrowRight className="w-4 h-4 stroke-[3]" />
+            <span>Explore Modules</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </a>
         </div>
       </div>
