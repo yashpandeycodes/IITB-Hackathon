@@ -137,9 +137,9 @@ Example `429` (account-form shape):
 | POST | [`/api/auth/login`](#post-apiauthlogin) | public | `{ email, password }` → `User` (account-form shape) |
 | POST | [`/api/auth/logout`](#post-apiauthlogout) | anyone | → `null` |
 | GET | [`/api/auth/me`](#get-apiauthme) | anyone (401 when signed out) | → `User` |
-| POST | [`/api/auth/signup`](#post-apiauthsignup) | public | sign-up form (Club only) → `{ email, demoMode, demoOtp? }` (account-form shape) |
+| POST | [`/api/auth/signup`](#post-apiauthsignup) | public | sign-up form (Club only) → `{ email }` (account-form shape) |
 | POST | [`/api/auth/verify-otp`](#post-apiauthverify-otp) | public, sign-up browser | `{ email, otp }` → `User` (account-form shape) |
-| POST | [`/api/auth/resend-otp`](#post-apiauthresend-otp) | public, sign-up browser | `{ email }` → `{ demoMode, demoOtp? }` (account-form shape) |
+| POST | [`/api/auth/resend-otp`](#post-apiauthresend-otp) | public, sign-up browser | `{ email }` → `null` (account-form shape) |
 | GET | [`/api/auth/google`](#get-apiauthgoogle) | public | always `302` → `/login?error=google_unavailable` |
 | GET | [`/api/health`](#get-apihealth) | public | → `{ status, db, dataset_id, time }` |
 | GET | [`/api/dashboard`](#get-apidashboard) | any signed-in | → `Dashboard` |
@@ -194,7 +194,7 @@ Email + password sign-in. Account-form shape.
 |---|---|---|
 | 400 | `VALIDATION_ERROR` | Invalid email, missing password, not JSON |
 | 401 | `UNAUTHENTICATED` | "Invalid institutional email or password." (same message for an unknown email) |
-| 403 | `FORBIDDEN` | Account not verified yet. Body adds `requiresOtp: true, email, demoMode, demoOtp?`, and a new `cit_pending_signup` cookie is set: a fresh code was just sent, so show the OTP step in this browser and call `verify-otp`. |
+| 403 | `FORBIDDEN` | Account not verified yet. Body adds `requiresOtp: true, email, message`, and a new `cit_pending_signup` cookie is set: a fresh code was just sent, so show the OTP step in this browser and call `verify-otp`. |
 | 429 | `RATE_LIMITED` | 10 failed attempts per IP + email, or 20 per email, in 10 minutes |
 | 503 | `MAIL_UNAVAILABLE` | Unverified account and the new code couldn't be emailed |
 
@@ -241,7 +241,7 @@ Self-service sign-up for **Club Representative** only. Account-form shape. The a
 | `confirmPassword` | string | must equal `password` |
 | `agreedToTerms` | `true` | required |
 
-`data` = `{ email, demoMode, demoOtp? }`; the same fields are repeated at the top level with `success` and `message`. The response sets the `cit_pending_signup` cookie.
+`data` = `{ email }`; `email` is repeated at the top level with `success` and `message`. The response sets the `cit_pending_signup` cookie.
 
 | Status | `code` | When |
 |---|---|---|
@@ -255,7 +255,7 @@ Self-service sign-up for **Club Representative** only. Account-form shape. The a
 Notes:
 - Re-submitting from the same browser (or from any browser once the 10-minute code has expired) replaces the pending details and sends a new code.
 - Unverified accounts are deleted after 24 hours.
-- `demoOtp` is returned only in development when `BREVO_API_KEY` is unset (`demoMode: true`), so the flow can be tested locally. Production never returns the code.
+- The code is never returned. In development without a mail key it is printed to the server console (`[dev] OTP for <email>: <code>`); in production without a key the route answers `503 MAIL_UNAVAILABLE`. Mail transport: a `BREVO_API_KEY` starting with `xsmtpsib-` uses the Brevo SMTP relay (`BREVO_SMTP_LOGIN` required; `BREVO_SMTP_HOST`/`BREVO_SMTP_PORT` optional), any other key uses the Brevo REST API.
 
 ### POST /api/auth/verify-otp
 
@@ -276,7 +276,7 @@ Notes:
 |---|---|
 | Who | public, from the browser holding the `cit_pending_signup` cookie |
 | Body | `{ email: string }` |
-| `data` | `{ demoMode, demoOtp? }`, repeated at the top level with `success` and `message`; the pending cookie is refreshed |
+| `data` | `null`, with `success` and `message` at the top level; the pending cookie is refreshed |
 | Errors | `400 VALIDATION_ERROR` ("No pending verification for this email in this browser. Sign up or sign in again.") · `429 RATE_LIMITED` (10 per IP in 10 minutes, or 5 emails per address) · `503 MAIL_UNAVAILABLE` |
 
 ### GET /api/auth/google

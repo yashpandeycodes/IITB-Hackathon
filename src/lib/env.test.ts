@@ -4,6 +4,7 @@ import {
   parseEnv,
   requireAuthSecret,
   requireMongoUri,
+  parseMailbox,
   requireSessionSecret,
 } from "./env";
 
@@ -22,6 +23,8 @@ describe("parseEnv", () => {
       APP_REFERENCE_DATE: "2027-02-08",
       DEMO_LOGIN_ENABLED: true,
       BREVO_SENDER_NAME: "CIT Nexus",
+      BREVO_SMTP_HOST: "smtp-relay.brevo.com",
+      BREVO_SMTP_PORT: 587,
     });
     expect(env.MONGODB_URI).toBeUndefined();
     expect(env.AUTH_SECRET).toBeUndefined();
@@ -142,6 +145,47 @@ describe("auth and mail settings", () => {
     expect(env.BREVO_API_KEY).toBeUndefined();
     expect(env.BREVO_SENDER_EMAIL).toBeUndefined();
     expect(env.GOOGLE_CLIENT_ID).toBeUndefined();
+  });
+
+  it("parses the SMTP relay settings", () => {
+    expect(
+      parseEnv({
+        BREVO_SMTP_HOST: "smtp.example.org",
+        BREVO_SMTP_PORT: "465",
+        BREVO_SMTP_LOGIN: "9abc12001@smtp-brevo.com",
+      }),
+    ).toMatchObject({
+      BREVO_SMTP_HOST: "smtp.example.org",
+      BREVO_SMTP_PORT: 465,
+      BREVO_SMTP_LOGIN: "9abc12001@smtp-brevo.com",
+    });
+    expect(() => parseEnv({ BREVO_SMTP_PORT: "70000" })).toThrow(
+      /BREVO_SMTP_PORT/,
+    );
+    expect(() => parseEnv({ BREVO_SMTP_PORT: "smtp" })).toThrow(
+      /BREVO_SMTP_PORT/,
+    );
+  });
+
+  it('accepts a "Name <email>" sender', () => {
+    expect(
+      parseEnv({ BREVO_SENDER_EMAIL: '"CIT Nexus" <noreply@cit.example.org>' })
+        .BREVO_SENDER_EMAIL,
+    ).toBe('"CIT Nexus" <noreply@cit.example.org>');
+    expect(parseMailbox("CIT Nexus <noreply@cit.example.org>")).toEqual({
+      name: "CIT Nexus",
+      email: "noreply@cit.example.org",
+    });
+    expect(parseMailbox("noreply@cit.example.org")).toEqual({
+      name: null,
+      email: "noreply@cit.example.org",
+    });
+    expect(parseMailbox("<noreply@cit.example.org>")).toEqual({
+      name: null,
+      email: "noreply@cit.example.org",
+    });
+    expect(parseMailbox("CIT <not-an-email>")).toBeNull();
+    expect(parseMailbox("a@b.org, c@d.org")).toBeNull();
   });
 
   it("rejects a malformed sender email, app URL or flag", () => {

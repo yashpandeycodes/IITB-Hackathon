@@ -29,6 +29,34 @@ import { POST as resendOtp } from "./resend-otp/route";
 import { POST as signup } from "./signup/route";
 import { POST as verifyOtp } from "./verify-otp/route";
 
+/** Codes "sent" by the mocked mail service; responses never contain them. */
+const mail = vi.hoisted(() => ({
+  status: "ready" as "ready" | "dev-log" | "unavailable",
+  sent: [] as { email: string; name: string; code: string }[],
+}));
+
+vi.mock("@/lib/services/brevo-mail", () => ({
+  mailStatus: () => mail.status,
+  sendOtpEmail: async (email: string, name: string, code: string) => {
+    mail.sent.push({ email, name, code });
+    return { success: true, messageId: `<test-${mail.sent.length}>` };
+  },
+}));
+
+/** The latest code emailed to `email`. */
+function lastCode(email: string): string {
+  const entry = mail.sent.findLast((m) => m.email === email);
+  expect(entry).toBeDefined();
+  return entry!.code;
+}
+
+/** No response body may carry the code (or the old demo fields). */
+async function expectNoCode(res: Response, email: string) {
+  const text = await res.clone().text();
+  expect(text).not.toContain(lastCode(email));
+  expect(text).not.toMatch(/demoOtp|demoMode/);
+}
+
 const available = await mongoAvailable();
 
 type Json = Record<string, unknown> & {
@@ -117,6 +145,8 @@ describe.skipIf(!available)("auth routes (throwaway DB)", () => {
 
   beforeEach(() => {
     resetRateLimits();
+    mail.status = "ready";
+    mail.sent.length = 0;
     vi.spyOn(console, "info").mockImplementation(() => undefined);
   });
 
@@ -127,7 +157,7 @@ describe.skipIf(!available)("auth routes (throwaway DB)", () => {
 
   const users = async () => (await getDb()).collection<UserDoc>("users");
 
-  /** Signs up a club account from `browser`; returns the dev-mode code. */
+  /** Signs up a club account from `browser`; returns the emailed code. */
   async function pendingClub(
     browser: Browser,
     email: string,
@@ -142,7 +172,8 @@ describe.skipIf(!available)("auth routes (throwaway DB)", () => {
       ),
     );
     expect(res.status).toBe(200);
-    return (await json(res)).demoOtp as string;
+    await expectNoCode(res, email);
+    return lastCode(email);
   }
 
   describe("POST /api/auth/login", () => {
@@ -461,9 +492,18 @@ describe.skipIf(!available)("auth routes (throwaway DB)", () => {
         ),
       );
       expect(res.status).toBe(200);
-      const body = await json(res);
-      expect(body).toMatchObject({ success: true, email, demoMode: true });
-      expect(body.demoOtp).toMatch(/^\d{6}$/);
+      await expectNoCode(res, email);
+      expect(await json(res)).toEqual({
+        ok: true,
+        data: { email },
+        success: true,
+        message:
+          "A 6-digit verification code has been dispatched to your email address.",
+        email,
+      });
+      const code = lastCode(email);
+      expect(code).toMatch(/^\d{6}$/);
+      expect(mail.sent.at(-1)?.name).toBe("Test Person");
       expect(res.headers.getSetCookie().join("\n")).toMatch(
         /cit_pending_signup=[^;]+;.*Path=\/api\/auth;.*HttpOnly;.*SameSite=lax/i,
       );
@@ -477,7 +517,7 @@ describe.skipIf(!available)("auth routes (throwaway DB)", () => {
       expect(ttl).toBeGreaterThan(23 * 3600_000);
       expect(ttl).toBeLessThanOrEqual(24 * 3600_000);
 
-      const wrongCode = body.demoOtp === "000000" ? "111111" : "000000";
+      const wrongCode = code === "000000" ? "111111" : "000000";
       const wrong = await verifyOtp(
         b.post("verify-otp", { email, otp: wrongCode }),
       );
@@ -487,7 +527,7 @@ describe.skipIf(!available)("auth routes (throwaway DB)", () => {
       );
 
       const ok = b.absorb(
-        await verifyOtp(b.post("verify-otp", { email, otp: body.demoOtp })),
+        await verifyOtp(b.post("verify-otp", { email, otp: code })),
       );
       expect(ok.status).toBe(200);
       expect(await json(ok)).toMatchObject({
@@ -519,31 +559,38 @@ describe.skipIf(!available)("auth routes (throwaway DB)", () => {
         await login(second.post("login", { email, password: STRONG })),
       );
       expect(early.status).toBe(403);
-      const body = await json(early);
-      expect(body).toMatchObject({ requiresOtp: true, email });
+      await expectNoCode(early, email);
+      expect(await json(early)).toMatchObject({
+        ok: false,
+        code: "FORBIDDEN",
+        requiresOtp: true,
+        email,
+        error: expect.stringMatching(/not been verified/),
+      });
       expect(second.cookie("cit_pending_signup")).toBeDefined();
 
       const ok = await verifyOtp(
-        second.post("verify-otp", { email, otp: body.demoOtp }),
+        second.post("verify-otp", { email, otp: lastCode(email) }),
       );
       expect(ok.status).toBe(200);
     });
 
-    it("never returns demoOtp in production", async () => {
-      vi.stubEnv("NODE_ENV", "production");
-      vi.spyOn(console, "error").mockImplementation(() => undefined);
-      try {
-        const b = new Browser();
-        const res = await signup(
-          b.post("signup", signupBody("prod@cit.demo", "Club Representative")),
-        );
-        expect(res.status).toBe(503);
-        const body = await json(res);
-        expect(body).toMatchObject({ code: "MAIL_UNAVAILABLE" });
-        expect(body).not.toHaveProperty("demoOtp");
-      } finally {
-        vi.stubEnv("NODE_ENV", "test");
-      }
+    it("answers MAIL_UNAVAILABLE and creates nothing when mail can't be sent", async () => {
+      mail.status = "unavailable";
+      const b = new Browser();
+      const res = await signup(
+        b.post("signup", signupBody("prod@cit.demo", "Club Representative")),
+      );
+      expect(res.status).toBe(503);
+      expect(await json(res)).toEqual({
+        ok: false,
+        code: "MAIL_UNAVAILABLE",
+        error: expect.stringMatching(/use a demo account/),
+      });
+      expect(mail.sent).toEqual([]);
+      expect(
+        await (await users()).countDocuments({ email: "prod@cit.demo" }),
+      ).toBe(0);
     });
 
     it("caps verification emails globally (60 per hour) with MAIL_UNAVAILABLE", async () => {
@@ -717,7 +764,9 @@ describe.skipIf(!available)("auth routes (throwaway DB)", () => {
 
       const res = b.absorb(await resendOtp(b.post("resend-otp", { email })));
       expect(res.status).toBe(200);
-      const fresh = (await json(res)).demoOtp as string;
+      await expectNoCode(res, email);
+      expect(await json(res)).toMatchObject({ ok: true, success: true });
+      const fresh = lastCode(email);
       expect(fresh).toMatch(/^\d{6}$/);
       if (first !== fresh) {
         const stale = await verifyOtp(

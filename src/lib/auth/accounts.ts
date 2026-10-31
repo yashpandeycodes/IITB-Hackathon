@@ -9,11 +9,7 @@ import * as users from "@/lib/db/repos/users";
 import type { UserDoc } from "@/lib/db/repos/users";
 import { getServerEnv } from "@/lib/env";
 import { forbidden, internalError } from "@/lib/errors";
-import {
-  isDemoMailMode,
-  isMailConfigured,
-  sendOtpEmail,
-} from "@/lib/services/brevo-mail";
+import { mailStatus, sendOtpEmail } from "@/lib/services/brevo-mail";
 import { AuthError, clientIp, minutes, rateLimited } from "./http";
 import {
   generateOtp,
@@ -59,8 +55,6 @@ const EMAIL_TAKEN =
 export const PENDING_COOKIE = "cit_pending_signup";
 /** Unverified sign-ups (and their pending cookie) live for 24 hours. */
 export const UNVERIFIED_TTL_MS = 24 * 60 * 60 * 1000;
-
-export type OtpDispatch = { demoMode: boolean; demoOtp?: string };
 
 /** The user shape the CIT Nexus forms and role pages know (display-label role). */
 export function toLegacyUser(user: User) {
@@ -149,8 +143,9 @@ function requestNonceHash(request: Request): string | null {
 
 // ---- OTP delivery --------------------------------------------------------------------------
 
+/** Production without a mail key, or a key without its sender/SMTP login → 503. */
 function assertMailAvailable(): void {
-  if (!isMailConfigured() && !isDemoMailMode()) {
+  if (mailStatus() === "unavailable") {
     throw new AuthError(
       "MAIL_UNAVAILABLE",
       "Email verification isn't available right now. Please use a demo account.",
@@ -167,11 +162,12 @@ function newOtp(userId: string) {
   };
 }
 
+/** Emails the code; it never appears in a response (development logs it server-side). */
 async function deliverOtp(
   email: string,
   name: string,
   otp: string,
-): Promise<OtpDispatch> {
+): Promise<void> {
   const result = await sendOtpEmail(email, name, otp);
   if (!result.success) {
     throw new AuthError(
@@ -179,19 +175,13 @@ async function deliverOtp(
       "We couldn't send the verification email. Try again in a minute.",
     );
   }
-  // The code is echoed only in local development without a mail key, never in production.
-  const demoOtp = isDemoMailMode() ? result.demoOtp : undefined;
-  return {
-    demoMode: result.demoMode === true,
-    ...(demoOtp ? { demoOtp } : {}),
-  };
 }
 
 /** Replaces the OTP (and optionally the nonce) of an unverified account and emails it. */
 async function issueOtp(
   user: UserDoc,
   pendingNonceHash?: string,
-): Promise<OtpDispatch> {
+): Promise<void> {
   assertMailAvailable();
   checkOtpMailQuota(user.email);
   const { otp, ...fields } = newOtp(user._id);
@@ -199,7 +189,7 @@ async function issueOtp(
     ...fields,
     ...(pendingNonceHash ? { pending_nonce_hash: pendingNonceHash } : {}),
   });
-  return deliverOtp(user.email, user.name, otp);
+  await deliverOtp(user.email, user.name, otp);
 }
 
 // ---- sign-in -------------------------------------------------------------------------------
@@ -216,12 +206,7 @@ async function authenticate(email: string, password: string): Promise<UserDoc> {
 
 export type PasswordLoginResult =
   | { kind: "signed_in"; user: User; session: SessionCookie }
-  | {
-      kind: "needs_otp";
-      email: string;
-      dispatch: OtpDispatch;
-      pending: SessionCookie;
-    };
+  | { kind: "needs_otp"; email: string; pending: SessionCookie };
 
 /**
  * Email + password sign-in. Failed attempts count per IP + email (10 / 10 min) and per email
@@ -250,11 +235,10 @@ export async function passwordLogin(
 
   if (!doc.is_verified) {
     const { nonce, hash } = newPendingNonce();
-    const dispatch = await issueOtp(doc, hash);
+    await issueOtp(doc, hash);
     return {
       kind: "needs_otp",
       email: doc.email,
-      dispatch,
       pending: pendingCookie(nonce),
     };
   }
@@ -326,7 +310,7 @@ export type SignupInput = {
 export async function registerAccount(
   request: Request,
   input: SignupInput,
-): Promise<{ dispatch: OtpDispatch; pending: SessionCookie }> {
+): Promise<{ pending: SessionCookie }> {
   hitLimit(limits.signupIp, clientIp(request), "Too many sign-up attempts.");
   hitLimit(limits.signupEmail, input.email, "Too many sign-up attempts.");
 
@@ -407,8 +391,8 @@ export async function registerAccount(
     );
   }
 
-  const dispatch = await deliverOtp(input.email, input.name, otp);
-  return { dispatch, pending: pendingCookie(nonce) };
+  await deliverOtp(input.email, input.name, otp);
+  return { pending: pendingCookie(nonce) };
 }
 
 /**
@@ -484,7 +468,7 @@ export async function verifyAccountOtp(
 export async function resendAccountOtp(
   request: Request,
   email: string,
-): Promise<{ dispatch: OtpDispatch; pending: SessionCookie }> {
+): Promise<{ pending: SessionCookie }> {
   hitLimit(limits.resendIp, clientIp(request), "Too many code requests.");
 
   const nonce = readCookie(request, PENDING_COOKIE);
@@ -500,6 +484,6 @@ export async function resendAccountOtp(
       "No pending verification for this email in this browser. Sign up or sign in again.",
     );
   }
-  const dispatch = await issueOtp(doc);
-  return { dispatch, pending: pendingCookie(nonce) };
+  await issueOtp(doc);
+  return { pending: pendingCookie(nonce) };
 }

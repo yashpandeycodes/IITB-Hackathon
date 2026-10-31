@@ -35,14 +35,29 @@ const EnvSchema = z.object({
     .optional(),
   /** One-click sign-in for the four public demo accounts (the judges need it on the deployment). */
   DEMO_LOGIN_ENABLED: boolFlag.default(true),
-  // Account sign-up mail (Brevo). Without a key, sign-up codes are only shown in development.
+  // Account sign-up mail (Brevo). The key prefix picks the transport: `xsmtpsib-` → SMTP relay
+  // (needs BREVO_SMTP_LOGIN), anything else (`xkeysib-`) → REST API. No key: codes are only
+  // logged to the server console in development; production answers MAIL_UNAVAILABLE.
   BREVO_API_KEY: z.string().trim().min(1).optional(),
+  /** `noreply@example.org` or `CIT Nexus <noreply@example.org>`; must be a Brevo-verified sender. */
   BREVO_SENDER_EMAIL: z
     .string()
     .trim()
-    .pipe(z.email("BREVO_SENDER_EMAIL must be an email address"))
+    .refine(
+      (value) => parseMailbox(value) !== null,
+      'BREVO_SENDER_EMAIL must be an email address or "Name <email>"',
+    )
     .optional(),
   BREVO_SENDER_NAME: z.string().trim().min(1).default("CIT Nexus"),
+  BREVO_SMTP_HOST: z.string().trim().min(1).default("smtp-relay.brevo.com"),
+  BREVO_SMTP_PORT: z.coerce
+    .number()
+    .int()
+    .min(1, "BREVO_SMTP_PORT must be a TCP port")
+    .max(65_535, "BREVO_SMTP_PORT must be a TCP port")
+    .default(587),
+  /** The SMTP login Brevo shows next to the `xsmtpsib-` key (required for SMTP). */
+  BREVO_SMTP_LOGIN: z.string().trim().min(1).optional(),
   // Google sign-in (not wired yet: no callback route).
   GOOGLE_CLIENT_ID: z.string().trim().min(1).optional(),
   NEXT_PUBLIC_APP_URL: z
@@ -66,6 +81,23 @@ const EnvSchema = z.object({
 });
 
 export type ServerEnv = z.output<typeof EnvSchema>;
+
+const MailboxAddress = z.email();
+
+/**
+ * `"a@b.org"` or `"Name <a@b.org>"` (name optionally quoted) → `{ name, email }`; null when the
+ * address is not a valid email. Shared by env validation and the mail service.
+ */
+export function parseMailbox(
+  raw: string,
+): { name: string | null; email: string } | null {
+  const value = raw.trim();
+  const angle = /^(?:"?([^"<>]*?)"?\s*)?<([^<>\s]+)>$/.exec(value);
+  const email = angle ? angle[2] : value;
+  if (!MailboxAddress.safeParse(email).success) return null;
+  const name = angle?.[1]?.trim() || null;
+  return { name, email };
+}
 export type EnvKey = keyof typeof EnvSchema.shape;
 
 const ENV_KEYS = Object.keys(EnvSchema.shape) as EnvKey[];

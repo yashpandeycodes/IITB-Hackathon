@@ -18,6 +18,7 @@ Versions are the installed versions from `package-lock.json` / `node_modules`. L
 | `mongodb`                  | 7.8.0   | Apache-2.0   | Official MongoDB driver                                              |
 | `next`                     | 16.4.3  | MIT          | React framework: App Router, Route Handlers, `proxy.ts`, `next/font` |
 | `next-themes`              | 0.4.6   | MIT          | Light / dark theme switching                                         |
+| `nodemailer`               | 10.3.1  | MIT-0        | Sends account OTP emails through the Brevo SMTP relay                |
 | `nuqs`                     | 2.10.2  | MIT          | Type-safe URL search-param state                                     |
 | `radix-ui`                 | 1.8.1   | MIT          | Accessible UI primitives used by the shadcn/ui components            |
 | `react`                    | 19.3.0  | MIT          | UI library                                                           |
@@ -35,6 +36,7 @@ Versions are the installed versions from `package-lock.json` / `node_modules`. L
 | `@tailwindcss/turbopack`      | 4.3.3    | MIT        | Tailwind CSS v4 loader for Turbopack                             |
 | `@types/bcryptjs`             | 2.4.6    | MIT        | bcryptjs type definitions                                        |
 | `@types/node`                 | 20.19.43 | MIT        | Node.js type definitions                                         |
+| `@types/nodemailer`           | 8.0.2    | MIT        | nodemailer type definitions                                      |
 | `@types/react`                | 19.3.0   | MIT        | React type definitions                                           |
 | `@types/react-dom`            | 19.3.0   | MIT        | React DOM type definitions                                       |
 | `eslint`                      | 9.39.5   | MIT        | Linting                                                          |

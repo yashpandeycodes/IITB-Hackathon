@@ -17,7 +17,7 @@ _As of Phase 2 (auth, data, read views). Request/response shapes and examples: [
 |---|---|---|
 | Demo-account cards on `/login` | `POST /api/auth/demo-login` `{"role":"admin"}` | Role value or label (`"Faculty"`). Sets the session cookie; then go to `/dashboard`. |
 | Email + password sign-in | `POST /api/auth/login` | `403` with `requiresOtp: true` → show the OTP step on the same page (a code was just sent and this browser now holds the verification cookie). |
-| Sign-up + OTP | `POST /api/auth/signup` → `/verify-otp` (`/resend-otp`) | Club Representative only. The OTP step must stay in the same browser. In local dev without a mail key the code comes back as `demoOtp`. |
+| Sign-up + OTP | `POST /api/auth/signup` → `/verify-otp` (`/resend-otp`) | Club Representative only. The OTP step must stay in the same browser. In local dev without a mail key the code is printed to the server console (`[dev] OTP for …`); responses never contain it. |
 | Current user (app shell, user menu, role badge) | `GET /api/auth/me` | `data` = `User`; `401` when signed out. |
 | Sign out | `POST /api/auth/logout` | POST only (`logout-button.tsx` already does this). |
 | Dashboard KPIs, pending approvals, room-utilisation heat map | `GET /api/dashboard` | Role-aware. Counts are 0 and version fields `null` before a timetable is generated. |
