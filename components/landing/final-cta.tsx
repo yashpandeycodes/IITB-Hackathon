@@ -6,52 +6,51 @@ import { ArrowRight, Sparkles, ShieldCheck } from 'lucide-react';
 
 export const FinalCTA: React.FC = () => {
   return (
-    <section className="relative py-20 lg:py-32 overflow-hidden border-t border-[#F4F7FB]/08 bg-gradient-to-b from-[#070A12] via-[#0B1220] to-[#070A12]">
-      {/* Background Spatial Lighting */}
-      <div className="absolute inset-0 campus-grid-bg opacity-20 pointer-events-none" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-gradient-to-r from-[#66E3F0]/15 via-[#8279FF]/15 to-transparent rounded-full blur-3xl pointer-events-none" />
+    <section className="relative py-28 lg:py-44 overflow-hidden border-t border-[#a855f7]/30">
+      {/* Background Lighting Flare */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[450px] bg-gradient-to-r from-[#9333ea]/35 via-[#ec4899]/30 to-[#fbbf24]/20 rounded-full blur-[140px] pointer-events-none" />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-        {/* Subtle Brand Pill */}
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#101A2B] border border-[#66E3F0]/20 mb-6 text-xs font-mono text-[#66E3F0]">
-          <Sparkles className="w-3.5 h-3.5" />
+        {/* Brand Pill */}
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#180738] border-2 border-[#fbbf24]/50 mb-8 text-sm font-mono font-bold text-[#fde047] shadow-[0_0_20px_rgba(251,191,36,0.3)]">
+          <Sparkles className="w-4 h-4 text-[#fbbf24]" />
           <span>CHILIKA INSTITUTE OF TECHNOLOGY</span>
         </div>
 
         {/* Headline */}
-        <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#F4F7FB] tracking-tight leading-tight mb-6">
+        <h2 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white tracking-tight leading-[1.05] mb-8 drop-shadow-2xl">
           Make every room, hour, and{' '}
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#66E3F0] via-[#8279FF] to-[#F4F7FB]">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#c084fc] via-[#f43f5e] to-[#fbbf24] animate-shimmer-text">
             decision count.
           </span>
         </h2>
 
         {/* Supporting Copy */}
-        <p className="text-base sm:text-lg text-[#98A6BB] max-w-2xl mx-auto mb-10 leading-relaxed">
-          Bring campus scheduling and venue coordination into one clearer workflow. Explore the next generation of academic spatial intelligence.
+        <p className="text-lg sm:text-xl lg:text-2xl text-[#f1f5f9] max-w-3xl mx-auto mb-12 leading-relaxed font-medium">
+          Bring campus scheduling and venue coordination into one clearer workflow. Experience the next generation of academic spatial intelligence.
         </p>
 
         {/* CTAs */}
-        <div className="flex flex-wrap items-center justify-center gap-4">
+        <div className="flex flex-wrap items-center justify-center gap-6">
           <Link
             href="/signup"
-            className="inline-flex items-center gap-2.5 px-8 py-4 rounded-xl font-bold text-sm text-[#070A12] bg-[#66E3F0] hover:bg-[#7ff0fc] transition-all duration-200 shadow-[0_0_30px_-5px_rgba(102,227,240,0.5)] hover:shadow-[0_0_40px_0px_rgba(102,227,240,0.7)] group"
+            className="inline-flex items-center gap-3 px-10 py-5 rounded-2xl font-black text-base text-[#04010a] bg-gradient-to-r from-[#c084fc] via-[#f43f5e] to-[#fbbf24] hover:opacity-95 transition-all duration-300 shadow-[0_0_40px_rgba(217,70,239,0.7)] hover:shadow-[0_0_60px_rgba(251,191,36,0.9)] hover:scale-105 transform-gpu group"
           >
-            <span>Get started</span>
-            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+            <span>Get started today</span>
+            <ArrowRight className="w-5 h-5 stroke-[2.5] transition-transform group-hover:translate-x-1.5" />
           </Link>
 
           <Link
             href="/login"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-semibold text-sm text-[#F4F7FB] bg-[#101A2B] hover:bg-[#152238] border border-[#F4F7FB]/12 hover:border-[#66E3F0]/40 transition-all duration-200"
+            className="inline-flex items-center gap-2.5 px-10 py-5 rounded-2xl font-bold text-base text-white bg-[#150730]/90 hover:bg-[#230c4e] border-2 border-[#a855f7]/40 hover:border-[#fbbf24] transition-all duration-300 shadow-xl hover:scale-105 transform-gpu"
           >
             <span>Log in to portal</span>
           </Link>
         </div>
 
         {/* Micro note */}
-        <div className="mt-8 flex items-center justify-center gap-2 text-xs font-mono text-[#98A6BB]">
-          <ShieldCheck className="w-4 h-4 text-[#66E3F0]" />
+        <div className="mt-12 flex items-center justify-center gap-2.5 text-sm font-mono font-bold text-[#cbd5e1]">
+          <ShieldCheck className="w-4 h-4 text-[#34d399]" />
           <span>Frontend Demonstration Prototype • Client-Side Evaluation Only</span>
         </div>
       </div>

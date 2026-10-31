@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 
 interface LogoProps {
@@ -12,86 +14,100 @@ export const CITLogo: React.FC<LogoProps> = ({
   showSubtitle = true,
 }) => {
   const iconDimensions = {
-    sm: { width: 28, height: 28 },
-    md: { width: 36, height: 36 },
-    lg: { width: 44, height: 44 },
+    sm: { width: 32, height: 32 },
+    md: { width: 42, height: 42 },
+    lg: { width: 54, height: 54 },
   }[size];
 
   const titleSizes = {
-    sm: 'text-base',
-    md: 'text-xl',
-    lg: 'text-2xl',
+    sm: 'text-lg',
+    md: 'text-2xl',
+    lg: 'text-3xl',
   }[size];
 
   return (
-    <div className={`flex items-center gap-3 select-none ${className}`}>
+    <div className={`flex items-center gap-3.5 select-none ${className}`}>
       {/* Brand Icon: Interconnected Spatial Nodes & Central Nexus */}
       <div className="relative flex items-center justify-center">
-        <div className="absolute -inset-1 rounded-xl bg-gradient-to-r from-[#66E3F0]/20 to-[#8279FF]/20 blur-sm" />
+        {/* Ambient Neon Aura */}
+        <div className="absolute -inset-2 rounded-2xl bg-gradient-to-r from-[#a855f7] via-[#ec4899] to-[#f59e0b] opacity-60 blur-md animate-pulse" />
+        
         <svg
           width={iconDimensions.width}
           height={iconDimensions.height}
           viewBox="0 0 48 48"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          className="relative z-10 transition-transform duration-300 hover:scale-105"
+          className="relative z-10 drop-shadow-[0_0_12px_rgba(168,85,247,0.8)]"
         >
-          {/* Subtle Outer Boundary Ring */}
+          {/* Outer Boundary Ring */}
           <circle
             cx="24"
             cy="24"
-            r="21"
-            stroke="rgba(102, 227, 240, 0.2)"
-            strokeWidth="1.5"
-            strokeDasharray="3 3"
+            r="22"
+            stroke="url(#ringGrad)"
+            strokeWidth="1.8"
+            strokeDasharray="4 3"
           />
 
           {/* Connected Network Pathways */}
           <path
-            d="M24 10L36 17V31L24 38L12 31V17L24 10Z"
-            stroke="rgba(130, 121, 255, 0.4)"
-            strokeWidth="1.5"
+            d="M24 8L38 16V32L24 40L10 32V16L24 8Z"
+            stroke="url(#polyGrad)"
+            strokeWidth="1.8"
             strokeLinejoin="round"
           />
           <path
-            d="M24 10V24M36 17L24 24M36 31L24 24M24 38V24M12 31L24 24M12 17L24 24"
-            stroke="rgba(102, 227, 240, 0.45)"
-            strokeWidth="1.2"
+            d="M24 8V24M38 16L24 24M38 32L24 24M24 40V24M10 32L24 24M10 16L24 24"
+            stroke="rgba(245, 158, 11, 0.7)"
+            strokeWidth="1.4"
           />
 
           {/* Central Nexus Core Node */}
-          <circle cx="24" cy="24" r="5" fill="#66E3F0" />
-          <circle cx="24" cy="24" r="2.5" fill="#070A12" />
+          <circle cx="24" cy="24" r="6" fill="#f59e0b" />
+          <circle cx="24" cy="24" r="3" fill="#04010a" />
 
           {/* Peripheral Spatial Resource Nodes */}
-          <circle cx="24" cy="10" r="2.5" fill="#8279FF" />
-          <circle cx="36" cy="17" r="2.5" fill="#66E3F0" />
-          <circle cx="36" cy="31" r="2.5" fill="#8279FF" />
-          <circle cx="24" cy="38" r="2.5" fill="#66E3F0" />
-          <circle cx="12" cy="31" r="2.5" fill="#8279FF" />
-          <circle cx="12" cy="17" r="2.5" fill="#66E3F0" />
+          <circle cx="24" cy="8" r="3.2" fill="#c084fc" />
+          <circle cx="38" cy="16" r="3.2" fill="#f43f5e" />
+          <circle cx="38" cy="32" r="3.2" fill="#a855f7" />
+          <circle cx="24" cy="40" r="3.2" fill="#38bdf8" />
+          <circle cx="10" cy="32" r="3.2" fill="#ec4899" />
+          <circle cx="10" cy="16" r="3.2" fill="#f59e0b" />
+
+          <defs>
+            <linearGradient id="ringGrad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#a855f7" />
+              <stop offset="0.5" stopColor="#ec4899" />
+              <stop offset="1" stopColor="#f59e0b" />
+            </linearGradient>
+            <linearGradient id="polyGrad" x1="10" y1="8" x2="38" y2="40" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#c084fc" />
+              <stop offset="1" stopColor="#38bdf8" />
+            </linearGradient>
+          </defs>
         </svg>
       </div>
 
       {/* Typography */}
       <div className="flex flex-col">
-        <div className="flex items-center gap-1.5 leading-none">
-          <span className={`font-bold tracking-tight text-[#F4F7FB] ${titleSizes}`}>
+        <div className="flex items-center gap-2 leading-none">
+          <span className={`font-black tracking-tight text-white drop-shadow-md ${titleSizes}`}>
             CIT
           </span>
           <span
-            className={`font-semibold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-[#66E3F0] to-[#8279FF] ${titleSizes}`}
+            className={`font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-[#c084fc] via-[#f43f5e] to-[#fbbf24] animate-shimmer-text ${titleSizes}`}
           >
             NEXUS
           </span>
         </div>
         {showSubtitle && (
-          <span className="text-[10px] uppercase font-mono tracking-widest text-[#98A6BB]/80 mt-1">
-            Chilika Institute
+          <span className="text-[11px] uppercase font-mono font-bold tracking-widest text-[#cbd5e1] mt-1 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#a855f7] inline-block animate-ping" />
+            CHILIKA INSTITUTE COMMAND
           </span>
         )}
       </div>
     </div>
   );
 };
-
