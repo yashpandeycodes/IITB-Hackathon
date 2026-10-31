@@ -39,15 +39,13 @@ export async function POST(req: NextRequest) {
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
       await updateUserOtp(user.email, otp, expiresAt);
-      const emailResult = await sendOtpEmail(user.email, user.name, otp);
+      await sendOtpEmail(user.email, user.name, otp);
 
       return NextResponse.json(
         {
           requiresOtp: true,
-          message: 'Account email has not been verified. A fresh OTP has been sent.',
+          message: 'Account email has not been verified. A fresh OTP has been dispatched to your email.',
           email: user.email,
-          demoMode: emailResult.demoMode,
-          demoOtp: emailResult.demoOtp,
         },
         { status: 403 }
       );
@@ -89,4 +87,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error during login.' }, { status: 500 });
   }
 }
-

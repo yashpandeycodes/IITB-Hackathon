@@ -1,14 +1,31 @@
 /**
  * Brevo (Sendinblue) Transactional Mail Service
  * Sends secure 6-digit OTP codes for account verification.
+ * Supports both Brevo SMTP Relay (xsmtpsib-*) and Brevo REST API (xkeysib-*).
  */
+
+import nodemailer from 'nodemailer';
 
 export interface SendOtpResult {
   success: boolean;
   messageId?: string;
-  demoMode?: boolean;
-  demoOtp?: string;
   error?: string;
+}
+
+function parseSender(rawEmail?: string, rawName?: string): { name: string; email: string } {
+  let email = (rawEmail || 'aryansinha1908@gmail.com').trim();
+  let name = (rawName || 'CIT Nexus Security').replace(/^["']|["']$/g, '').trim();
+
+  // Handle format like: "CIT <aryansinha1908@gmail.com>"
+  const match = email.match(/^(?:(.*?)<)?([^<>]+)>?$/);
+  if (match) {
+    if (match[1] && match[1].trim()) {
+      name = match[1].trim().replace(/^["']|["']$/g, '');
+    }
+    email = match[2].trim();
+  }
+
+  return { name, email };
 }
 
 export async function sendOtpEmail(
@@ -16,15 +33,14 @@ export async function sendOtpEmail(
   recipientName: string,
   otpCode: string
 ): Promise<SendOtpResult> {
-  const apiKey = process.env.BREVO_API_KEY;
-  const senderEmail = process.env.BREVO_SENDER_EMAIL || 'yashpandey040709@gmail.com';
-  const senderName = process.env.BREVO_SENDER_NAME || 'CIT Nexus Security';
+  const apiKey = (process.env.BREVO_API_KEY || '').trim();
+  const sender = parseSender(process.env.BREVO_SENDER_EMAIL, process.env.BREVO_SENDER_NAME);
 
-  const isDemoKey =
-    !apiKey ||
-    apiKey.includes('demo') ||
-    apiKey.includes('replace') ||
-    apiKey.length < 20;
+  // Always log secure dispatch log to the server console for audit and testing
+  console.log('\n=============================================================');
+  console.log(`[CIT NEXUS SECURITY DISPATCH] Recipient: ${recipientEmail} (${recipientName})`);
+  console.log(`[CIT NEXUS SECURITY DISPATCH] 6-Digit OTP Code: >>> ${otpCode} <<< (Expires in 10 mins)`);
+  console.log('=============================================================\n');
 
   // Rich HTML Email Template with CIT Nexus Theme
   const htmlContent = `
@@ -71,23 +87,76 @@ export async function sendOtpEmail(
     </html>
   `;
 
-  if (isDemoKey) {
-    console.log('\n=============================================================');
-    console.log(`[BREVO MAIL DEMO MODE] Recipient: ${recipientEmail} (${recipientName})`);
-    console.log(`[BREVO MAIL DEMO MODE] OTP CODE: >>> ${otpCode} <<< (Expires in 10 mins)`);
-    console.log('=============================================================\n');
+  if (!apiKey || apiKey.includes('demo') || apiKey.includes('replace')) {
+    console.warn('[Brevo] No active Brevo key provided in .env');
     return {
       success: true,
-      demoMode: true,
-      demoOtp: otpCode,
-      messageId: `demo_msg_${Date.now()}`,
+      messageId: `local_dev_${Date.now()}`,
     };
   }
 
-  // Live Brevo REST API v3 Call
+  // Detect SMTP configurations (supports both standard BREVO_* and the user-defined Login/SMTP_Server fields)
+  const smtpHost =
+    process.env.BREVO_SMTP_HOST ||
+    process.env.SMTP_Server ||
+    process.env.SMTP_SERVER ||
+    'smtp-relay.brevo.com';
+
+  const smtpPort =
+    Number(process.env.BREVO_SMTP_PORT || process.env.Port || process.env.PORT) ||
+    587;
+
+  const smtpUser =
+    process.env.BREVO_SMTP_USER ||
+    process.env.Login ||
+    process.env.LOGIN ||
+    process.env.BREVO_SMTP_LOGIN ||
+    sender.email;
+
+  // METHOD 1: Brevo SMTP Relay (Active when key starts with xsmtpsib- or explicitly configured)
+  if (apiKey.startsWith('xsmtpsib-') || process.env.BREVO_USE_SMTP === 'true' || process.env.Login) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 15000,
+        auth: {
+          user: smtpUser,
+          pass: apiKey,
+        },
+      });
+
+      const info = await transporter.sendMail({
+        from: `"${sender.name}" <${sender.email}>`,
+        to: `"${recipientName}" <${recipientEmail}>`,
+        subject: `CIT Nexus: Your Verification Code is ${otpCode}`,
+        html: htmlContent,
+      });
+
+      console.log(`[Brevo SMTP] Successfully dispatched OTP email to ${recipientEmail}. MessageId: ${info.messageId}`);
+      return {
+        success: true,
+        messageId: info.messageId,
+      };
+    } catch (smtpErr) {
+      console.error('[Brevo SMTP] SMTP dispatch error:', (smtpErr as Error).message);
+      if (apiKey.startsWith('xsmtpsib-')) {
+        return {
+          success: false,
+          error: (smtpErr as Error).message,
+        };
+      }
+    }
+  }
+
+  // METHOD 2: Brevo v3 REST API (Active when key starts with xkeysib-*)
   try {
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
+      signal: AbortSignal.timeout(4000),
       headers: {
         'api-key': apiKey,
         'Content-Type': 'application/json',
@@ -95,8 +164,8 @@ export async function sendOtpEmail(
       },
       body: JSON.stringify({
         sender: {
-          name: senderName,
-          email: senderEmail,
+          name: sender.name,
+          email: sender.email,
         },
         to: [
           {
@@ -109,32 +178,26 @@ export async function sendOtpEmail(
       }),
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.warn('[Brevo] Live API rejected request, logging demo OTP fallback:', errorData);
-      console.log(`\n[FALLBACK OTP for ${recipientEmail}]: >>> ${otpCode} <<<\n`);
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`[Brevo API] Successfully dispatched OTP email to ${recipientEmail}. MessageId: ${data.messageId}`);
       return {
         success: true,
-        demoMode: true,
-        demoOtp: otpCode,
-        error: errorData.message || 'Brevo API error',
+        messageId: data.messageId,
       };
     }
 
-    const data = await response.json();
+    const errorData = await response.json().catch(() => ({}));
+    console.warn('[Brevo API] API response rejected:', errorData);
     return {
-      success: true,
-      messageId: data.messageId,
+      success: false,
+      error: errorData.message || 'Brevo API error',
     };
-  } catch (err) {
-    console.error('[Brevo] Exception while sending email:', err);
-    console.log(`\n[FALLBACK OTP for ${recipientEmail}]: >>> ${otpCode} <<<\n`);
+  } catch (apiErr) {
+    console.error('[Brevo API] Exception while sending email:', (apiErr as Error).message);
     return {
-      success: true,
-      demoMode: true,
-      demoOtp: otpCode,
-      error: (err as Error).message,
+      success: false,
+      error: (apiErr as Error).message,
     };
   }
 }
-
