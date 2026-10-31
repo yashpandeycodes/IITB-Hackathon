@@ -12,6 +12,16 @@ export type PriorityRules = {
   role_category_cap: Readonly<Record<string, Category>>;
 };
 
+/** The highest category `role` may claim (a role missing from the caps gets `club_event`). */
+export function roleCategoryCap(
+  rules: Pick<PriorityRules, "role_category_cap">,
+  role: string,
+): Category {
+  return Object.hasOwn(rules.role_category_cap, role)
+    ? rules.role_category_cap[role]
+    : DEFAULT_ROLE_CAP;
+}
+
 /**
  * The category a request is ranked by: the lower of what it claims and what its role may
  * claim. An unknown role is capped at `club_event`; an unknown claimed category ranks lowest.
@@ -21,13 +31,27 @@ export function effectiveCategory(
   request: { role: string; requested_category: string },
 ): Category {
   const order = rules.priority_order;
-  const cap = Object.hasOwn(rules.role_category_cap, request.role)
-    ? rules.role_category_cap[request.role]
-    : DEFAULT_ROLE_CAP;
+  const cap = roleCategoryCap(rules, request.role);
   const claimed = order.indexOf(request.requested_category as Category);
   const rank = Math.max(
     claimed === -1 ? order.length - 1 : claimed,
     order.indexOf(cap),
   );
   return order[rank];
+}
+
+/**
+ * True when the role's cap lowered the request: its claimed category is a known one that ranks
+ * above the effective category (e.g. a club claiming `guest_lecture`). An unknown claim is not
+ * "capped"; it simply ranks lowest. Shown as a "category capped" badge.
+ */
+export function isCategoryCapped(
+  rules: PriorityRules,
+  request: { role: string; requested_category: string },
+): boolean {
+  const order = rules.priority_order;
+  const claimed = order.indexOf(request.requested_category as Category);
+  return (
+    claimed !== -1 && claimed < order.indexOf(effectiveCategory(rules, request))
+  );
 }

@@ -61,7 +61,7 @@ function parseOptions(argv: string[]): Options {
 }
 
 function inputsFor({ mode, disruption }: Options): Input[] {
-  const exportHint = "Export it from the app (Admin -> Export) first.";
+  const exportHint = "Run `npm run export` against the running app first.";
   const data: Input = {
     flag: "--data",
     file: DATA,

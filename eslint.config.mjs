@@ -85,8 +85,21 @@ const eslintConfig = defineConfig([
     ignores: ["**/*.test.ts", "**/test-*.ts"],
     rules: {
       "no-restricted-imports": restrict(
-        [...LANDING_ONLY_MODULES, "@/lib/api", "@/lib/api/*", "next", "next/*"],
-        "Services are framework-free: no route helpers or Next.js imports.",
+        [
+          ...LANDING_ONLY_MODULES,
+          "@/lib/api",
+          "@/lib/api/*",
+          "next",
+          "next/*",
+          // These reach Next.js (cookies, responses) or the session layer: routes only.
+          // Services use @/lib/auth/policy (and rate-limit) instead.
+          "@/lib/auth/guards",
+          "@/lib/auth/http",
+          "@/lib/auth/session",
+          "@/lib/auth/current-user",
+          "@/lib/auth/server-session",
+        ],
+        "Services are framework-free: no route helpers, session guards or Next.js imports.",
       ),
     },
   },
@@ -132,6 +145,49 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    // The AI layer is a pure adapter: contracts + the Gemini SDK (allow-list, like contracts);
+    // the service passes context and config. node:fs / node:path / node:crypto are deliberate
+    // (prompt loader, cache key). Tests may also read the bundled dataset.
+    files: ["src/lib/ai/**/*.ts"],
+    ignores: ["**/*.test.ts", "src/lib/ai/test-context.ts"],
+    rules: {
+      "no-restricted-imports": restrict(
+        [
+          "@/lib/*",
+          "!@/lib/contracts",
+          "!@/lib/contracts/*",
+          "@/config/*",
+          "@/components/*",
+          "mongodb",
+          "next",
+          "next/*",
+          "react",
+        ],
+        "The AI layer may import only @/lib/contracts and the Gemini SDK; services pass context and config.",
+      ),
+    },
+  },
+  {
+    files: ["src/lib/ai/**/*.test.ts", "src/lib/ai/test-context.ts"],
+    rules: {
+      "no-restricted-imports": restrict(
+        [
+          "@/lib/*",
+          "!@/lib/contracts",
+          "!@/lib/contracts/*",
+          "!@/lib/dataset",
+          "@/config/*",
+          "@/components/*",
+          "mongodb",
+          "next",
+          "next/*",
+          "react",
+        ],
+        "AI tests may import contracts and the bundled dataset only.",
+      ),
+    },
+  },
+  {
     files: ["src/lib/engine/**/*.ts"],
     rules: {
       "no-restricted-imports": restrict(
@@ -171,7 +227,13 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ["src/components/**/*.{ts,tsx}", "src/config/**/*.ts"],
+    // UI code, plus the client-side fetch helpers it imports.
+    files: [
+      "src/components/**/*.{ts,tsx}",
+      "src/config/**/*.ts",
+      "src/lib/api-client.ts",
+      "src/lib/redirect.ts",
+    ],
     rules: {
       "no-restricted-imports": restrict(
         [...SERVER_ONLY_MODULES, ...LANDING_ONLY_MODULES],
@@ -186,6 +248,44 @@ const eslintConfig = defineConfig([
         SERVER_ONLY_MODULES,
         "UI code must not import server-only modules; go through the API client or a server component.",
       ),
+    },
+  },
+  {
+    // CIT Nexus screens merged from main (frontend team). These findings stay visible as
+    // warnings until the frontend team fixes them (listed in docs/project-status.md); every
+    // other file keeps the strict rules.
+    files: [
+      "src/app/admin/page.tsx",
+      "src/app/assistant/page.tsx",
+      "src/components/auth/login-form.tsx",
+      "src/components/timetable/agenda-list.tsx",
+      "src/lib/contracts/ui.ts",
+    ],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "react-hooks/purity": "warn",
+    },
+  },
+  {
+    // These two read the hard-coded fixture data in src/lib/dataset/cit-data.ts; they should go
+    // through the API client instead (frontend team, docs/project-status.md).
+    files: [
+      "src/components/auth/login-form.tsx",
+      "src/components/layout/command-palette.tsx",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "warn",
+        {
+          patterns: [
+            {
+              group: [...SERVER_ONLY_MODULES, ...LANDING_ONLY_MODULES],
+              message:
+                "UI code must not import server-only modules or fixture data; go through the API client or a server component.",
+            },
+          ],
+        },
+      ],
     },
   },
   globalIgnores([

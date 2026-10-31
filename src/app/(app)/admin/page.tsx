@@ -9,15 +9,26 @@ import { useSessionUser } from '@/components/providers/session-provider';
 import {
   apiGet,
   apiPost,
+  apiPatch,
   isApiClientError,
   streamTimetableGeneration,
 } from '@/lib/api-client';
 import {
+  Category,
   TimetableVersionSummarySchema,
   ActivateTimetableResultSchema,
+  ImportReportSchema,
+  ResetReportSchema,
+  SettingsSchema,
+  DashboardSchema,
+  ValidatorReportSchema,
   type SolverProgress,
   type GenerateTimetableResult,
   type TimetableVersionSummary,
+  type ImportReport,
+  type ResetReport,
+  type Settings,
+  type SettingsPatch,
 } from '@/lib/contracts';
 import { VALIDATOR_REPORT } from '@/lib/dataset/cit-data';
 import {
@@ -25,12 +36,18 @@ import {
   Zap,
   CheckCircle2,
   Download,
-  Settings,
+  Settings as SettingsIcon,
   AlertTriangle,
   RotateCcw,
   Clock,
   Layers,
   StopCircle,
+  Upload,
+  ArrowUp,
+  ArrowDown,
+  RefreshCw,
+  X,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface GenerationErrorState {
@@ -38,6 +55,237 @@ interface GenerationErrorState {
   message: string;
   status?: number;
   details?: unknown;
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  exam: 'Examinations (Strict Precedence)',
+  regular_session: 'Regular Academic Sessions',
+  institute_event: 'Institute-Level Events',
+  guest_lecture: 'Distinguished Guest Lectures',
+  department_event: 'Departmental Symposiums & Seminars',
+  club_event: 'Student Club & Cultural Activities',
+};
+
+interface SettingsFormProps {
+  initialSettings: Settings;
+  onSave: (patch: SettingsPatch) => void;
+  isSaving: boolean;
+  fieldErrors: Record<string, string[]>;
+  onClearFieldError: (field: string) => void;
+}
+
+function SettingsForm({
+  initialSettings,
+  onSave,
+  isSaving,
+  fieldErrors,
+  onClearFieldError,
+}: SettingsFormProps) {
+  const [team, setTeam] = useState(initialSettings.team);
+  const [llmEnabled, setLlmEnabled] = useState(initialSettings.llm_enabled);
+  const [referenceDate, setReferenceDate] = useState(initialSettings.reference_date);
+  const [solverSeed, setSolverSeed] = useState(initialSettings.solver_seed);
+  const [priorityOrder, setPriorityOrder] = useState<Category[]>(initialSettings.priority_order);
+
+  const movePriority = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= priorityOrder.length) return;
+    const next = [...priorityOrder];
+    const item = next[index];
+    next[index] = next[targetIndex];
+    next[targetIndex] = item;
+    setPriorityOrder(next);
+    onClearFieldError('priority_order');
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      team: team.trim(),
+      llm_enabled: llmEnabled,
+      reference_date: referenceDate.trim(),
+      solver_seed: Number(solverSeed),
+      priority_order: priorityOrder,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
+      {/* Team Name */}
+      <div className="space-y-1.5">
+        <label className="block text-xs font-mono font-bold text-white uppercase">
+          Team Name
+        </label>
+        <input
+          type="text"
+          value={team}
+          onChange={(e) => {
+            setTeam(e.target.value);
+            onClearFieldError('team');
+          }}
+          className={`w-full bg-[#101A2B] border rounded-xl px-3.5 py-2.5 text-xs font-mono text-white outline-none focus:border-[#66E3F0] transition-colors ${
+            fieldErrors.team ? 'border-rose-500' : 'border-white/10'
+          }`}
+        />
+        {fieldErrors.team && fieldErrors.team.length > 0 && (
+          <div className="text-[11px] font-mono text-rose-400">
+            {fieldErrors.team.join(', ')}
+          </div>
+        )}
+      </div>
+
+      {/* Solver Seed & Reference Date */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <label className="block text-xs font-mono font-bold text-white uppercase">
+            Solver Seed (RNG)
+          </label>
+          <input
+            type="number"
+            value={solverSeed}
+            onChange={(e) => {
+              setSolverSeed(Number(e.target.value));
+              onClearFieldError('solver_seed');
+            }}
+            className={`w-full bg-[#101A2B] border rounded-xl px-3.5 py-2.5 text-xs font-mono text-white outline-none focus:border-[#66E3F0] transition-colors ${
+              fieldErrors.solver_seed ? 'border-rose-500' : 'border-white/10'
+            }`}
+          />
+          <div className="text-[11px] text-[#98A6BB]">
+            Deterministic seed for multi-objective annealing.
+          </div>
+          {fieldErrors.solver_seed && fieldErrors.solver_seed.length > 0 && (
+            <div className="text-[11px] font-mono text-rose-400">
+              {fieldErrors.solver_seed.join(', ')}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="block text-xs font-mono font-bold text-white uppercase">
+            Reference Date (YYYY-MM-DD)
+          </label>
+          <input
+            type="text"
+            placeholder="2027-01-04"
+            value={referenceDate}
+            onChange={(e) => {
+              setReferenceDate(e.target.value);
+              onClearFieldError('reference_date');
+            }}
+            className={`w-full bg-[#101A2B] border rounded-xl px-3.5 py-2.5 text-xs font-mono text-white outline-none focus:border-[#66E3F0] transition-colors ${
+              fieldErrors.reference_date ? 'border-rose-500' : 'border-white/10'
+            }`}
+          />
+          <div className="text-[11px] text-[#98A6BB]">
+            Reference anchor for relative date parsing.
+          </div>
+          {fieldErrors.reference_date && fieldErrors.reference_date.length > 0 && (
+            <div className="text-[11px] font-mono text-rose-400">
+              {fieldErrors.reference_date.join(', ')}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* LLM Natural Language Parser */}
+      <div className="flex items-center justify-between p-4 rounded-2xl bg-[#101A2B] border border-white/10">
+        <div className="space-y-0.5">
+          <div className="text-xs font-mono font-bold text-white">LLM Natural Language Parser</div>
+          <div className="text-[11px] text-[#98A6BB]">
+            Enable Gemini structured extraction for conversational booking requests.
+          </div>
+        </div>
+        <input
+          type="checkbox"
+          checked={llmEnabled}
+          onChange={(e) => setLlmEnabled(e.target.checked)}
+          className="w-4 h-4 rounded text-[#66E3F0] accent-[#66E3F0] cursor-pointer"
+        />
+      </div>
+
+      {/* Priority Order List */}
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs font-mono font-bold text-white uppercase">
+            Priority Ordering (Precedence Order)
+          </label>
+          <p className="text-[11px] text-[#98A6BB]">
+            Top categories take precedence when booking or scheduling conflicts arise.
+          </p>
+        </div>
+
+        {fieldErrors.priority_order && fieldErrors.priority_order.length > 0 && (
+          <div className="text-[11px] font-mono text-rose-400">
+            {fieldErrors.priority_order.join(', ')}
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {priorityOrder.map((cat, idx) => (
+            <div
+              key={cat}
+              className="p-3 rounded-2xl bg-[#101A2B] border border-white/10 flex items-center justify-between gap-3"
+            >
+              <div className="flex items-center gap-3">
+                <span className="w-6 h-6 rounded-lg bg-white/5 border border-white/10 text-[11px] font-mono font-bold text-[#66E3F0] flex items-center justify-center">
+                  #{idx + 1}
+                </span>
+                <div>
+                  <div className="text-xs font-mono font-bold text-white">
+                    {CATEGORY_LABELS[cat] ?? cat}
+                  </div>
+                  <div className="text-[10px] font-mono text-[#98A6BB]">{cat}</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => movePriority(idx, 'up')}
+                  disabled={idx === 0}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#98A6BB] hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                  title="Move Up"
+                >
+                  <ArrowUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => movePriority(idx, 'down')}
+                  disabled={idx === priorityOrder.length - 1}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#98A6BB] hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                  title="Move Down"
+                >
+                  <ArrowDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Save Button */}
+      <div className="pt-2">
+        <button
+          type="submit"
+          disabled={isSaving}
+          className="px-6 py-2.5 rounded-xl text-xs font-mono font-bold bg-[#66E3F0] text-[#070A12] hover:opacity-90 shadow-md flex items-center gap-2 disabled:opacity-50 transition-all cursor-pointer"
+        >
+          {isSaving ? (
+            <>
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <span>Saving Settings...</span>
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Save System Settings</span>
+            </>
+          )}
+        </button>
+      </div>
+    </form>
+  );
 }
 
 export default function AdminConsolePage() {
@@ -57,9 +305,30 @@ export default function AdminConsolePage() {
   const [generationError, setGenerationError] = useState<GenerationErrorState | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Settings tab state
-  const [llmEnabled, setLlmEnabled] = useState(true);
-  const [teamName, setTeamName] = useState('CIT Nexus Team');
+  // Query invalidation helper for all dataset-dependent operations
+  const invalidateAllDatasetQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['reference'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    queryClient.invalidateQueries({ queryKey: ['timetable'] });
+    queryClient.invalidateQueries({ queryKey: ['timetable', 'versions'] });
+    queryClient.invalidateQueries({ queryKey: ['exams'] });
+    queryClient.invalidateQueries({ queryKey: ['spectra'] });
+    queryClient.invalidateQueries({ queryKey: ['validate'] });
+    queryClient.invalidateQueries({ queryKey: ['settings'] });
+  };
+
+  // Dashboard query for live dataset statistics
+  const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: () => apiGet('/api/dashboard', DashboardSchema),
+  });
+
+  // Validator report query
+  const { data: validatorData, isLoading: validatorLoading } = useQuery({
+    queryKey: ['validate'],
+    queryFn: () => apiGet('/api/validate', ValidatorReportSchema),
+    enabled: activeTab === 'validate',
+  });
 
   // Timetable Versions query
   const {
@@ -79,9 +348,7 @@ export default function AdminConsolePage() {
       apiPost(`/api/timetable/versions/${versionId}/activate`, {}, ActivateTimetableResultSchema),
     onSuccess: (res) => {
       toast.success(`Timetable version ${res.version.id} is now active!`);
-      queryClient.invalidateQueries({ queryKey: ['timetable'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['validate'] });
+      invalidateAllDatasetQueries();
       refetchVersions();
     },
     onError: (err: unknown) => {
@@ -99,18 +366,131 @@ export default function AdminConsolePage() {
     },
   });
 
-  // Reset Demo Data mutation
+  // Dataset Import state and handler
+  const [isUploading, setIsUploading] = useState(false);
+  const [importReport, setImportReport] = useState<ImportReport | null>(null);
+  const [importIssues, setImportIssues] = useState<Array<{ path: string; message: string }> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setImportReport(null);
+    setImportIssues(null);
+
+    try {
+      const text = await file.text();
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        toast.error('The selected file is not valid JSON.');
+        setIsUploading(false);
+        return;
+      }
+
+      const report = await apiPost('/api/admin/dataset', parsed, ImportReportSchema);
+      setImportReport(report);
+      toast.success(`Dataset "${report.dataset_id}" imported successfully!`);
+      invalidateAllDatasetQueries();
+    } catch (err: unknown) {
+      if (isApiClientError(err)) {
+        if (err.status === 400) {
+          const details = err.details as
+            | { issue_count?: number; issues?: Array<{ path: string; message: string }> }
+            | undefined;
+          if (details?.issues && details.issues.length > 0) {
+            setImportIssues(details.issues);
+            toast.error(
+              `Validation failed: ${details.issue_count ?? details.issues.length} issue(s) found in dataset.`
+            );
+          } else {
+            toast.error(`Validation failed: ${err.message}`);
+          }
+        } else if (err.status === 409) {
+          toast.error('Conflict (409): Another dataset import or reset is in progress.');
+        } else {
+          toast.error(err.message);
+        }
+      } else {
+        const msg = err instanceof Error ? err.message : 'Dataset import failed.';
+        toast.error(msg);
+      }
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Reset Demo Data state and mutation
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetSource, setResetSource] = useState<'bundled' | 'stored'>('bundled');
+  const [resetReport, setResetReport] = useState<ResetReport | null>(null);
+
   const resetMutation = useMutation({
-    mutationFn: () => apiPost('/api/admin/reset', {}, z.unknown()),
-    onSuccess: () => {
-      toast.success('Demo data restored to initial state.');
-      queryClient.invalidateQueries();
+    mutationFn: (source: 'bundled' | 'stored') =>
+      apiPost('/api/admin/reset', { from: source }, ResetReportSchema),
+    onSuccess: (report) => {
+      setResetReport(report);
+      setShowResetModal(false);
+      toast.success(
+        `Reset complete in ${report.ms}ms! Activated timetable: ${report.timetable_version ?? 'ready'}.`
+      );
+      invalidateAllDatasetQueries();
     },
     onError: (err: unknown) => {
       if (isApiClientError(err)) {
-        toast.error(`Reset failed: ${err.message}`);
+        if (err.status === 409) {
+          toast.error('Conflict (409): Another dataset operation or solver generation is running.');
+        } else {
+          toast.error(`Reset failed: ${err.message}`);
+        }
       } else {
         toast.error('Reset failed.');
+      }
+    },
+  });
+
+  // Settings tab queries and state
+  const {
+    data: settingsData,
+    isLoading: settingsLoading,
+    isError: settingsError,
+    refetch: refetchSettings,
+  } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => apiGet('/api/settings', SettingsSchema),
+  });
+
+  const [settingsFieldErrors, setSettingsFieldErrors] = useState<Record<string, string[]>>({});
+
+  const saveSettingsMutation = useMutation({
+    mutationFn: (patch: SettingsPatch) => apiPatch('/api/settings', patch, SettingsSchema),
+    onSuccess: (updated) => {
+      setSettingsFieldErrors({});
+      toast.success('System settings saved successfully!');
+      queryClient.setQueryData(['settings'], updated);
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    },
+    onError: (err: unknown) => {
+      if (isApiClientError(err)) {
+        if (err.status === 400) {
+          const details = err.details as
+            | { fieldErrors?: Record<string, string[]>; formErrors?: string[] }
+            | undefined;
+          if (details?.fieldErrors) {
+            setSettingsFieldErrors(details.fieldErrors);
+          }
+          toast.error(err.message || 'Validation error while saving settings.');
+        } else {
+          toast.error(err.message);
+        }
+      } else {
+        toast.error('Failed to save settings.');
       }
     },
   });
@@ -142,9 +522,7 @@ export default function AdminConsolePage() {
       toast.success(`Timetable ${result.version.id} generated and activated successfully!`);
 
       // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: ['timetable'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['validate'] });
+      invalidateAllDatasetQueries();
       refetchVersions();
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') {
@@ -209,7 +587,7 @@ export default function AdminConsolePage() {
             { id: 'validate', label: 'Validator Audit', icon: CheckCircle2 },
             { id: 'data', label: 'Data & Datasets', icon: Database },
             { id: 'export', label: 'Export JSON', icon: Download },
-            { id: 'settings', label: 'System Settings', icon: Settings },
+            { id: 'settings', label: 'System Settings', icon: SettingsIcon },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -486,12 +864,31 @@ export default function AdminConsolePage() {
                 <div>
                   <h2 className="text-lg font-bold text-white">Automated Schedule Validator Audit</h2>
                   <p className="text-xs font-mono text-[#98A6BB]">
-                    Exact verification matching <code>validator.py</code> specification.
+                    Exact verification matching <code>validator.py</code> specification across the active schedule.
                   </p>
                 </div>
-                <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-[#10b981]/20 text-[#34d399] border border-[#10b981]/40">
-                  ALL 14 HARD RULES PASSED ✓
-                </span>
+                {validatorLoading ? (
+                  <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-white/5 text-[#98A6BB] border border-white/10 flex items-center gap-1.5">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Auditing...</span>
+                  </span>
+                ) : validatorData ? (
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-mono font-bold border ${
+                      validatorData.hard_violation_count === 0
+                        ? 'bg-[#10b981]/20 text-[#34d399] border-[#10b981]/40'
+                        : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                    }`}
+                  >
+                    {validatorData.hard_violation_count === 0
+                      ? 'ALL 14 HARD RULES PASSED ✓'
+                      : `${validatorData.hard_violation_count} HARD VIOLATIONS ⚠`}
+                  </span>
+                ) : (
+                  <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-[#10b981]/20 text-[#34d399] border border-[#10b981]/40">
+                    ALL 14 HARD RULES PASSED ✓
+                  </span>
+                )}
               </div>
 
               {/* Hard Rules Table */}
@@ -502,20 +899,27 @@ export default function AdminConsolePage() {
                       <th className="p-2.5">Rule Code</th>
                       <th className="p-2.5">Constraint Specification</th>
                       <th className="p-2.5">Description</th>
-                      <th className="p-2.5 text-right">Status</th>
+                      <th className="p-2.5 text-right">Violations</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {VALIDATOR_REPORT.hardRules.map((rule) => (
-                      <tr key={rule.code} className="hover:bg-white/[0.02]">
-                        <td className="p-2.5 font-bold text-[#66E3F0]">{rule.code}</td>
-                        <td className="p-2.5 font-bold text-white">{rule.name}</td>
-                        <td className="p-2.5 text-[#cbd5e1]">{rule.description}</td>
-                        <td className="p-2.5 text-right font-bold text-[#34d399]">
-                          0 violations ✓
-                        </td>
-                      </tr>
-                    ))}
+                    {VALIDATOR_REPORT.hardRules.map((rule) => {
+                      const violationCount = validatorData?.hard_by_rule?.[rule.code] ?? 0;
+                      return (
+                        <tr key={rule.code} className="hover:bg-white/[0.02]">
+                          <td className="p-2.5 font-bold text-[#66E3F0]">{rule.code}</td>
+                          <td className="p-2.5 font-bold text-white">{rule.name}</td>
+                          <td className="p-2.5 text-[#cbd5e1]">{rule.description}</td>
+                          <td
+                            className={`p-2.5 text-right font-bold ${
+                              violationCount === 0 ? 'text-[#34d399]' : 'text-rose-400'
+                            }`}
+                          >
+                            {violationCount === 0 ? '0 violations ✓' : `${violationCount} clashes ⚠`}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -523,18 +927,23 @@ export default function AdminConsolePage() {
               {/* Soft Penalty Breakdown S1..S6 */}
               <div className="pt-4 border-t border-white/10">
                 <h3 className="text-xs font-mono font-bold text-white uppercase mb-3">
-                  Soft Constraint Penalties (Total: {VALIDATOR_REPORT.totalSoftPenalty} pts)
+                  Soft Constraint Penalties (Total: {validatorData?.soft_total ?? VALIDATOR_REPORT.totalSoftPenalty} pts)
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {VALIDATOR_REPORT.softRules.map((soft) => (
-                    <div key={soft.code} className="p-3 rounded-2xl bg-[#101A2B] border border-white/5">
-                      <div className="flex items-center justify-between text-xs font-mono mb-1">
-                        <span className="font-bold text-[#fbbf24]">{soft.code}: {soft.name}</span>
-                        <span className="text-white font-bold">{soft.penaltyPoints} pts</span>
+                  {VALIDATOR_REPORT.softRules.map((soft) => {
+                    const penaltyPts =
+                      validatorData?.soft_penalties?.[soft.code as keyof typeof validatorData.soft_penalties] ??
+                      soft.penaltyPoints;
+                    return (
+                      <div key={soft.code} className="p-3 rounded-2xl bg-[#101A2B] border border-white/5">
+                        <div className="flex items-center justify-between text-xs font-mono mb-1">
+                          <span className="font-bold text-[#fbbf24]">{soft.code}: {soft.name}</span>
+                          <span className="text-white font-bold">{penaltyPts} pts</span>
+                        </div>
+                        <div className="text-[10px] text-[#98A6BB]">{soft.description}</div>
                       </div>
-                      <div className="text-[10px] text-[#98A6BB]">{soft.description}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -544,48 +953,190 @@ export default function AdminConsolePage() {
         {/* Tab 3: Data & Datasets (§5.12) */}
         {activeTab === 'data' && (
           <div className="space-y-6">
+            {/* Active Dataset Stats */}
             <div className="p-6 rounded-3xl bg-[#0B1220] border border-white/10 space-y-4">
-              <h2 className="text-lg font-bold text-white">Loaded Academic Dataset</h2>
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <div>
+                  <h2 className="text-lg font-bold text-white">Active Academic Dataset</h2>
+                  <p className="text-xs font-mono text-[#98A6BB]">
+                    Current dataset identifier: <strong className="text-[#66E3F0]">{dashboardData?.dataset_id ?? 'cit_public'}</strong>
+                  </p>
+                </div>
+                {dashboardLoading && (
+                  <span className="text-xs font-mono text-[#98A6BB] flex items-center gap-1.5">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Loading stats...</span>
+                  </span>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="p-4 rounded-2xl bg-[#101A2B] border border-white/5 text-center">
-                  <div className="text-2xl font-black font-mono text-white">189</div>
-                  <div className="text-xs font-mono text-[#98A6BB]">Sessions</div>
+                  <div className="text-2xl font-black font-mono text-white">
+                    {dashboardData?.timetable.sessions_total ?? 189}
+                  </div>
+                  <div className="text-xs font-mono text-[#98A6BB]">Teaching Sessions</div>
                 </div>
                 <div className="p-4 rounded-2xl bg-[#101A2B] border border-white/5 text-center">
-                  <div className="text-2xl font-black font-mono text-white">27</div>
-                  <div className="text-xs font-mono text-[#98A6BB]">Rooms</div>
+                  <div className="text-2xl font-black font-mono text-white">
+                    {dashboardData?.utilisation.rooms.length ?? 27}
+                  </div>
+                  <div className="text-xs font-mono text-[#98A6BB]">Campus Rooms</div>
                 </div>
                 <div className="p-4 rounded-2xl bg-[#101A2B] border border-white/5 text-center">
-                  <div className="text-2xl font-black font-mono text-white">42</div>
-                  <div className="text-xs font-mono text-[#98A6BB]">Faculty</div>
+                  <div className="text-2xl font-black font-mono text-white">
+                    {dashboardData?.exams.exams_total ?? 0}
+                  </div>
+                  <div className="text-xs font-mono text-[#98A6BB]">Scheduled Exams</div>
                 </div>
                 <div className="p-4 rounded-2xl bg-[#101A2B] border border-white/5 text-center">
-                  <div className="text-2xl font-black font-mono text-white">12</div>
-                  <div className="text-xs font-mono text-[#98A6BB]">Student Cohorts</div>
+                  <div className="text-2xl font-black font-mono text-white">
+                    {dashboardData?.bookings.requests_total ?? 0}
+                  </div>
+                  <div className="text-xs font-mono text-[#98A6BB]">Spectra Requests</div>
                 </div>
               </div>
             </div>
 
+            {/* Dataset Import Section */}
+            <div className="p-6 rounded-3xl bg-[#0B1220] border border-white/10 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <Upload className="w-4 h-4 text-[#66E3F0]" />
+                  <h3 className="text-sm font-mono font-bold text-white uppercase">Upload & Replace Dataset</h3>
+                </div>
+                <span className="text-[11px] font-mono text-[#98A6BB]">Max 2 MB (JSON)</span>
+              </div>
+
+              <p className="text-xs text-[#cbd5e1] leading-relaxed">
+                Upload an official academic dataset file (conforming to <code>cit_public.json</code> specification).
+                Importing a new dataset validates entity foreign keys, replaces all reference collections, clears stale derived working state, and allows re-solving schedules.
+              </p>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                onChange={handleFileUpload}
+                disabled={isUploading}
+                className="hidden"
+              />
+
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="px-5 py-2.5 rounded-xl text-xs font-mono font-bold bg-[#66E3F0] text-[#070A12] hover:opacity-90 transition-all flex items-center gap-2 disabled:opacity-50 shadow-md"
+                >
+                  {isUploading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Validating & Importing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      <span>Select Dataset File (.json)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Validation Issues Display */}
+              {importIssues && importIssues.length > 0 && (
+                <div className="p-4 rounded-2xl bg-rose-950/20 border border-rose-500/40 space-y-3">
+                  <div className="flex items-center gap-2 text-rose-400 font-mono text-xs font-bold">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>Dataset Rejected: {importIssues.length} Validation Issue(s)</span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto rounded-xl bg-black/40 p-3 space-y-1.5 font-mono text-xs">
+                    {importIssues.map((issue, idx) => (
+                      <div key={idx} className="flex flex-col sm:flex-row sm:items-start gap-1 text-[11px] border-b border-white/5 pb-1">
+                        <span className="text-rose-400 font-bold shrink-0">{issue.path}:</span>
+                        <span className="text-[#cbd5e1]">{issue.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Import Report Result */}
+              {importReport && (
+                <div className="p-5 rounded-2xl bg-emerald-950/20 border border-emerald-500/40 space-y-3 font-mono text-xs">
+                  <div className="flex items-center justify-between text-emerald-400 font-bold">
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Dataset &quot;{importReport.dataset_id}&quot; Loaded Successfully
+                    </span>
+                    <span className="text-[11px] text-[#98A6BB]">
+                      Source: {importReport.source} · {new Date(importReport.loaded_at).toLocaleTimeString()}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 pt-2 border-t border-white/10 text-[11px]">
+                    <div className="p-2 rounded-xl bg-[#101A2B]">Sessions: <strong className="text-white">{importReport.counts.sessions}</strong></div>
+                    <div className="p-2 rounded-xl bg-[#101A2B]">Rooms: <strong className="text-white">{importReport.counts.rooms}</strong></div>
+                    <div className="p-2 rounded-xl bg-[#101A2B]">Faculty: <strong className="text-white">{importReport.counts.faculty}</strong></div>
+                    <div className="p-2 rounded-xl bg-[#101A2B]">Groups: <strong className="text-white">{importReport.counts.student_groups}</strong></div>
+                    <div className="p-2 rounded-xl bg-[#101A2B]">Courses: <strong className="text-white">{importReport.counts.courses}</strong></div>
+                    <div className="p-2 rounded-xl bg-[#101A2B]">Exams: <strong className="text-white">{importReport.counts.exams}</strong></div>
+                    <div className="p-2 rounded-xl bg-[#101A2B]">Bookings: <strong className="text-white">{importReport.counts.booking_requests}</strong></div>
+                    <div className="p-2 rounded-xl bg-[#101A2B]">Unavailabilities: <strong className="text-white">{importReport.counts.room_unavailability}</strong></div>
+                    <div className="p-2 rounded-xl bg-[#101A2B]">Cancellations: <strong className="text-white">{importReport.counts.cancellations}</strong></div>
+                    <div className="p-2 rounded-xl bg-[#101A2B]">Duplicate Drops: <strong className="text-amber-300">{importReport.duplicate_cancellations.length}</strong></div>
+                  </div>
+
+                  <div className="text-[11px] text-[#98A6BB] pt-1">
+                    Cleared prior working state: {importReport.cleared.timetable_versions} timetable versions, {importReport.cleared.booking_decisions} booking decisions, {importReport.cleared.session_overrides} session overrides, {importReport.cleared.change_requests} change requests.
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Danger Zone: Reset Demo Data */}
-            <div className="p-6 rounded-3xl bg-rose-950/20 border border-rose-500/30 space-y-3">
+            <div className="p-6 rounded-3xl bg-rose-950/20 border border-rose-500/30 space-y-4">
               <div className="flex items-center gap-2 text-rose-400 font-mono text-xs font-bold uppercase">
                 <AlertTriangle className="w-4 h-4" />
                 <span>Danger Zone: Reset Demo Data</span>
               </div>
-              <p className="text-xs text-[#cbd5e1]">
+              <p className="text-xs text-[#cbd5e1] leading-relaxed">
                 Resets all local modifications, custom change proposals, and room bookings back to clean baseline state and generates a fresh schedule.
               </p>
-              <button
-                onClick={() => {
-                  if (confirm('Are you sure you want to reset all demo data? This will restore clean baseline state.')) {
-                    resetMutation.mutate();
-                  }
-                }}
-                disabled={resetMutation.isPending}
-                className="px-4 py-2 rounded-xl text-xs font-mono font-bold bg-rose-500 text-white shadow-md hover:bg-rose-600 transition-colors disabled:opacity-50"
-              >
-                {resetMutation.isPending ? 'Resetting...' : 'Reset Demo Data'}
-              </button>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(true)}
+                  disabled={resetMutation.isPending}
+                  className="px-4 py-2.5 rounded-xl text-xs font-mono font-bold bg-rose-500 text-white shadow-md hover:bg-rose-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>{resetMutation.isPending ? 'Resetting Pipeline...' : 'Reset Demo Data'}</span>
+                </button>
+              </div>
+
+              {/* Reset Report Confirmation */}
+              {resetReport && (
+                <div className="p-4 rounded-2xl bg-[#101A2B] border border-rose-500/30 font-mono text-xs space-y-2">
+                  <div className="flex items-center justify-between text-rose-300 font-bold">
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      Reset Finished in {resetReport.ms} ms
+                    </span>
+                    <span>Source: {resetReport.dataset.source}</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-[#cbd5e1] pt-1">
+                    <div>Active Timetable: <strong className="text-emerald-400">{resetReport.timetable_version ?? 'None'}</strong></div>
+                    <div>Exam Schedule: <strong className="text-white">{resetReport.exam_schedule_id ?? 'None'}</strong></div>
+                    <div>Spectra Decisions: <strong className="text-pink-300">{resetReport.decisions}</strong></div>
+                    <div>Users Seeded: <strong className="text-white">{resetReport.users.inserted + resetReport.users.updated}</strong></div>
+                  </div>
+                  <div className="text-[11px] text-[#98A6BB] pt-1 border-t border-white/5">
+                    Cleared: {resetReport.cleared.timetable_versions} timetables, {resetReport.cleared.booking_decisions} decisions, {resetReport.cleared.session_overrides} overrides, {resetReport.cleared.settings} settings.
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -638,31 +1189,162 @@ export default function AdminConsolePage() {
 
         {/* Tab 5: Settings (§5.12) */}
         {activeTab === 'settings' && (
-          <div className="p-6 rounded-3xl bg-[#0B1220] border border-white/10 space-y-4">
-            <h2 className="text-lg font-bold text-white">System & Engine Settings</h2>
-
-            <div className="space-y-4 max-w-xl">
+          <div className="p-6 rounded-3xl bg-[#0B1220] border border-white/10 space-y-6">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div>
-                <label className="block text-xs font-mono text-[#98A6BB] mb-1">TEAM NAME</label>
-                <input
-                  type="text"
-                  value={teamName}
-                  onChange={(e) => setTeamName(e.target.value)}
-                  className="w-full bg-[#101A2B] border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
-                />
+                <h2 className="text-lg font-bold text-white">System & Engine Settings</h2>
+                <p className="text-xs font-mono text-[#98A6BB]">
+                  Configure global parameters, solver random seed, reference date, and priority ordering.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => refetchSettings()}
+                disabled={settingsLoading}
+                className="text-xs font-mono text-[#66E3F0] hover:underline flex items-center gap-1"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${settingsLoading ? 'animate-spin' : ''}`} />
+                <span>Refresh Settings</span>
+              </button>
+            </div>
+
+            {settingsLoading ? (
+              <div className="p-8 text-center text-xs font-mono text-[#98A6BB]">
+                Loading system settings from database...
+              </div>
+            ) : settingsError ? (
+              <div className="p-4 rounded-xl bg-rose-950/20 border border-rose-500/30 text-xs font-mono text-rose-300">
+                Failed to load system settings. Please try refreshing.
+              </div>
+            ) : settingsData ? (
+              <SettingsForm
+                key={`${settingsData.team}-${settingsData.solver_seed}-${settingsData.reference_date}`}
+                initialSettings={settingsData}
+                onSave={(patch) => saveSettingsMutation.mutate(patch)}
+                isSaving={saveSettingsMutation.isPending}
+                fieldErrors={settingsFieldErrors}
+                onClearFieldError={(field) =>
+                  setSettingsFieldErrors((prev) => ({ ...prev, [field]: [] }))
+                }
+              />
+            ) : null}
+          </div>
+        )}
+
+        {/* Custom Confirmation Dialog for Reset Demo Data */}
+        {showResetModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150">
+            <div className="w-full max-w-lg rounded-3xl bg-[#0D1527] border border-rose-500/30 shadow-2xl p-6 space-y-5 font-mono">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2.5 text-rose-400 font-bold text-sm">
+                  <ShieldAlert className="w-5 h-5 shrink-0" />
+                  <span>Confirm Academic Dataset Reset</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  disabled={resetMutation.isPending}
+                  className="p-1 rounded-lg hover:bg-white/10 text-[#98A6BB] hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#101A2B] border border-white/10">
-                <div>
-                  <div className="text-xs font-mono font-bold text-white">LLM Natural Language Parser</div>
-                  <div className="text-[11px] text-[#98A6BB]">Enable AI natural language parsing for bookings</div>
+              <div className="text-xs text-[#cbd5e1] space-y-2 leading-relaxed">
+                <p>
+                  You are about to reset the operational dataset. This action will wipe all working state:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-[#98A6BB] pl-1">
+                  <li>Active and draft timetable versions</li>
+                  <li>Room booking decisions and session overrides</li>
+                  <li>All pending and decided change proposals</li>
+                  <li>Custom app settings (reverted to defaults)</li>
+                </ul>
+                <p className="pt-1">
+                  Demo user accounts will be re-seeded idempotently and the automatic solver pipeline will generate a fresh clash-free baseline schedule.
+                </p>
+              </div>
+
+              {/* Source Selection */}
+              <div className="space-y-2 pt-1 border-t border-white/10">
+                <div className="text-xs font-bold text-white uppercase">Reset Target Dataset:</div>
+                <div className="space-y-2">
+                  <label
+                    className={`p-3 rounded-2xl border flex items-center gap-3 cursor-pointer transition-colors ${
+                      resetSource === 'bundled'
+                        ? 'bg-[#101A2B] border-[#66E3F0]/60'
+                        : 'bg-[#0E1626] border-white/5 hover:border-white/20'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="resetSource"
+                      value="bundled"
+                      checked={resetSource === 'bundled'}
+                      onChange={() => setResetSource('bundled')}
+                      className="accent-[#66E3F0]"
+                    />
+                    <div>
+                      <div className="text-xs font-bold text-white">Clean Baseline Dataset (cit_public.json)</div>
+                      <div className="text-[11px] text-[#98A6BB]">
+                        Restores initial benchmark dataset with 189 sessions and 27 rooms.
+                      </div>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`p-3 rounded-2xl border flex items-center gap-3 cursor-pointer transition-colors ${
+                      resetSource === 'stored'
+                        ? 'bg-[#101A2B] border-[#66E3F0]/60'
+                        : 'bg-[#0E1626] border-white/5 hover:border-white/20'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="resetSource"
+                      value="stored"
+                      checked={resetSource === 'stored'}
+                      onChange={() => setResetSource('stored')}
+                      className="accent-[#66E3F0]"
+                    />
+                    <div>
+                      <div className="text-xs font-bold text-white">Last Uploaded Dataset (stored)</div>
+                      <div className="text-[11px] text-[#98A6BB]">
+                        Re-runs baseline pipeline from the most recently imported dataset file.
+                      </div>
+                    </div>
+                  </label>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={llmEnabled}
-                  onChange={(e) => setLlmEnabled(e.target.checked)}
-                  className="w-4 h-4 rounded text-[#66E3F0]"
-                />
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  disabled={resetMutation.isPending}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-[#98A6BB] hover:text-white hover:bg-white/5 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => resetMutation.mutate(resetSource)}
+                  disabled={resetMutation.isPending}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-rose-500 hover:bg-rose-600 text-white shadow-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {resetMutation.isPending ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Executing Reset & Solving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Confirm & Execute Reset</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>

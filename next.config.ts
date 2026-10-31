@@ -21,6 +21,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // The AI layer reads its prompts from prompts/*.md at runtime; ship them with the API routes.
+  outputFileTracingIncludes: {
+    "/api/**/*": ["./prompts/**/*"],
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

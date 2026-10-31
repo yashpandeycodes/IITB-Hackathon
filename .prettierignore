@@ -27,3 +27,20 @@ src/app/club
 src/app/coordinator
 src/app/faculty
 src/app/unauthorized
+# CIT Nexus screens merged from main in Phase 3 (frontend team); same reason as above.
+src/app/approvals
+src/app/assistant
+src/app/bookings
+src/app/changes
+src/app/exams
+src/app/rooms
+src/app/spectra
+src/app/timetable
+src/app/not-found.tsx
+src/components/layout/app-shell.tsx
+src/components/layout/command-palette.tsx
+src/components/semantic/badges.tsx
+src/components/timetable
+src/lib/contracts/ui.ts
+src/lib/dataset
+src/lib/format.ts

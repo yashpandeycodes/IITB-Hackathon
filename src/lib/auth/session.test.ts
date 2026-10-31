@@ -180,6 +180,21 @@ describe("secret handling (fail closed)", () => {
 });
 
 describe("cookies", () => {
+  it("reads a repeated cookie like Next does: the last decodable value wins", async () => {
+    const { session } = await load();
+    const header = "cit_nexus_session=A; other=1; cit_nexus_session=B";
+    expect(session.getCookieFromHeader(header, "cit_nexus_session")).toBe("B");
+    expect(
+      session.getCookieFromHeader(
+        "cit_nexus_session=A; cit_nexus_session=%E0%A4%A",
+        "cit_nexus_session",
+      ),
+    ).toBe("A");
+    expect(
+      session.getCookieFromHeader("x=1", "cit_nexus_session"),
+    ).toBeUndefined();
+  });
+
   it("createSession builds an httpOnly, Lax, path=/ cookie for 12 hours", async () => {
     const { session } = await load();
     const cookie = await session.createSession(USER);

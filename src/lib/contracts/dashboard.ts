@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { Day, Role, TeachingPeriod } from "./enums";
 import { SoftPenaltySummarySchema } from "./timetable";
+import { BookingStatsSchema } from "./violation";
 
 const Count = z.number().int().nonnegative();
 const Fraction = z.number().min(0).max(1);
@@ -18,7 +19,8 @@ const Fraction = z.number().min(0).max(1);
  * - `exams`: the active exam schedule's coverage (`penalty` null with no schedule).
  * - `bookings`: Spectra-week requests (drafts excluded), decisions per status (only those of the
  *   active timetable version, like `session_overrides`), requests still
- *   waiting for a decision (not cancelled, no decision), and Week-7 session overrides.
+ *   waiting for a decision (not cancelled, no decision), Week-7 session overrides, and the
+ *   validator's booking score for the stored decisions (null before Spectra has run).
  * - `pending_approvals`: what this user may act on now. Admin: requests in
  *   `pending_approval` plus `pending` change requests. Coordinator: `pending_approval`
  *   requests for their department's labs. Never the user's own requests (no self-approval).
@@ -58,6 +60,9 @@ export const DashboardSchema = z.strictObject({
       rejected: Count,
     }),
     session_overrides: Count,
+    booking_score: BookingStatsSchema.shape.booking_score.nullable(),
+    booking_score_max_if_all_approved:
+      BookingStatsSchema.shape.booking_score_max_if_all_approved.nullable(),
   }),
   pending_approvals: z.strictObject({
     booking_requests: Count,

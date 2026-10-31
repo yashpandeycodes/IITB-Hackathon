@@ -274,7 +274,8 @@ export async function activateTimetableUnlocked(
 
   const previous = await getActiveTimetableVersion(db);
   // Plan first: a booking-engine failure leaves the previous version active and nothing written.
-  const plan = await planSpectra(db, version, actor);
+  // The dataset was just read under the same lock, so the plan reuses it.
+  const plan = await planSpectra(db, version, actor, { dataset });
   const activated = await activateTimetableVersion(db, id);
   try {
     await saveSpectraUnlocked(db, plan, actor);

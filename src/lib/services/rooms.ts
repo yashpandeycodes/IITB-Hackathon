@@ -4,6 +4,7 @@ import type {
   RoomAvailability,
   RoomAvailabilityQuery,
   RoomBusyKind,
+  SessionUser,
 } from "@/lib/contracts";
 import {
   listRoomUnavailability,
@@ -11,9 +12,8 @@ import {
   listSessions,
   type RoomRecord,
 } from "@/lib/db/repos/reference";
-import { listSessionOverrides } from "@/lib/db/repos/session-overrides";
 import { getActiveTimetableVersion } from "@/lib/db/repos/timetable-versions";
-import { applyOverrides, listHeldBookings } from "./timetable-view";
+import { applyOverrides, bookingTitle, loadWeek7 } from "./timetable-view";
 
 type BusyEntry = RoomAvailability["busy_with"][number];
 
@@ -53,22 +53,26 @@ const KIND_ORDER: Record<RoomBusyKind, number> = {
  * may host events), with what occupies it on `day` between `from_period` and `to_period`
  * (inclusive). This is the Week-7 picture: the active timetable with its session overrides
  * applied, the bookings decided against it that hold a room (approved or alternative offered)
- * and room unavailability. Free
- * rooms come first, smallest first.
+ * and room unavailability. Free rooms come first, smallest first.
+ *
+ * `pending_approval` marks a booking whose live request still waits for an approver, and a
+ * session moved there for one (neither is final). Another user's live request is labelled
+ * "Booked" for `viewer` unless they are an admin or its owner; dataset requests keep their titles.
  */
 export async function getRoomAvailability(
   db: Db,
   query: RoomAvailabilityQuery,
+  viewer: SessionUser,
 ): Promise<RoomAvailability[]> {
   const version = await getActiveTimetableVersion(db);
   const versionId = version?.id ?? null;
-  const [rooms, sessions, overrides, held, unavailability] = await Promise.all([
+  const [rooms, sessions, week7, unavailability] = await Promise.all([
     listRooms(db),
     listSessions(db, { includeRemoved: true }),
-    listSessionOverrides(db, { timetable_version: versionId }),
-    listHeldBookings(db, versionId),
+    loadWeek7(db, versionId),
     listRoomUnavailability(db, { day: query.day }),
   ]);
+  const { overrides, held, pending } = week7;
   const { day, from_period: from, to_period: to } = query;
   const busy = new Map<string, BusyEntry[]>();
   const add = (roomId: string, entry: BusyEntry) => {
@@ -90,6 +94,7 @@ export async function getRoomAvailability(
         kind: "unavailable",
         id: entry.room_id,
         label: entry.reason?.trim() || "Unavailable",
+        pending_approval: false,
       });
     }
   }
@@ -110,17 +115,21 @@ export async function getRoomAvailability(
       kind: "session",
       id: session.id,
       label: `${session.course_id} ${session.kind} · ${session.groups.join(", ")}${moved}`,
+      pending_approval:
+        placement.displaced_by !== null && pending.has(placement.displaced_by),
     });
   }
 
-  for (const { decision, request } of held) {
+  for (const entry of held) {
+    const { decision, request } = entry;
     if (decision.day !== day) continue;
     if (!overlaps(decision.start_period, decision.end_period, from, to))
       continue;
     add(decision.room_id, {
       kind: "booking",
       id: decision.request_id,
-      label: request?.title || decision.request_id,
+      label: bookingTitle(entry, viewer),
+      pending_approval: request?.state === "pending_approval",
     });
   }
 

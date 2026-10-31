@@ -139,14 +139,15 @@ solve(instance, seed, budgetMs):
   assert check(assignments).hard == 0      // independent re-check with the validator port
   // Phase 3: soft optimisation (simulated annealing, hard stays 0)
   moves: relocate unit (time and/or room) · swap times of two units · room-only change
-  accept if no hard violation and (Δ ≤ 0 or rand < exp(-Δ/T)); T: 5 → 0.05 geometric over remaining budget
+  accept if no hard violation and (Δ ≤ 0 or rand < exp(-Δ/T)); T: 3 → 0.05 geometric over remaining budget (`T0` / `T_END` in `solver-search.ts`)
   return best-seen assignments
 ```
 
 - **Incremental soft cost:** only re-score the (group, day) and (faculty, day) pairs touched by a move. S2, S3 and S4 are per group-day. S1 is per faculty hour. S5 and S6 are per session.
 - **Room choice heuristic:** smallest room that fits (keeps the S5 "<40 % fill" penalty low and saves AUD/LH-1/LH-2 for big classes and events).
-- **`festCost` (C1):** for each non-cancelled Week-7 request with effective category above club, add a small penalty when a session uses the only rooms that could host it inside its window, or occupies a `mandatory_for_groups` group in its window. The weight is tuned so it never trades off against hard constraints.
-- **Budget:** 8 s default on the server (`SOLVER_TIME_BUDGET_MS`). The same code runs in a Web Worker as a fallback.
+- **`festCost` (C1, `engine/fest.ts`):** every non-cancelled Week-7 request that a timetable *could* block becomes a demand (on the public data: BR-01, 02, 03, 08, 12, 18, 19, 20; evening and seminar-hall/OAT requests can't be blocked by classes). Its options are the in-window (room, day, start) placements that fit type, capacity, needs and event use. Cost = Σ over demands of `2 × category weight × min over options of blocking cells` (occupied room periods + busy compulsory-group periods, P1–P9). It is 0 exactly when every demand has a free option, and it gives the annealer a gradient otherwise. Hard constraints are never traded: hard stays 0 throughout the search.
+- **Budget:** a deterministic iteration cap (`DEFAULT_SOLVER_ITERATIONS`: about 3–4 s on a laptop when it binds, up to about 6.5 s on an infeasible input) with `SOLVER_TIME_BUDGET_MS` (8 s by default; a request may raise it to 30 s with `time_budget_ms`) as a safety cap on active solver time (`solver_meta.stopped_by` records which one ended the run); the search also stops as soon as soft reaches its proven lower bound with fest cost 0. The engine is pure, so the same code can run in a Web Worker if a host's time limit ever requires it.
+- **Measured (public data):** 0 hard, soft 3 (the proven floor: F08's three CS204 lectures fit only TUE/THU, so S4 ≥ 3), fest cost 0. Seed 42 finishes in about 25 ms straight from construction; seeds 1–10 all reach soft 3 (the slowest anneals for about 2 s).
 
 ### 3.3 Exam scheduler (M4)
 
@@ -154,6 +155,7 @@ solve(instance, seed, budgetMs):
 - **Conflict graph:** two exams conflict if they share a group (`EX-OE-BASKET` lists all Year-3 groups).
 - **DSATUR colouring** into slots with cost = 5 × (extra exams the same group has that day). Each group has ≤ 5 exams and there are 6 days, so **exam penalty 0 is reachable**. Spread the days first, then pick AM/PM.
 - **Room packing per slot:** exams sorted by size descending. Best-fit-decreasing over half-capacity rooms (fewest rooms, least waste). Must reach `Σ ⌊cap/2⌋ ≥ size`. If a slot runs out of seats, move the smallest exam to the next compatible slot.
+- **Measured (Phase 3, `engine/exams.ts`):** all 41 exams placed, 0 hard, exam penalty **0**, in a few milliseconds. Rooms under maintenance at the exam's periods (LH-4 on THU, CR-103 FRI afternoon) are avoided as a preference, although the validator ignores them.
 
 ### 3.4 Spectra booking decision engine (M5)
 
@@ -235,7 +237,7 @@ explainSession(sid): facts = {
   room_reason: "smallest room that fits 180 seats: LH-1"
 }
 explainBooking(rid): decision + reason_code + competing requests + candidate rooms and why each failed
-→ Gemini (prompt explain.v1): "Write 2–4 plain sentences using ONLY these facts."
+→ Gemini (prompt explain_booking.v1): "Write 2–4 plain sentences using ONLY these facts."
 → fallback: template string built from the same facts
 ```
 
@@ -267,9 +269,13 @@ These are already in `cit_public.json`. Judges' tricky set will probe the same p
 
 **Score target:** maximum possible is 70 (sum of category weights over non-cancelled requests). The realistic ceiling is **67**. Check with `validator.py` and track it on the dashboard.
 
+**Measured (Phase 3):** **67 / 70** on the app's export (22 approved, 1 alternative = BR-17, 2 rejected = BR-04 cancelled and BR-09 too large), 0 session overrides and 0 priority inversions, confirmed by `validator.py`. Fest-aware generation keeps every daytime window free, so no class has to move.
+
 ---
 
 ## 5. AI layer (Gemini)
+
+> **Status (Phase 4):** built. `src/lib/ai/` holds the Gemini adapter (`@google/genai`, structured JSON output, one repair retry, timeout, per-instance cache), the offline English/Hinglish rule parser and the shared deterministic post-processing; `prompts/parse_booking.v1.md` and `prompts/explain_booking.v1.md`. `POST /api/bookings/parse` works with AI off (the rule parser is the default without a key) and logs every parse to `ai_logs`.
 
 ### 5.1 What the LLM may and may not do (copy into `AI_USAGE.md`)
 
@@ -286,11 +292,12 @@ These are already in `cit_public.json`. Judges' tricky set will probe the same p
 | Feature | Endpoint | Model env | Prompt file | Output schema |
 |---|---|---|---|---|
 | Booking parser | `/api/bookings/parse` | `GEMINI_MODEL_FAST` | `prompts/parse_booking.v1.md` | `BookingDraftLLM` |
-| Assistant intent | `/api/assistant` | `GEMINI_MODEL_FAST` | `prompts/assistant_intent.v1.md` | `ChangeIntent` |
-| Assistant reply / explanations | `/api/assistant`, `/api/explain` | `GEMINI_MODEL_SMART` | `prompts/explain.v1.md` | plain text (≤ 80 words) |
+| Booking explanation | `GET /api/bookings/:id` | `GEMINI_MODEL_SMART` | `prompts/explain_booking.v1.md` | plain text, 2–4 sentences; every number must appear in the facts and the status must match, else the engine's text |
+| Assistant intent (Phase 5) | `/api/assistant` | `GEMINI_MODEL_FAST` | `prompts/assistant_intent.v1.md` | `ChangeIntent` |
+| Assistant reply / timetable explanations (Phase 5) | `/api/assistant`, `/api/explain` | `GEMINI_MODEL_SMART` | `prompts/explain.v1.md` | plain text (≤ 80 words) |
 
 - SDK: `@google/genai`. Structured output with `responseMimeType: "application/json"` and the JSON schema generated by `z.toJSONSchema()` from the contract. Then `.parse()` with Zod. On failure, one "repair" retry, then the rule parser.
-- Timeout `LLM_TIMEOUT_MS` (8 s). Cache by `sha256(text + reference_date)`. All calls are logged to `ai_logs`.
+- Timeout `LLM_TIMEOUT_MS` (8 s) for the whole parse (first call + repair; the repair is skipped when too little time is left). Parse cache by `sha256(text + reference_date + dataset_id + model + prompt_id)`; explanations are cached by a hash of the decision's content and limited to 30 model calls per user per 10 minutes (the engine's text is shown beyond that). Every parse (Gemini or rule parser, cache hits flagged `cached`) and every model-phrased explanation is logged to `ai_logs` (kept 30 days). Explanations of approver rejections and cancellations never call the model (the approver's comment stays out of prompts).
 
 ```ts
 // contracts/ai.ts
@@ -322,7 +329,7 @@ ChangeIntent = {
 | Needs lexicon | mic/sound/speaker/PA → `pa_system` · projector/screen/PPT → `projector` · computers/PCs/systems → `computers` · wheelchair/accessible/ramp → `accessible` · stage/manch → `stage` · AC → `ac` · power points/plugs → `power_benches` |
 | Room names | Normalise and fuzzy-match against room ids and names ("LHC-5" → LH-5?, "audi" → AUD, "open air" → OAT). Unknown → keep as text + warning. Never invent. |
 | Room types | From explicit words, else derived from attendance and needs (≤ 90 classroom, ≤ 200 lecture hall/seminar hall, > 200 auditorium/outdoor) → assumption chip |
-| Category | Always `role_category_cap[user.role]` (or lower). A claimed higher category shows a "capped" notice. |
+| Category | Always `role_category_cap[user.role]`; a claim in the text never changes it (a higher claim shows a "capped" notice). |
 | Groups | "Mechanical third years" → `ME-3` via the `student_groups` lookup. "compulsory/mandatory/zaroori" → `mandatory_for_groups`. |
 | Hinglish | `baje` = o'clock · `ghante` = hours · `log` = people · `chahiye` = need · `se … tak` = from … to · `har` = every |
 
@@ -345,13 +352,14 @@ ChangeIntent = {
 ### 5.5 Fallback chain (judges will test it)
 
 `Gemini fast → (Zod fail) one repair retry → rule parser (C7) → manual form pre-filled with whatever was parsed`.
-With `LLM_ENABLED=false` or a 503, the UI shows "AI is unavailable, the form below still works". The form's submission path (`POST /api/bookings`) has **zero** LLM calls.
+With AI off or failing, the parse answers `source: "rules"` (with `fallback_reason` = `timeout`, `invalid_output` or `llm_error` when AI was on); the UI shows "AI is unavailable, the form below still works". The form's submission path (`POST /api/bookings`) has **zero** LLM calls.
 
 ### 5.6 AI evaluation harness (`scripts/ai-eval.ts`)
 
 - **Free ground truth:** each of the 25 `booking_requests` has `raw_text` plus structured fields. Parse every `raw_text` and score per field: attendance (exact), duration, windows (exact), needs (set equality), room_types (overlap), mandatory groups (exact).
 - Add the 8 `sample_requests.md` items (3 have expected JSON) and about 15 adversarial prompts from §5.4.
 - Report accuracy per field. **Target ≥ 90 %** on dataset texts before H18. Results go in the README (and the C12 dashboard if built).
+- **Measured (Phase 4, rule parser alone; no Gemini key):** `npm run ai-eval` scores **97.5 %** over the 20 distinct dataset texts (the two series are parsed once): attendance, room types and compulsory groups 100 %; duration, windows and needs 95 %. The three misses are cases where the dataset's answer isn't in the text (BR-09 "Friday night" gives no length and "big screen" reads as a projector; BR-04 "6 to 9" is P10–P12, the dataset says P10–P13). Room types count as correct when they overlap the dataset's list; scored as an exact set they are 70 % (14/20), 92.5 % overall (both are printed). All 48 sample and adversarial cases pass (day ranges as a series, spoken and invalid times, Devanagari, attendance ranges, room numbers, …). With a `GEMINI_API_KEY`, `npm run ai-eval -- --llm` scores the Gemini path the same way.
 
 ---
 
@@ -360,13 +368,17 @@ With `LLM_ENABLED=false` or a 503, the UI shows "AI is unavailable, the form bel
 | Service (`lib/services/`) | Engine modules used | Routes ([architecture.md §6](./architecture.md#6-api-catalogue)) | Owner |
 |---|---|---|:-:|
 | `datasetService` | — | `/api/admin/dataset`, `/api/admin/reset` | B |
-| `timetableService` | `solver`, `checker`, `fest` | `/api/timetable/*`, `/api/manual/place` | A + B |
-| `examService` | `exams`, `checker` | `/api/exams/generate` | A |
-| `bookingService` | `bookings`, `checker`, `explain` | `/api/bookings/*`, `/api/spectra/run`, `/api/rooms/available` | B |
+| `timetable` (+ `timetable-view`) | `solver`, `fest`, `checker`, `soft` | `/api/timetable`, `/check`, `/generate`, `/versions`, `/versions/:id/activate`; later `/api/manual/place` | A + B |
+| `exams` | `exams`, `exams-check` | `/api/exams`, `/api/exams/generate` | A |
+| `spectra` | `bookings`, `bookings-check` | `/api/spectra`, `/api/spectra/run` (and every activation) | B |
+| `reference` | — (projects the active dataset) | `/api/reference` | B |
+| `bookings` | `bookings` (via `spectra`), `suggestRoom`; AI `phraseExplanation` | `/api/bookings`, `/api/bookings/:id`, `/cancel`, `/decide` | B |
+| `booking-parse` | `bookings` (preview), `missingNeeds`; AI `parseBookingText` | `/api/bookings/parse` | B |
+| `rooms` | — (reads the Week-7 picture) | `/api/rooms/available` | B |
 | `changeService` | `reschedule`, `checker`, `explain` | `/api/changes/*` | A + B |
-| `aiService` | (calls the services above for facts) | `/api/bookings/parse`, `/api/assistant`, `/api/explain` | B |
-| `exportService` | `checker` (gate) | `/api/export`, `/api/validate` | B |
-| `dashboardService` | `checker`, utilisation | `/api/dashboard` | B |
+| `llm` | (config only: env switch + admin toggle + key) | used by `booking-parse`, `bookings`; later `/api/assistant`, `/api/explain` | B |
+| `export` | `validate` (gate) | `/api/export`, `/api/validate` | B |
+| `dashboard` | `checker`, `bookings-check` (booking score via `spectra`), utilisation | `/api/dashboard` | B |
 | `authService` | — | `/api/auth/*` | B |
 
 **Cross-cutting rules**

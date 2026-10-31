@@ -20,11 +20,16 @@ import {
   ScheduleExportSchema,
   SessionSchema,
   SettingsSchema,
+  SpectraDecisionViewSchema,
+  SpectraOverrideViewSchema,
+  SpectraPublicDecisionViewSchema,
   StoredBookingDecisionSchema,
+  StoredSessionOverrideSchema,
   TimetableVersionSchema,
   ValidatorReportSchema,
   effectiveCategory,
   isAvoidPreference,
+  isCategoryCapped,
   type AvoidPreference,
   type Category,
   type Dataset,
@@ -136,6 +141,18 @@ describe("dataset", () => {
     );
     const result = DatasetSchema.safeParse(raw);
     expect(issuePaths(result)).toEqual(["role_category_cap.admin"]);
+  });
+
+  it("rejects an uncapped role when club_event is missing from priority_order", () => {
+    const raw = rawDataset() as unknown as {
+      priority_order: string[];
+      booking_requests: { role: string }[];
+    };
+    raw.priority_order = raw.priority_order.filter((c) => c !== "club_event");
+    // Keep every cap valid: only the role without a cap (falls back to club_event) is the problem.
+    raw.booking_requests[0].role = "alien";
+    const result = DatasetSchema.safeParse(raw);
+    expect(issuePaths(result)).toContain("booking_requests.0.role");
   });
 
   it("rejects a priority_order that repeats a category", () => {
@@ -543,5 +560,59 @@ describe("effectiveCategory", () => {
         requested_category: "mega_event",
       }),
     ).toBe("club_event");
+  });
+});
+
+describe("Spectra view schemas", () => {
+  it("list exactly the stored fields (approver ids optional in the view, absent in public)", () => {
+    const stored = Object.keys(StoredBookingDecisionSchema.shape).sort();
+    expect(Object.keys(SpectraDecisionViewSchema.shape).sort()).toEqual(stored);
+    expect(Object.keys(SpectraPublicDecisionViewSchema.shape).sort()).toEqual(
+      stored.filter((k) => k !== "decided_by" && k !== "approved_by"),
+    );
+    expect(Object.keys(SpectraOverrideViewSchema.shape).sort()).toEqual(
+      Object.keys(StoredSessionOverrideSchema.shape).sort(),
+    );
+  });
+});
+
+describe("isCategoryCapped", () => {
+  const rules = {
+    priority_order: [
+      "exam",
+      "regular_session",
+      "institute_event",
+      "guest_lecture",
+      "department_event",
+      "club_event",
+    ] as Category[],
+    role_category_cap: {
+      club: "club_event",
+      admin: "institute_event",
+    } as Record<string, Category>,
+  };
+  it("is true only when a known claim was lowered by the cap", () => {
+    expect(
+      isCategoryCapped(rules, {
+        role: "club",
+        requested_category: "guest_lecture",
+      }),
+    ).toBe(true);
+    expect(
+      isCategoryCapped(rules, {
+        role: "club",
+        requested_category: "club_event",
+      }),
+    ).toBe(false);
+    expect(
+      isCategoryCapped(rules, {
+        role: "admin",
+        requested_category: "institute_event",
+      }),
+    ).toBe(false);
+    // An unknown claim ranks lowest; it isn't "capped".
+    expect(
+      isCategoryCapped(rules, { role: "club", requested_category: "bogus" }),
+    ).toBe(false);
   });
 });

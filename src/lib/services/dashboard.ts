@@ -3,13 +3,13 @@ import type { Db } from "mongodb";
 import { type Dashboard, type SessionUser } from "@/lib/contracts";
 import {
   countBookingDecisionsByStatus,
+  listBookingDecisions,
   listDecidedRequestIds,
 } from "@/lib/db/repos/booking-decisions";
 import { countChangeRequestsByStatus } from "@/lib/db/repos/change-requests";
 import { getDatasetMeta } from "@/lib/db/repos/datasets";
 import { getActiveExamSchedule } from "@/lib/db/repos/exam-schedules";
 import {
-  LAB_DEPARTMENT,
   countBookingRequests,
   countBookingRequestsByState,
   countUndecidedBookingRequests,
@@ -18,31 +18,16 @@ import {
   listExams,
   listRooms,
   listSessions,
-  type RoomRecord,
 } from "@/lib/db/repos/reference";
 import { countSessionOverrides } from "@/lib/db/repos/session-overrides";
 import { getActiveTimetableVersion } from "@/lib/db/repos/timetable-versions";
 import { getBundledDataset } from "@/lib/dataset";
+import { approvalOf, canApprove, roomDepartments } from "./booking-approvals";
+import { storedSpectraSummary } from "./spectra";
 import { requesterMatchesFaculty } from "./timetable-view";
 
 const sameText = (a: string | null | undefined, b: string | null | undefined) =>
   !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
-
-/** Rooms whose (derived lab) department is `department`. */
-function departmentRoomIds(rooms: readonly RoomRecord[], department: string) {
-  return new Set(
-    rooms.filter((room) => room.department === department).map((r) => r.id),
-  );
-}
-
-/** Lab room types owned by `department` (`lab_cs` for CSE, …). */
-function departmentLabTypes(department: string): Set<string> {
-  return new Set(
-    Object.entries(LAB_DEPARTMENT)
-      .filter(([, dept]) => dept === department)
-      .map(([type]) => type),
-  );
-}
 
 function round(value: number): number {
   return Math.round(value * 10_000) / 10_000;
@@ -67,8 +52,12 @@ function namesUser(
 }
 
 /**
- * Role-aware dashboard for `user`. Counts come from aggregate/count queries; only the dataset's
- * own entities (rooms, sessions, exams) and the small sets of pending or own requests are read.
+ * Role-aware dashboard for `user`. Counts come from aggregate/count queries; the dataset's own
+ * entities (rooms, sessions, exams) and the small sets of pending or own requests are read.
+ * The booking score is the validator port's score of the stored decisions for the active
+ * version ({@link storedSpectraSummary}: one export-dataset read plus a few ms of scoring),
+ * null before Spectra has run for it. A failure there only blanks the score (logged), so the
+ * landing page still renders.
  */
 export async function getDashboard(
   db: Db,
@@ -91,11 +80,13 @@ export async function getDashboard(
     overrides,
     adminPendingBookings,
     coordinatorPending,
+    coordinatorDecisions,
     ownRequests,
     datasetRequests,
     pendingChanges,
     myChanges,
     faculty,
+    spectra,
   ] = await Promise.all([
     getDatasetMeta(db),
     getActiveExamSchedule(db),
@@ -120,6 +111,9 @@ export async function getDashboard(
           not_created_by: user.id,
         })
       : Promise.resolve([]),
+    coordinatorDept && versionId
+      ? listBookingDecisions(db, { timetable_version: versionId })
+      : Promise.resolve([]),
     listBookingRequests(db, { created_by: user.id, not_state: ["draft"] }),
     user.club || user.faculty_id
       ? listBookingRequests(db, { source: "dataset", not_state: ["draft"] })
@@ -129,6 +123,12 @@ export async function getDashboard(
       : Promise.resolve(null),
     countChangeRequestsByStatus(db, { requested_by: user.id }),
     user.faculty_id ? getFaculty(db, user.faculty_id) : Promise.resolve(null),
+    version
+      ? storedSpectraSummary(db, version).catch((err: unknown) => {
+          console.error("[dashboard] booking score unavailable", err);
+          return null;
+        })
+      : Promise.resolve(null),
   ]);
   const { dataset_id, calendar } = meta ?? getBundledDataset();
 
@@ -149,12 +149,14 @@ export async function getDashboard(
   // -------------------------------------------------------------------- pending approvals
   let pendingBookings = adminPendingBookings;
   if (coordinatorDept) {
-    const deptRooms = departmentRoomIds(rooms, coordinatorDept);
-    const deptLabTypes = departmentLabTypes(coordinatorDept);
-    pendingBookings = coordinatorPending.filter(
-      (r) =>
-        (r.requested_room !== null && deptRooms.has(r.requested_room)) ||
-        r.room_types.some((type) => deptLabTypes.has(type)),
+    // The bookings API's own rule: the current decision holds this department's lab and no
+    // matching approval exists yet (class moves need an admin, so they never count here).
+    const departments = roomDepartments(rooms);
+    const decisionById = new Map(
+      coordinatorDecisions.map((d) => [d.request_id, d]),
+    );
+    pendingBookings = coordinatorPending.filter((r) =>
+      canApprove(user, approvalOf(r, decisionById.get(r.id), departments)),
     ).length;
   }
   const pendingChangeCount = pendingChanges?.pending ?? 0;
@@ -230,6 +232,9 @@ export async function getDashboard(
       undecided,
       by_status: byStatus,
       session_overrides: overrides,
+      booking_score: spectra?.booking_score ?? null,
+      booking_score_max_if_all_approved:
+        spectra?.booking_score_max_if_all_approved ?? null,
     },
     pending_approvals: {
       booking_requests: pendingBookings,

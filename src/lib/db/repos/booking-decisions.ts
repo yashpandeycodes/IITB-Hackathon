@@ -89,21 +89,31 @@ export async function upsertBookingDecision(
   return stripMeta(doc);
 }
 
-/** Replaces every decision (a full Spectra run). */
+/**
+ * Replaces every decision (a full Spectra run): upserts each one by `_id`, then deletes the
+ * ones not in `decisions`. Never deletes first, so a concurrent reader sees the old or the new
+ * decision for each request, never an empty collection. Returns how many were written.
+ */
 export async function replaceBookingDecisions(
   db: Db,
   decisions: readonly StoredBookingDecision[],
 ): Promise<number> {
   const at = nowIso();
   const docs = decisions.map((decision) => toDoc(decision, at));
-  const result = await collection(db).bulkWrite(
+  await collection(db).bulkWrite(
     [
-      { deleteMany: { filter: {} } },
-      ...docs.map((document) => ({ insertOne: { document } })),
+      ...docs.map((replacement) => ({
+        replaceOne: {
+          filter: { _id: replacement._id },
+          replacement,
+          upsert: true,
+        },
+      })),
+      { deleteMany: { filter: { _id: { $nin: docs.map((d) => d._id) } } } },
     ],
     { ordered: true },
   );
-  return result.insertedCount;
+  return docs.length;
 }
 
 /** Decisions per status (every status present, zero when absent). */

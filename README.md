@@ -3,7 +3,7 @@
 A web platform for Chilika Institute of Technology that generates a clash-free weekly timetable, schedules midsem exams, decides Spectra-week (Week 7) venue requests by priority and repairs the timetable after disruptions with minimal moves and admin approval.
 Venue requests can be typed in plain English or Hinglish. Every decision comes with a reason, and validity is always checked by a deterministic constraint engine.
 
-> **Status:** Phase 2 backend done: engine checker with exact `validator.py` parity, data layer (import, reset), auth and read APIs. Timetable generation, AI features and rescheduling are pending; features land phase by phase, see [Known limitations](#known-limitations).
+> **Status:** Phase 4 backend done: plain-language booking parser (Gemini with an offline English/Hinglish rule parser, 97.5 % on the dataset's request texts without AI) and the bookings API with approvals; Phase 3's timetable generator, exam scheduler, Spectra decisions and `schedule.json` export (0 hard violations, see [Validating](#validating)); the engine checker with exact `validator.py` parity, data layer, auth and read APIs. Rescheduling and the assistant are pending; most app screens still show sample data and are being connected to the API, see [Known limitations](#known-limitations).
 
 ---
 
@@ -13,7 +13,7 @@ Venue requests can be typed in plain English or Hinglish. Every decision comes w
 flowchart LR
   subgraph Browser
     UI[Next.js UI<br/>RSC + client components]
-    WW[Engine Web Worker<br/>live drag-drop checks]
+    WW[Engine Web Worker, planned<br/>live drag-drop checks]
   end
 
   subgraph App["Next.js app (Vercel)"]
@@ -51,7 +51,7 @@ flowchart LR
 | Contracts       | Zod 4: one schema per shape, shared by DB, API, forms and export       |
 | Database        | MongoDB (Atlas in production, local `mongod` or Docker in development) |
 | Auth            | bcryptjs password hashes, `jose`-signed JWT in an httpOnly cookie      |
-| AI              | Google Gemini API, behind a Zod-validated adapter with a rule fallback |
+| AI              | Google Gemini (`@google/genai`), Zod-validated, rule-parser fallback   |
 | Testing / tools | Vitest, ESLint, Prettier, `tsx`, organisers' `validator.py` (Python 3) |
 | Hosting         | Vercel + MongoDB Atlas                                                 |
 
@@ -87,23 +87,25 @@ API reference for the routes that exist today: [docs/api.md](docs/api.md).
 
 ### Scripts
 
-| Script              | What it does                                                                                                                     |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run dev`       | Start the dev server on port 3000                                                                                                |
-| `npm run build`     | Production build                                                                                                                 |
-| `npm start`         | Serve the production build                                                                                                       |
-| `npm run lint`      | ESLint                                                                                                                           |
-| `npm run typecheck` | `tsc --noEmit`                                                                                                                   |
-| `npm test`          | Vitest (single run); `npm run test:watch` for watch mode                                                                         |
-| `npm run format`    | Prettier write; `npm run format:check` to check only                                                                             |
-| `npm run db:start`  | Start a local `mongod` in the background (data in `.data/mongo`)                                                                 |
-| `npm run seed`      | Reset the demo database to `data/cit_public.json` (dataset, demo users, settings); `-- --stored` keeps the last uploaded dataset |
-| `npm run parity`    | Check our engine against the organisers' `validator.py` (78 cases)                                                               |
-| `npm run validate`  | Run the organisers' `validator.py` on the files in `exports/`                                                                    |
+| Script              | What it does                                                                                                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `npm run dev`       | Start the dev server on port 3000                                                                                                                                                          |
+| `npm run build`     | Production build                                                                                                                                                                           |
+| `npm start`         | Serve the production build                                                                                                                                                                 |
+| `npm run lint`      | ESLint                                                                                                                                                                                     |
+| `npm run typecheck` | `tsc --noEmit`                                                                                                                                                                             |
+| `npm test`          | Vitest (single run); `npm run test:watch` for watch mode                                                                                                                                   |
+| `npm run format`    | Prettier write; `npm run format:check` to check only                                                                                                                                       |
+| `npm run db:start`  | Start a local `mongod` in the background (data in `.data/mongo`)                                                                                                                           |
+| `npm run seed`      | Reset the demo database to `data/cit_public.json` (dataset, demo users, settings), then generate the timetable, exams and Spectra decisions; `-- --stored` keeps the last uploaded dataset |
+| `npm run ai-eval`   | Score the booking parser on the dataset's 20 distinct request texts (25 requests) and 48 sample/adversarial cases (rule parser; `-- --llm` adds Gemini when a key is set)                  |
+| `npm run export`    | Download `exports/schedule.json` from a running app (`-- --url http://localhost:3000`) as the demo admin                                                                                   |
+| `npm run parity`    | Check our engine against the organisers' `validator.py` (78 cases)                                                                                                                         |
+| `npm run validate`  | Run the organisers' `validator.py` on the files in `exports/`                                                                                                                              |
 
 ## Demo accounts
 
-Sign in on `/login` with the email and password below. One-click sign-in is available through the API, `POST /api/auth/demo-login` with `{"role":"admin"}` (or `department_coordinator`, `faculty`, `club`); the one-click cards on `/login` that call it are pending in the frontend. Run `npm run seed` first on a new database (demo-login also re-creates a missing demo account). Demo sign-in is on by default; `DEMO_LOGIN_ENABLED=false` turns it off.
+Sign in on `/login` with the email and password below. One-click sign-in: the demo-account cards on `/login`, or the API directly, `POST /api/auth/demo-login` with `{"role":"admin"}` (or `department_coordinator`, `faculty`, `club`). Run `npm run seed` first on a new database (demo-login also re-creates a missing demo account). Demo sign-in is on by default; `DEMO_LOGIN_ENABLED=false` turns it off.
 
 ```bash
 curl -c jar -X POST -H 'content-type: application/json' -d '{"role":"admin"}' localhost:3000/api/auth/demo-login
@@ -116,13 +118,37 @@ curl -c jar -X POST -H 'content-type: application/json' -d '{"role":"admin"}' lo
 | Faculty                | `faculty@cit.demo`   | `Faculty@123` | `F06` Dr. Arjun Mehta (CSE, teaches CS202 / CS303) |
 | Club representative    | `club@cit.demo`      | `Club@123`    | Dramatics Society                                  |
 
-**Reset demo data:** signed in as Admin, `POST /api/admin/reset` restores the bundled starter-pack dataset and the demo accounts, so every judge can start from a clean state (the Admin page button that calls it is pending in the frontend).
+**Reset demo data:** signed in as Admin, `POST /api/admin/reset` restores the bundled starter-pack dataset and the demo accounts, so every judge can start from a clean state (the Admin page's Reset button is not connected to it yet; see [docs/project-status.md](docs/project-status.md)).
 
 Nobody can approve their own request. Self-service sign-up (`/signup`) creates Club Representative accounts only, verified by an emailed code in the same browser; faculty and staff accounts are provisioned. Role permissions: [docs/architecture.md §9](docs/architecture.md#9-auth-and-rbac).
 
 ## Validating
 
-Exports are produced only by the app (Export button / `/api/export`, Phase 3) and committed exactly as downloaded.
+Exports are produced only by the app (`GET /api/export`, which `npm run export` calls; the Admin page's Export button is not connected yet and must not be used for submission) and committed exactly as downloaded. The export endpoint refuses to serve a file our validator port finds a hard violation in.
+
+**Current results** (`exports/schedule.json`, produced by the app from the bundled dataset with seed 42; output of `npm run validate`, which runs the unmodified `validator.py`):
+
+```text
+Validating exports/schedule.json
+
+Dataset: cit-public-v1   Schedule says: cit-public-v1   Team: CIT Crunch Week
+Hard violations: 0  {}
+Soft penalty: 3  {'S1': 0, 'S2': 0, 'S3': 0, 'S4': 3, 'S5': 0, 'S6': 0}
+Bookings: score 67.0 | approved 22, alternatives 1, rejected 2, session overrides 0, priority inversions 0
+Exam soft penalty: 0
+
+PASS: 0 hard violations.
+```
+
+| Metric          | Result                                                    | Why it can't be better                                                                                                                                                          |
+| --------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hard violations | **0**                                                     |                                                                                                                                                                                 |
+| Soft penalty    | **3** (S4)                                                | Proven lower bound: F08 can't teach MON/WED/FRI and teaches all three CS204 lectures of CSE-2, so two of them share a day (S4 = 3)                                              |
+| Booking score   | **67 / 70**                                               | BR-09 (1,200 people) is larger than every venue (the OAT seats 800), so it is rejected; BR-17's window ends at P14, past the last event period (P13), so it gets an alternative |
+| Exam penalty    | **0**                                                     |                                                                                                                                                                                 |
+| Generation time | about 25 ms (seed 42); never more than the 8 s safety cap | Deterministic: the same seed gives the same timetable (`solver_meta.stopped_by` shows whether the iteration budget or the time cap ended a run)                                 |
+
+The generator is fest-aware: it keeps the auditorium, the CS labs and the compulsory groups free where Week-7 requests need them, so all 22 approvals fit without moving a single class.
 
 | Command                       | Checks                                                                                                   |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -140,10 +166,11 @@ All three run the unmodified `CrunchWeek_StarterPack/validator.py` (Python 3). `
 │   ├── app/
 │   │   ├── page.tsx  login/  signup/  unauthorized/   # CIT Nexus landing, sign-in, sign-up, access denied
 │   │   ├── dashboard/  admin/  coordinator/  faculty/  club/   # CIT Nexus role pages (role-gated)
-│   │   ├── (app)/                   # app shell: timetable, rooms, bookings, spectra,
-│   │   │                            # approvals, changes, assistant, exams
-│   │   └── api/                     # Route Handlers: auth, admin, settings, timetable, rooms,
-│   │                                # dashboard, health (docs/api.md)
+│   │   ├── timetable/ rooms/ bookings/ spectra/ approvals/ changes/ assistant/ exams/
+│   │   │                            # app screens (to move into an (app)/ route group; see docs/integration-guide.md)
+│   │   └── api/                     # Route Handlers: auth, admin, settings, timetable (+ generate,
+│   │                                # versions), rooms, exams, spectra, bookings (+ parse), export,
+│   │                                # validate, reference, dashboard, health (docs/api.md)
 │   ├── components/
 │   │   ├── ui/                      # shadcn/ui primitives
 │   │   ├── landing/ auth/ brand/    # CIT Nexus landing sections, auth forms, logo
@@ -153,20 +180,23 @@ All three run the unmodified `CrunchWeek_StarterPack/validator.py` (Python 3). `
 │   │   ├── contracts/               # Zod schemas: single source of truth
 │   │   ├── api/                     # route helpers: withHandler, parseJsonBody, parseSearchParams, ok/fail
 │   │   ├── engine/                  # pure TS port of validator.py (checker, soft score, bookings, exams,
-│   │   │                            # disruption); solver, exam scheduler, decisions, reschedule (planned)
+│   │   │                            # disruption); solver, fest costs, exam scheduler, Spectra decisions;
+│   │   │                            # reschedule (planned)
 │   │   ├── db/                      # native MongoDB driver (no Mongoose): client, collections, indexes, repos/
-│   │   ├── services/                # dataset import, reset, settings, timetable view + what-if check,
-│   │   │                            # room availability, dashboard, OTP email
-│   │   ├── ai/                      # (planned) Gemini client, prompt loader, Hinglish rules, fallbacks
-│   │   ├── auth/                    # JWT session cookie, guards, proxy rules, accounts + OTP, rate limits,
-│   │   │                            # role labels, demo-user seed
+│   │   ├── services/                # dataset import, reset (+ generation pipeline), settings, timetable
+│   │   │                            # generation + versions, view + what-if check, exams, Spectra, export +
+│   │   │                            # validator report, reference data, room availability, dashboard,
+│   │   │                            # OTP email
+│   │   ├── ai/                      # Gemini client, prompt loader, English/Hinglish rule parser, explanations
+│   │   ├── auth/                    # JWT session cookie, guards, server-session (getSessionUser), proxy
+│   │   │                            # rules, accounts + OTP, rate limits, role labels, demo-user seed
 │   │   ├── errors.ts                # ApiError, shared by services and route handlers
-│   │   ├── env.ts  dataset.ts  format.ts
+│   │   ├── env.ts  dataset.ts  format.ts  redirect.ts (safe post-login redirects)
 │   │   └── api-client.ts            # typed fetch wrapper used by the UI
 │   ├── config/                      # nav, roles, demo accounts, semantic chip mapping
 │   └── proxy.ts                     # auth gate (Next.js 16): page redirects, API 401, cross-origin 403
 ├── prompts/                         # versioned prompt files
-├── scripts/                         # seed.ts, parity.ts, validate.ts
+├── scripts/                         # seed.ts, parity.ts, validate.ts, export.ts, ai-eval.ts
 ├── data/                            # starter-pack cit_public.json + sample_disruption.json
 ├── exports/                         # schedule.json, schedule_after.json (from the app)
 ├── CrunchWeek_StarterPack/          # organisers' starter pack (unmodified)
@@ -180,23 +210,28 @@ Scripts that import server-only modules (database, env) run with `npx tsx --cond
 
 ## Documentation
 
-| Doc                                          | Contents                                                           |
-| -------------------------------------------- | ------------------------------------------------------------------ |
-| [docs/architecture.md](docs/architecture.md) | System design, data contracts, MongoDB schema, API catalogue, RBAC |
-| [docs/api.md](docs/api.md)                   | API reference for the implemented routes, with example responses   |
-| [docs/backend.md](docs/backend.md)           | Features, algorithms, dataset traps, AI layer                      |
-| [docs/frontend.md](docs/frontend.md)         | Design system, screens, components, responsive and state handling  |
-| [AI_USAGE.md](AI_USAGE.md)                   | AI in the product, AI tools used, prompts, what the LLM may not do |
-| [THIRD_PARTY.md](THIRD_PARTY.md)             | Libraries, components, fonts, services and data used               |
+| Doc                                                    | Contents                                                                           |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| [docs/architecture.md](docs/architecture.md)           | System design, data contracts, MongoDB schema, API catalogue, RBAC                 |
+| [docs/project-status.md](docs/project-status.md)       | Plain-language status: what works, what to fix, what's next (frontend and backend) |
+| [docs/integration-guide.md](docs/integration-guide.md) | Step-by-step guide for wiring the screens to the API                               |
+| [docs/api.md](docs/api.md)                             | API reference for the implemented routes, with example responses                   |
+| [docs/backend.md](docs/backend.md)                     | Features, algorithms, dataset traps, AI layer                                      |
+| [docs/frontend.md](docs/frontend.md)                   | Design system, screens, components, responsive and state handling                  |
+| [AI_USAGE.md](AI_USAGE.md)                             | AI in the product, AI tools used, prompts, what the LLM may not do                 |
+| [THIRD_PARTY.md](THIRD_PARTY.md)                       | Libraries, components, fonts, services and data used                               |
 
 ## Known limitations
 
 - Deployment link: pending.
-- Done so far: sign-in, sign-up and roles; dataset import and reset; timetable and room views; what-if checks; dashboard; settings ([docs/api.md](docs/api.md)). Timetable generation, exam scheduling, Spectra decisions and exports land in Phase 3; natural-language booking and the AI layer in Phase 4; change requests, approvals, the assistant and explanations in Phase 5. Until Phase 3, timetable views are empty (`version_id: null`) and a reset doesn't generate anything.
+- Done so far: sign-in, sign-up and roles; dataset import and reset; timetable and room views; what-if checks; dashboard; settings; timetable generation (with live progress), version activation, exam scheduling, Spectra decisions, the `schedule.json` export and the in-app validator report; plain-language booking (English/Hinglish), booking submit/list/cancel and approvals ([docs/api.md](docs/api.md)). Change requests and their approvals, rescheduling (`schedule_after.json`), the assistant and timetable explanations (e.g. why a class is at 8 AM) come in Phase 5. Most app screens still show sample data and are being connected to the API ([docs/project-status.md](docs/project-status.md)).
+- After a dataset **import**, no timetable is generated automatically: run `POST /api/timetable/generate` with `{"activate": true}` and `POST /api/exams/generate` (a reset does all of this).
+- AI features run only with a `GEMINI_API_KEY` (plus `LLM_ENABLED` and the admin's toggle); without one, the rule parser and template explanations are used, and `npm run ai-eval` measures the rule parser only: 97.5 % of fields on the dataset's texts (the 3 misses are values the text doesn't state, BR-04 and BR-09; 92.5 % if room types must match the dataset's list exactly rather than overlap) and 48/48 sample and adversarial cases; Gemini is not measured ([docs/backend.md §5](docs/backend.md)).
+- Live booking requests are decided together with the dataset's, so they can change which rooms dataset requests get in `schedule.json`; reset before producing the final export (a reset clears live requests).
+- Live drag-and-drop checks run on the server (`POST /api/timetable/check`); the in-browser Web Worker copy of the engine shown in the diagram is planned.
 - Google sign-in isn't available: `/api/auth/google` always redirects back to `/login?error=google_unavailable` (no callback yet). Use the demo accounts.
-- Sign-up email needs `BREVO_API_KEY` and `BREVO_SENDER_EMAIL`. Without them, local development shows the code on screen and production answers 503.
+- Sign-up email needs `BREVO_API_KEY` and `BREVO_SENDER_EMAIL`. Without them, local development prints the code in the server console (it never appears in a response) and production answers 503.
 - Rate limits on sign-in, demo sign-in, sign-up and verification codes are kept in memory per server instance: they reset on restart and each serverless instance counts separately. Client IPs are read from `X-Forwarded-For` only on Vercel; elsewhere all callers share one per-IP counter.
-- Validator output for the final exports will be added here once `exports/` is populated.
 
 ## Team
 
