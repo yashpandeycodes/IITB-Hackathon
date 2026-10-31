@@ -1,0 +1,9 @@
+node_modules
+.next
+coverage
+package-lock.json
+CrunchWeek_StarterPack
+data
+exports
+docs
+src/components/ui
