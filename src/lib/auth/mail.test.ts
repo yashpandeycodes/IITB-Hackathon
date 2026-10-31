@@ -30,6 +30,7 @@ async function load(env: Record<string, string | undefined>) {
     "BREVO_SMTP_HOST",
     "BREVO_SMTP_PORT",
     "BREVO_SMTP_LOGIN",
+    "BREVO_SMTP_USER",
   ]) {
     vi.stubEnv(key, env[key]);
   }
@@ -159,6 +160,21 @@ describe("SMTP relay (xsmtpsib- key)", () => {
     });
   });
 
+  it("accepts BREVO_SMTP_USER as the SMTP login", async () => {
+    const mail = await load({
+      ...base,
+      BREVO_SMTP_LOGIN: undefined,
+      BREVO_SMTP_USER: "relay-alias@smtp-brevo.com",
+    });
+    expect(mail.mailStatus()).toBe("ready");
+    await mail.sendOtpEmail("lead@example.org", "Lead", CODE);
+    expect(smtp.createTransport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auth: { user: "relay-alias@smtp-brevo.com", pass: SMTP_KEY },
+      }),
+    );
+  });
+
   it("is unavailable without BREVO_SMTP_LOGIN", async () => {
     const mail = await load({ ...base, BREVO_SMTP_LOGIN: undefined });
     expect(mail.mailStatus()).toBe("unavailable");
@@ -166,7 +182,9 @@ describe("SMTP relay (xsmtpsib- key)", () => {
       false,
     );
     expect(smtp.createTransport).not.toHaveBeenCalled();
-    expect(loggedText()).toMatch(/BREVO_SMTP_LOGIN is not set/);
+    expect(loggedText()).toMatch(
+      /BREVO_SMTP_LOGIN \(or BREVO_SMTP_USER\) is not set/,
+    );
     expect(loggedText()).not.toContain(CODE);
   });
 
