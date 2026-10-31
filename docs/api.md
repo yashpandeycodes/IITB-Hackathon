@@ -1,6 +1,6 @@
 # API reference
 
-> The routes that exist today (end of Phase 2: auth, data, read views). Planned routes and their shapes are in [architecture.md §6](./architecture.md#6-api-catalogue). Types come from `src/lib/contracts` (`import type { User, Dashboard } from "@/lib/contracts"`). Example responses below were captured from a local server on the bundled dataset; long arrays are trimmed.
+> The routes that exist today (end of Phase 3: auth, data, read views, timetable generation, exams, Spectra decisions, export and the validator report). Planned routes and their shapes are in [architecture.md §6](./architecture.md#6-api-catalogue). Types come from `src/lib/contracts` (`import type { User, Dashboard } from "@/lib/contracts"`). Example responses below were captured from a local server on the bundled dataset; long arrays are trimmed.
 
 ## Contents
 
@@ -91,13 +91,13 @@ All codes are in `src/lib/contracts/api.ts` (`ErrorCode`, `ERROR_HTTP_STATUS`).
 | `UNAUTHENTICATED` | 401 | No valid session (missing, expired, logged out, account gone), or wrong email/password | proxy, every data route, `me`, `login` |
 | `FORBIDDEN` | 403 | Role not allowed (`details: { role, allowed }`); Faculty or staff role at sign-up; unverified account at login (`requiresOtp`); demo sign-in turned off; cross-origin mutation | admin routes, `PATCH /settings`, `signup`, `login`, `demo-login`, proxy |
 | `SELF_APPROVAL` | 403 | Approver is the requester | not yet (Phase 5 approvals) |
-| `NOT_FOUND` | 404 | Unknown id | `GET /timetable` |
-| `HARD_CONSTRAINT` | 409 | Engine found violations (`details` = `Violation[]`) | not yet (Phase 3+) |
-| `STALE_VERSION` | 409 | Proposal built on a timetable that is no longer active | not yet (Phase 5) |
+| `NOT_FOUND` | 404 | Unknown id; no active timetable yet | `GET /timetable`, `versions/:id/activate`, `spectra/run` |
+| `HARD_CONSTRAINT` | 409 | Engine found violations (`details` = `Violation[]`) | `export`, `versions/:id/activate`, `generate` with `activate` |
+| `STALE_VERSION` | 409 | Timetable built for another dataset; later also a proposal built on a timetable that is no longer active | `versions/:id/activate` (Phase 5: approvals) |
 | `EMAIL_TAKEN` | 409 | A verified account already uses this email | `signup` |
-| `CONFLICT` | 409 | Another reset or import is running; a sign-up for this email is waiting for verification in another browser | `admin/reset`, `admin/dataset`, `signup` |
-| `INFEASIBLE` | 422 | No valid fix exists (`details` = conflict report) | not yet (Phase 3+) |
-| `RATE_LIMITED` | 429 | Too many attempts; `details.retry_after_seconds` and a `Retry-After` header | `login`, `signup`, `verify-otp`, `resend-otp`, `demo-login` |
+| `CONFLICT` | 409 | Another reset, import or schedule run holds the dataset lock; a sign-up for this email is waiting for verification in another browser | `admin/reset`, `admin/dataset`, `timetable/generate`, `versions/:id/activate`, `exams/generate`, `spectra/run`, `signup` |
+| `INFEASIBLE` | 422 | No valid schedule exists (`details`: unplaced items + blocking violations) | `timetable/generate`, `exams/generate` |
+| `RATE_LIMITED` | 429 | Too many attempts; `details.retry_after_seconds` and a `Retry-After` header | `login`, `signup`, `verify-otp`, `resend-otp`, `demo-login`, schedule runs (`generate`, `activate`, `exams/generate`, `spectra/run`) |
 | `INTERNAL_ERROR` | 500 | Unexpected failure; generic message, details never exposed | any |
 | `LLM_UNAVAILABLE` | 503 | Gemini failed; switch to the manual form | not yet (Phase 4) |
 | `MAIL_UNAVAILABLE` | 503 | The verification email can't be sent: mail not configured (production), Brevo failed, or the global hourly cap is reached (with `Retry-After`) | `signup`, `resend-otp`, `login` (unverified) |
@@ -119,6 +119,8 @@ Fixed windows held in memory per server instance (they reset on restart, and eac
 | 5 verification emails / 10 min | email | `signup`, `resend-otp` and unverified `login` share it |
 | 60 verification emails / hour | all addresses | same routes; answers `503 MAIL_UNAVAILABLE`, not 429 |
 | 30 demo sign-ins / 10 min | IP | `demo-login` (standard envelope) |
+| 30 schedule runs / 10 min | admin user | `timetable/generate`, `versions/:id/activate`, `exams/generate`, `spectra/run` together (standard envelope). The demo admin is shared, so this caps the public deployment as a whole. |
+| 60 schedule runs / 10 min | IP | same routes |
 
 Example `429` (account-form shape):
 
@@ -150,6 +152,14 @@ Example `429` (account-form shape):
 | PATCH | [`/api/settings`](#patch-apisettings) | admin | `SettingsPatch` → `Settings` |
 | POST | [`/api/admin/reset`](#post-apiadminreset) | admin | `{ from? }` → `ResetReport` |
 | POST | [`/api/admin/dataset`](#post-apiadmindataset) | admin | `Dataset` JSON → `ImportReport` |
+| POST | [`/api/timetable/generate`](#post-apitimetablegenerate) | admin | `GenerateTimetableRequest` → `GenerateTimetableResult` (or an SSE stream) |
+| GET | [`/api/timetable/versions`](#get-apitimetableversions) | admin | → `TimetableVersionSummary[]` |
+| POST | [`/api/timetable/versions/:id/activate`](#post-apitimetableversionsidactivate) | admin | → `ActivateTimetableResult` |
+| POST | [`/api/exams/generate`](#post-apiexamsgenerate) | admin | → `ExamSchedule` |
+| GET | [`/api/exams`](#get-apiexams) | any signed-in | → `ExamSchedule \| null` |
+| POST | [`/api/spectra/run`](#post-apispectrarun) | admin | → `SpectraRunResult` |
+| GET | [`/api/export`](#get-apiexport) | admin | `?file=schedule` → `schedule.json` (file download) |
+| GET | [`/api/validate`](#get-apivalidate) | admin | → `ValidatorReport` |
 
 `User` = `{ id, email, name, role, department, faculty_id, club }` (`UserSchema`, `contracts/user.ts`); the last three are `null` when not linked.
 
@@ -356,7 +366,7 @@ One student group's, faculty member's or room's week. Every role can read every 
 | 404 | `NOT_FOUND` | Unknown id, e.g. "No room with id NOPE." |
 
 Notes:
-- **No timetable yet is not an error:** `version_id: null` with empty `cells` (and `bookings`). That is every response until generation lands in Phase 3; show an empty state.
+- **No timetable yet is not an error:** `version_id: null` with empty `cells` (and `bookings`), e.g. right after a dataset import (a reset generates one). Show an empty state.
 - `week=spectra` applies the Week-7 session overrides (a moved cell has `override.displaced_by`) and adds bookings that hold a room (`approved` or `alternative_offered`; cancelled requests skipped). Room view matches bookings by room, group view by the request's `mandatory_for_groups`, faculty view by requester name.
 - Cells and bookings are sorted by day, then start period.
 
@@ -427,7 +437,7 @@ Notes:
 - In the bundled dataset every room allows `event`, so the default lists all 27; `use=lab` lists only the labs and the workshop.
 - `busy_with` ids: a session id (label like `CS202 lecture · CSE-2`, with `(moved for <request>)` when overridden), a booking request id (label = request title), or the room id for maintenance (label = reason).
 - Unknown `needs` / `types` values aren't rejected; they simply match no room.
-- Until Phase 3 generates a timetable, only room unavailability shows up as busy.
+- Before any timetable is active (e.g. right after an import), only room unavailability shows up as busy.
 
 ### GET /api/settings
 
@@ -460,13 +470,13 @@ Resets the demo data. Same as `npm run seed`.
 | Who | admin |
 | Body | optional. None, or `{ "from": "bundled" \| "stored" }` (no other fields). `bundled` (default) loads `data/cit_public.json`, a clean state; `stored` re-imports the last uploaded dataset (or the bundled file when nothing was uploaded). |
 | `data` | `ResetReport` (`src/lib/contracts/admin.ts`) |
-| Errors | `400 VALIDATION_ERROR` · `401` · `403` · `409 CONFLICT` ("A reset or import is already running. Try again in a moment.") |
+| Errors | `400 VALIDATION_ERROR` · `401` · `403` · `409 CONFLICT` ("Another reset, import or schedule run is in progress. Try again in a moment.") |
 
-What it does, under the dataset lock, in order: deletes timetable versions, exam schedules, booking decisions, session overrides, change requests and settings; ensures indexes; imports the dataset; re-seeds the four demo users (existing sessions keep working); writes default settings; writes an audit entry. Users, the audit log and AI logs survive.
+What it does, under the dataset lock, in order: deletes timetable versions, exam schedules, booking decisions, session overrides, change requests and settings; ensures indexes; imports the dataset; re-seeds the four demo users (existing sessions keep working); writes default settings; then **generates a timetable** with `settings.solver_seed`, **activates** it (which runs Spectra decisions) and **schedules exams**; writes an audit entry. Users, the audit log and AI logs survive. An infeasible step reports `null` for its id instead of failing the reset. About 1 s on the bundled dataset.
 
 ```json
 { "ok": true, "data": {
-  "timetable_version": null, "exam_schedule_id": null, "decisions": 0,
+  "timetable_version": "TT-0001", "exam_schedule_id": "EXS-0001", "decisions": 25,
   "dataset": { "dataset_id": "cit-public-v1", "source": "bundled", "loaded_at": "2026-10-31T17:08:08+05:30",
     "counts": { "rooms": 27, "room_unavailability": 2, "faculty": 40, "student_groups": 14, "courses": 62,
       "sessions": 189, "exams": 41, "booking_requests": 25, "cancellations": 1 },
@@ -474,10 +484,10 @@ What it does, under the dataset lock, in order: deletes timetable versions, exam
   "cleared": { "timetable_versions": 0, "exam_schedules": 0, "booking_decisions": 0, "session_overrides": 0,
     "change_requests": 0, "settings": 1 },
   "indexes": 29, "users": { "inserted": 0, "updated": 0 },
-  "settings": { "team": "CIT Crunch Week", "…": "…" }, "ms": 314 } }
+  "settings": { "team": "CIT Crunch Week", "…": "…" }, "ms": 759 } }
 ```
 
-Note: `timetable_version`, `exam_schedule_id` and `decisions` stay `null` / `0` until Phase 3 plugs timetable generation, exam scheduling and Spectra decisions into the reset.
+`decisions` is the number of Week-7 requests decided (every dataset request, including the cancelled one).
 
 ### POST /api/admin/dataset
 
@@ -501,7 +511,7 @@ Replaces the dataset with an uploaded file.
 |---|---|---|
 | 400 | `VALIDATION_ERROR` | Invalid file: `details = { issue_count, issues: [{ path, message }] }` (first 50 issues, dotted paths like `sessions.12.duration`) · body over 2 MB (`details.max_bytes`) · not JSON |
 | 401 / 403 | | not signed in / not admin |
-| 409 | `CONFLICT` | Another reset or import is running |
+| 409 | `CONFLICT` | Another reset, import or schedule run holds the dataset lock |
 
 The whole file is checked before anything is written, so a rejected file leaves the database untouched. Besides the field rules, the check rejects duplicate ids, role caps missing from `priority_order`, and **dangling references**: a session's `faculty_id`, `groups` or `course_id` (when the file lists courses), an exam's `groups`, a room-unavailability `room_id`, a request's `mandatory_for_groups` and a cancellation's `request_id` must all name entries in the file. An unknown `requested_room` is allowed (it's only a wish).
 
@@ -514,6 +524,185 @@ The whole file is checked before anything is written, so a rejected file leaves 
 
 What an import does: replaces every reference collection (rooms, faculty, groups, courses, sessions, exams, booking requests, cancellations, room unavailability); **clears** timetable versions, exam schedules, booking decisions, session overrides and change requests (they belong to the old data); **resets** the saved settings' `priority_order` to the new dataset's; stores requests named in `cancellations` as cancelled (repeats are listed in `duplicate_cancellations`); keeps the raw file so `reset` with `{"from":"stored"}` reloads it; writes an audit entry. If the database fails part-way through the writes, recover with `POST /api/admin/reset`.
 
+
+### POST /api/timetable/generate
+
+Generates a timetable for the active dataset: greedy construction, min-conflicts repair, then simulated annealing on the soft penalties with hard constraints held at 0, then an independent re-check with the validator port. Deterministic for a given seed whenever the run ends on its iteration budget or converges (`solver_meta.stopped_by` is `iterations` or `converged`); `time` means the safety cap cut it short, which can differ between machines. Fest-aware: it keeps rooms and compulsory groups free where Week-7 booking requests need them.
+
+| | |
+|---|---|
+| Who | admin |
+| Body | optional, strict: `{ "seed"?: 0…4294967295, "time_budget_ms"?: 200…30000, "activate"?: boolean }`. `seed` defaults to `settings.solver_seed`, `time_budget_ms` to `SOLVER_TIME_BUDGET_MS` (8000, at most 30000; a safety cap on active solver time: the iteration budget normally ends the run first), `activate` to `false`. |
+| `data` | `GenerateTimetableResult` = `{ version: TimetableVersion, activated: boolean, spectra: SpectraRunSummary \| null }`. Without `activate` the version is a `draft` and `spectra` is `null`; with it, the version becomes active and Spectra decisions are re-run (`spectra` = their summary). |
+| Errors | `400 VALIDATION_ERROR` (incl. a body over 1 KB or without a JSON content type) · `401` · `403` · `409 CONFLICT` (dataset lock busy) · `409 HARD_CONSTRAINT` (activation re-check) · `422 INFEASIBLE` (`details: { unplaced, unplaced_total, violations, violations_total, issues }`, lists capped at 50; nothing is saved) · `429 RATE_LIMITED` (schedule-run quota) |
+
+```json
+{ "ok": true, "data": {
+  "version": { "id": "TT-0003", "dataset_id": "cit-public-v1", "status": "active", "source": "generate",
+    "parent_version": "TT-0002", "change_request_id": null,
+    "assignments": [ { "session_id": "MA101-AB-L1", "day": "WED", "start_period": 5, "room_id": "LH-1" }, "…189 total" ],
+    "hard_violation_count": 0,
+    "soft_penalty": { "S1": 0, "S2": 0, "S3": 0, "S4": 3, "S5": 0, "S6": 0, "total": 3 },
+    "solver_meta": { "seed": 42, "ms": 23, "iterations": 183, "algorithm": "greedy+repair+SA", "stopped_by": "converged" },
+    "created_by": "u_admin", "created_at": "2026-10-31T20:37:53+05:30" },
+  "activated": true,
+  "spectra": { "timetable_version": "TT-0003", "approved": 22, "alternatives": 1, "rejected": 2,
+    "session_overrides": 0, "booking_score": 67, "booking_score_max_if_all_approved": 70, "priority_inversions": [] } } }
+```
+
+**Live progress (SSE).** Send `Accept: text/event-stream` and the same body. The dataset lock is taken before the stream opens, so a busy lock is still a plain JSON `409`. Then the response is `200` with `content-type: text/event-stream; charset=utf-8` and `cache-control: no-store, no-transform`, and frames like:
+
+```text
+event: progress
+data: {"phase":"construct","iteration":183,"hard":0,"soft":4,"fest":0,"best":4,"temperature":null,"ms":30}
+
+event: progress
+data: {"phase":"anneal","iteration":5000,"hard":0,"soft":113,"fest":0,"best":4,"temperature":2.976424440835708,"ms":54}
+
+event: progress
+data: {"phase":"verify","iteration":1583697,"hard":0,"soft":3,"fest":0,"best":3,"temperature":null,"ms":2086}
+
+event: result
+data: { …GenerateTimetableResult… }
+```
+
+(Seed 1, captured; trimmed to three of the progress frames.)
+
+- `progress` (`SolverProgress`): about one every 100 ms of solver time, plus the first of each phase and the final `verify`. `hard` = sessions not yet placed, `soft` = current S1–S6 total, `fest` = current fest cost, `best` = best soft + fest so far, `temperature` only while annealing, `ms` = solver time so far.
+- Then exactly one `result` (as `data` above) or `error` (`{ "code", "message", "details"? }`, the same fields as the error envelope; an unexpected failure is `INTERNAL_ERROR` with a generic message).
+- Read it with `fetch` and `response.body.getReader()`; `EventSource` can't send a POST. If the client disconnects, the run still finishes, is saved and releases the lock.
+- Most seeds finish in well under a second on the bundled dataset (seed 42: 23 ms, straight from construction); harder seeds anneal for a few seconds.
+
+### GET /api/timetable/versions
+
+| | |
+|---|---|
+| Who | admin |
+| `data` | `TimetableVersionSummary[]`: newest first (up to 50), each version without `assignments` and with `assignment_count`. Only the active version and the 20 newest drafts/superseded versions are kept; older ones are deleted after each run. |
+
+```json
+{ "ok": true, "data": [ { "id": "TT-0002", "dataset_id": "cit-public-v1", "status": "draft", "source": "generate",
+  "parent_version": "TT-0001", "change_request_id": null, "hard_violation_count": 0,
+  "soft_penalty": { "S1": 0, "S2": 0, "S3": 0, "S4": 3, "S5": 0, "S6": 0, "total": 3 },
+  "solver_meta": { "seed": 1, "ms": 2086, "iterations": 1583697, "algorithm": "greedy+repair+SA" },
+  "created_by": "u_admin", "created_at": "2026-10-31T20:35:56+05:30", "assignment_count": 189 }, "…" ] }
+```
+
+### POST /api/timetable/versions/:id/activate
+
+Makes a version the active timetable (the previous one becomes `superseded`) and re-runs Spectra decisions for it, because decisions and Week-7 overrides belong to the active version.
+
+| | |
+|---|---|
+| Who | admin |
+| Body | none |
+| `data` | `ActivateTimetableResult` = `{ version: TimetableVersion, spectra: SpectraRunSummary }` |
+| Errors | `401` · `403` · `404 NOT_FOUND` (unknown or malformed id; ids look like `TT-0003`) · `409 STALE_VERSION` (built for another dataset) · `409 HARD_CONSTRAINT` (`details` = violations against the current data, first 50) · `409 CONFLICT` (lock busy) · `429 RATE_LIMITED` · `500` if the booking engine's self-check fails or the decisions can't be saved (the previous version stays active) |
+
+```json
+{ "ok": true, "data": {
+  "version": { "id": "TT-0002", "status": "active", "…": "…" },
+  "spectra": { "timetable_version": "TT-0002", "approved": 22, "alternatives": 1, "rejected": 2,
+    "session_overrides": 0, "booking_score": 67, "booking_score_max_if_all_approved": 70, "priority_inversions": [] } } }
+```
+
+### POST /api/exams/generate
+
+Schedules the midsem exams into the exam week (days × AM/PM): DSATUR colouring of the shared-group conflict graph, rooms packed best-fit-decreasing at half capacity. The new schedule is activated straight away (exams don't depend on the timetable).
+
+| | |
+|---|---|
+| Who | admin |
+| Body | none |
+| `data` | the active `ExamSchedule` (`solver_meta.algorithm: "dsatur+bfd"`) |
+| Errors | `401` · `403` · `409 CONFLICT` · `422 INFEASIBLE` (`details: { unplaced, unplaced_total, violations, violations_total }`) · `429 RATE_LIMITED` |
+
+### GET /api/exams
+
+| | |
+|---|---|
+| Who | any signed-in user |
+| `data` | the active `ExamSchedule`, or `null` before one exists |
+
+```json
+{ "ok": true, "data": { "id": "EXS-0001", "dataset_id": "cit-public-v1", "status": "active",
+  "exams": [ { "exam_id": "EX-MA101", "day": "WED", "session": "AM", "rooms": ["AUD", "LH-2", "CR-205"] }, "…41 total" ],
+  "penalty": 0, "solver_meta": { "seed": 0, "ms": 4, "iterations": 41, "algorithm": "dsatur+bfd" },
+  "created_by": "u_admin", "created_at": "2026-10-31T20:35:29+05:30" } }
+```
+
+`penalty` is the exam soft penalty (5 per extra exam a group sits on the same day).
+
+### POST /api/spectra/run
+
+Re-decides every Week-7 booking request against the active timetable: priority order (effective category, then submission time), best-fit rooms inside the window (a different room inside the window is still `approved`), institute events may move sessions for Week 7 only, then an alternative outside the window, else a rejection with a specific reason. Self-checked with the validator port before anything is stored.
+
+| | |
+|---|---|
+| Who | admin |
+| Body | none |
+| `data` | `SpectraRunResult` = the summary (`timetable_version, approved, alternatives, rejected, session_overrides, booking_score, booking_score_max_if_all_approved, priority_inversions`) + `decisions: StoredBookingDecision[]` (dataset order) + `overrides: StoredSessionOverride[]` |
+| Errors | `401` · `403` · `404 NOT_FOUND` ("No active timetable — generate one first.") · `409 CONFLICT` · `429 RATE_LIMITED` · `500` if the self-check fails (nothing is stored) |
+
+```json
+{ "ok": true, "data": { "timetable_version": "TT-0002", "approved": 22, "alternatives": 1, "rejected": 2,
+  "session_overrides": 0, "booking_score": 67, "booking_score_max_if_all_approved": 70, "priority_inversions": [],
+  "decisions": [
+    { "request_id": "BR-07", "status": "approved", "day": "THU", "start_period": 10, "end_period": 12, "room_id": "AUD",
+      "reason": "SH-1 is held by BR-06 (club event, submitted earlier). AUD has stage and pa_system and is free inside your window, THU P10–P12 (18:00–21:00).",
+      "reason_code": "ROOM_SWAPPED_IN_WINDOW", "effective_category": "club_event", "category_capped": false,
+      "requires_admin_approval": false, "auto": true, "decided_by": "engine", "approved_by": null,
+      "timetable_version": "TT-0002", "decided_at": "2026-10-31T20:37:52+05:30" },
+    { "request_id": "BR-09", "status": "rejected",
+      "reason": "No auditorium/outdoor venue seats 1,200. The largest is OAT (800).", "reason_code": "REJ_NO_CAPACITY", "…": "…" },
+    { "request_id": "BR-17", "status": "alternative_offered", "day": "WED", "start_period": 9, "end_period": 10, "room_id": "OAT",
+      "reason": "WED P13–P14 is outside 08:00–22:00; events end at 22:00 (P13). Offered OAT WED P9–P10 (17:00–19:00) instead (outside your window).",
+      "reason_code": "ALT_OUTSIDE_WINDOW", "…": "…" },
+    "…25 total" ],
+  "overrides": [] } }
+```
+
+Notes:
+- `reason_code` is one of `ReasonCode` (`src/lib/contracts/booking.ts`); `category_capped` is true when the claimed category was lowered to the requester's role cap (show a "category capped" badge); `requires_admin_approval` is true when the decision moves sessions (`overrides` then lists them, with `displaced_by`).
+- `approved_by` is `null` for plain engine decisions; for a decision that moves sessions it is the admin whose run applied the Week-7 moves (the overrides carry the same `approved_by`).
+- The summary fields are the validator's booking stats, with the same names as `ValidatorReport.bookings`.
+- Only dataset requests are decided in Phase 3, with the dataset's own `priority_order` (the editable `settings.priority_order` doesn't change exported decisions).
+- Rejected decisions carry no slot fields.
+
+### GET /api/export
+
+Downloads `schedule.json` in the official format: the active timetable, its Spectra decisions and Week-7 overrides, the active exam schedule, and `settings.team`. Refuses to produce a file that the validator port finds any hard violation in.
+
+| | |
+|---|---|
+| Who | admin |
+| Query | `file=schedule` (the default; any other value is `400`). `schedule_after` arrives with rescheduling in Phase 5. |
+| Response | **the file itself, not an envelope**: pretty-printed JSON, `content-type: application/json; charset=utf-8`, `content-disposition: attachment; filename="schedule.json"`, `cache-control: no-store` |
+| Errors | `400 VALIDATION_ERROR` · `401` · `403` · `409 HARD_CONSTRAINT` (`details` = the violations, first 50; no file) · `409 CONFLICT` (a dataset request has no decision for the active timetable, `details.missing`; run `POST /api/spectra/run`) |
+
+In the UI, call `GET /api/validate` first and enable a plain `<a href="/api/export?file=schedule" download>` only when `hard_violation_count === 0` (a download link can't see a `409`); or `fetch` it and save the blob. From a shell, `npm run export` (below) does the same and writes `exports/schedule.json`.
+
+### GET /api/validate
+
+The in-app validator report for what an export would contain right now (no gate).
+
+| | |
+|---|---|
+| Who | admin |
+| `data` | `ValidatorReport` (`src/lib/contracts/violation.ts`): the same sections as `validator.py` |
+
+```json
+{ "ok": true, "data": { "dataset_id": "cit-public-v1", "schedule_dataset_id": "cit-public-v1", "team": "CIT Crunch Week",
+  "soft_penalties": { "S1": 0, "S2": 0, "S3": 0, "S4": 3, "S5": 0, "S6": 0 }, "soft_total": 3,
+  "bookings": { "booking_score": 67, "booking_score_max_if_all_approved": 70, "approved": 22, "alternatives": 1,
+    "rejected": 2, "session_overrides": 0, "priority_inversions": [] },
+  "exam_soft_penalty": 0, "hard_violations": [], "hard_violation_count": 0, "hard_by_rule": {}, "warnings": [] } }
+```
+
+### `npm run export`
+
+Not a route: `npm run export [-- --url <base>]` (or `APP_URL`; default `http://localhost:3000`) signs in over HTTP with `EXPORT_EMAIL` / `EXPORT_PASSWORD` (an admin account) when both are set, otherwise as the demo admin; downloads `GET /api/export?file=schedule` into `exports/schedule.json` exactly as served; prints the validator summary; and signs out (the token is revoked). Plain `http:` is only accepted for localhost, and redirects are never followed. It exits `1` on any error (on a `409` it prints the first 10 violations). Check the file with `npm run validate` (the official `validator.py`).
+
 ---
 
 ## Coming in later phases
@@ -522,6 +711,5 @@ Planned routes, with their request/response shapes, are listed in [architecture.
 
 | Phase | Routes |
 |---|---|
-| 3: generation and exports | `POST /api/timetable/generate` (+ `GET …/generate/stream`), `POST /api/timetable/versions/:id/activate`, `POST /api/exams/generate`, `POST /api/spectra/run`, `GET /api/export` (a plain `<a download>` link), `GET /api/validate`; reset then auto-generates |
 | 4: bookings and AI | `POST /api/bookings/parse`, `GET` / `POST /api/bookings`, `POST /api/bookings/:id/cancel` |
 | 5: changes and approvals | `GET` / `POST /api/changes`, `POST /api/changes/:id/approve` · `/reject`, `POST /api/bookings/:id/decide`, `POST /api/manual/place`, `POST /api/assistant`, `POST /api/explain` |
