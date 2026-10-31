@@ -23,6 +23,7 @@ import {
 import { countSessionOverrides } from "@/lib/db/repos/session-overrides";
 import { getActiveTimetableVersion } from "@/lib/db/repos/timetable-versions";
 import { getBundledDataset } from "@/lib/dataset";
+import { storedSpectraSummary } from "./spectra";
 import { requesterMatchesFaculty } from "./timetable-view";
 
 const sameText = (a: string | null | undefined, b: string | null | undefined) =>
@@ -67,8 +68,12 @@ function namesUser(
 }
 
 /**
- * Role-aware dashboard for `user`. Counts come from aggregate/count queries; only the dataset's
- * own entities (rooms, sessions, exams) and the small sets of pending or own requests are read.
+ * Role-aware dashboard for `user`. Counts come from aggregate/count queries; the dataset's own
+ * entities (rooms, sessions, exams) and the small sets of pending or own requests are read.
+ * The booking score is the validator port's score of the stored decisions for the active
+ * version ({@link storedSpectraSummary}: one export-dataset read plus a few ms of scoring),
+ * null before Spectra has run for it. A failure there only blanks the score (logged), so the
+ * landing page still renders.
  */
 export async function getDashboard(
   db: Db,
@@ -96,6 +101,7 @@ export async function getDashboard(
     pendingChanges,
     myChanges,
     faculty,
+    spectra,
   ] = await Promise.all([
     getDatasetMeta(db),
     getActiveExamSchedule(db),
@@ -129,6 +135,12 @@ export async function getDashboard(
       : Promise.resolve(null),
     countChangeRequestsByStatus(db, { requested_by: user.id }),
     user.faculty_id ? getFaculty(db, user.faculty_id) : Promise.resolve(null),
+    version
+      ? storedSpectraSummary(db, version).catch((err: unknown) => {
+          console.error("[dashboard] booking score unavailable", err);
+          return null;
+        })
+      : Promise.resolve(null),
   ]);
   const { dataset_id, calendar } = meta ?? getBundledDataset();
 
@@ -230,6 +242,9 @@ export async function getDashboard(
       undecided,
       by_status: byStatus,
       session_overrides: overrides,
+      booking_score: spectra?.booking_score ?? null,
+      booking_score_max_if_all_approved:
+        spectra?.booking_score_max_if_all_approved ?? null,
     },
     pending_approvals: {
       booking_requests: pendingBookings,

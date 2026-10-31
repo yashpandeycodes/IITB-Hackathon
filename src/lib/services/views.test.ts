@@ -363,6 +363,8 @@ describe.skipIf(!testDb)("Spectra state of another version (MongoDB)", () => {
       undecided: 2,
       by_status: { approved: 0, alternative_offered: 0, rejected: 0 },
       session_overrides: 0,
+      booking_score: null,
+      booking_score_max_if_all_approved: null,
     });
   });
 });

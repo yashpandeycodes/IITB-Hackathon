@@ -1,11 +1,10 @@
 import "server-only";
 import type { Role } from "@/lib/contracts/enums";
 import type { SessionUser, User } from "@/lib/contracts/user";
-import { getDb } from "@/lib/db/client";
-import { findUserById, isSessionRevoked, toUser } from "@/lib/db/repos/users";
 import { forbidden, selfApproval, unauthenticated } from "@/lib/errors";
 import { clientIp, rateLimited } from "./http";
 import { limits } from "./rate-limit";
+import { userForClaims } from "./current-user";
 import { readSessionClaims } from "./session";
 
 /**
@@ -16,18 +15,10 @@ import { readSessionClaims } from "./session";
 
 /**
  * The signed-in user as currently stored, or null: no/invalid token, revoked `jti`, or the
- * account is gone or unverified. Two indexed lookups, run in parallel.
+ * account is gone or unverified.
  */
 export async function getCurrentUser(request: Request): Promise<User | null> {
-  const claims = await readSessionClaims(request);
-  if (!claims) return null;
-  const db = await getDb();
-  const [revoked, doc] = await Promise.all([
-    isSessionRevoked(db, claims.jti),
-    findUserById(db, claims.user.id),
-  ]);
-  if (revoked || !doc?.is_verified) return null;
-  return toUser(doc);
+  return userForClaims(await readSessionClaims(request));
 }
 
 /** The signed-in user, or `UNAUTHENTICATED` (401). */

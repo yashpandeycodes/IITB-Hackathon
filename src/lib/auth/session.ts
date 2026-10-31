@@ -107,23 +107,27 @@ export async function verifySession(
   return (await verifySessionClaims(token))?.user ?? null;
 }
 
-/** Reads one cookie from a raw `Cookie` header. */
+/**
+ * Reads one cookie from a raw `Cookie` header, the way Next's cookie parser (used by the proxy
+ * and `cookies()`) does: when the name repeats, the last value wins, and a value that isn't
+ * valid URI encoding is skipped. Route Handlers and Server Components then see the same session.
+ */
 export function getCookieFromHeader(
   header: string | null,
   name: string,
 ): string | undefined {
   if (!header) return undefined;
+  let value: string | undefined;
   for (const part of header.split(";")) {
     const eq = part.indexOf("=");
     if (eq === -1 || part.slice(0, eq).trim() !== name) continue;
-    const raw = part.slice(eq + 1).trim();
     try {
-      return decodeURIComponent(raw);
+      value = decodeURIComponent(part.slice(eq + 1).trim());
     } catch {
-      return raw;
+      // Not valid URI encoding: ignored, as Next does.
     }
   }
-  return undefined;
+  return value;
 }
 
 /** A cookie from a request or a cookie store (`await cookies()`, `request.cookies`). */
@@ -144,8 +148,9 @@ export async function readSessionClaims(
 }
 
 /**
- * Session user from a request (Route Handlers, proxy) or a cookie store (Server Components).
- * Signature only: use `requireUser` in Route Handlers for revocation and the current role.
+ * Session user from a request (Route Handlers, proxy) or a cookie store.
+ * Signature only: use `requireUser` in Route Handlers and `getSessionUser()`
+ * (`./server-session`) in Server Components for revocation and the current role.
  */
 export async function readSession(
   source: Request | CookieReader,
