@@ -1,13 +1,9 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-
-import { Providers } from "@/components/providers/providers";
-import { siteConfig } from "@/config/site";
-
 import "./globals.css";
 
 const geistSans = Geist({
-  variable: "--font-sans",
+  variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
@@ -17,29 +13,31 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: {
-    default: `${siteConfig.name} · Crunch Week`,
-    template: `%s · ${siteConfig.name}`,
-  },
-  description: siteConfig.description,
-  applicationName: siteConfig.name,
+  title: "CIT Nexus — Every Campus Resource. One Intelligent System.",
+  description: "CIT Nexus brings timetables, examinations, rooms, and campus events into one coordinated spatial command center for Chilika Institute of Technology.",
+  keywords: [
+    "CIT Nexus",
+    "Chilika Institute of Technology",
+    "Campus Operations",
+    "Timetable Optimization",
+    "Venue Management",
+    "Room Scheduling",
+    "Exam Scheduling",
+  ],
 };
 
-export const viewport: Viewport = {
-  // Light is the default theme; matching it avoids a dark browser bar on light pages.
-  themeColor: "#ffffff",
-  viewportFit: "cover",
-};
-
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"
-      suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
     >
-      <body className="min-h-dvh">
-        <Providers>{children}</Providers>
+      <body className="min-h-full flex flex-col bg-[#070A12] text-[#F4F7FB] selection:bg-[#66E3F0]/20 selection:text-[#66E3F0]">
+        {children}
       </body>
     </html>
   );

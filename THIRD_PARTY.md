@@ -12,6 +12,7 @@ Versions are the installed versions from `package-lock.json` / `node_modules`. L
 | `class-variance-authority` | 0.7.1   | Apache-2.0   | Variant-based class names for UI components                          |
 | `cmdk`                     | 1.1.1   | MIT          | Command palette (shadcn/ui `Command`)                                |
 | `cn`                       | 0.4.0   | MIT          | Tailwind class-name merging (`cn()` helper)                          |
+| `framer-motion`            | 14.9.0  | MIT          | Landing-page motion (reveals, tab transitions, node pulses)          |
 | `jose`                     | 6.2.14  | MIT          | Signing and verifying session JWTs                                   |
 | `lucide-react`             | 1.66.0  | ISC          | Icons                                                                |
 | `mongodb`                  | 7.8.0   | Apache-2.0   | Official MongoDB driver                                              |

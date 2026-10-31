@@ -1,7 +1,6 @@
 "use client";
 
-import { LogOut, Monitor, Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
+import { LogOut } from "lucide-react";
 import Link from "next/link";
 
 import { RoleBadge } from "@/components/layout/role-badge";
@@ -10,11 +9,8 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -29,15 +25,7 @@ function initials(name: string): string {
   return letters.join("") || "?";
 }
 
-const THEMES = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
-] as const;
-
 export function UserMenu({ user, role }: { user: ShellUser; role: Role }) {
-  const { theme, setTheme } = useTheme();
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -64,25 +52,6 @@ export function UserMenu({ user, role }: { user: ShellUser; role: Role }) {
           </span>
           <RoleBadge role={role} className="mt-0.5 h-6 self-start" />
         </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Theme</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={theme ?? "light"}
-            onValueChange={setTheme}
-          >
-            {THEMES.map(({ value, label, icon: Icon }) => (
-              <DropdownMenuRadioItem
-                key={value}
-                value={value}
-                className="py-1.5"
-              >
-                <Icon aria-hidden="true" />
-                {label}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild className="py-1.5">
           <Link href="/login">

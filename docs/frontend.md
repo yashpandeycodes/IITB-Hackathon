@@ -44,11 +44,13 @@ Everything used goes into `THIRD_PARTY.md`.
 
 ### 3.1 Tokens (`src/app/globals.css`, shadcn theme variables)
 
+> **Visual direction: CIT Nexus** (the team's landing/login/signup design, see `PROGRESS.md`): dark-only "campus command centre" — obsidian `#070A12`, navy surfaces `#0B1220`/`#101A2B`/`#132035`, cyan accent `#66E3F0`, violet `#8279FF`, soft white `#F4F7FB`, muted slate `#98A6BB`. The CIT Nexus variables at the top of `globals.css` are the source; the shadcn component tokens and the semantic tokens below are mapped onto that palette for the signed-in app.
+
 - **Font:** Geist Sans (UI) + Geist Mono (ids like `MA101-AB-L1`, `BR-07`, `P6`).
-- **Radius:** `--radius: 0.625rem`. Cards `rounded-xl`, chips `rounded-full`.
+- **Radius:** `--radius: 0.75rem`. Cards `rounded-xl`, chips `rounded-full`.
 - **Spacing:** 4-px scale. Page padding `p-4 md:p-6`. Card gap `gap-4`.
 - **Elevation:** flat cards with `border` + `shadow-sm`. Drawers and dialogs get `shadow-lg`.
-- **Themes:** light (default) and dark, both via CSS variables. Theme toggle in the user menu.
+- **Theme:** dark only, matching the CIT Nexus landing pages (`next-themes` forced to dark for toasts and the `dark:` variant).
 
 ### 3.2 Colour semantics (always paired with an icon or text, so colour-blind users are covered)
 

@@ -1,5 +1,5 @@
 export const siteConfig = {
-  name: "CIT Scheduler",
+  name: "CIT Nexus",
   institute: "Chilika Institute of Technology",
   /** Event theme line; `themeLead` is its highlighted opening words. */
   themeLine: "Crunch Week: zero clashes in Week 7",

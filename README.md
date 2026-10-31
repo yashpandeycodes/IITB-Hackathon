@@ -1,4 +1,4 @@
-# CIT Crunch Week: Campus Scheduling & Venue Management
+# CIT Nexus: Campus Scheduling & Venue Management (CIT Crunch Week)
 
 A web platform for Chilika Institute of Technology that generates a clash-free weekly timetable, schedules midsem exams, decides Spectra-week (Week 7) venue requests by priority and repairs the timetable after disruptions with minimal moves and admin approval.
 Venue requests can be typed in plain English or Hinglish. Every decision comes with a reason, and validity is always checked by a deterministic constraint engine.
@@ -124,13 +124,14 @@ Both run the unmodified `CrunchWeek_StarterPack/validator.py` and print hard vio
 .
 ├── src/
 │   ├── app/
-│   │   ├── (auth)/login/            # demo-account login
+│   │   ├── page.tsx  login/  signup/  # CIT Nexus landing page, sign-in and access request
 │   │   ├── (app)/                   # authenticated shell: dashboard, timetable, rooms,
 │   │   │                            # bookings, spectra, approvals, changes, assistant,
 │   │   │                            # exams, admin
 │   │   └── api/                     # Route Handlers
 │   ├── components/
 │   │   ├── ui/                      # shadcn/ui primitives
+│   │   ├── landing/ auth/ brand/    # CIT Nexus landing sections, auth forms, logo
 │   │   ├── layout/ providers/ states/   # app shell, providers, empty/error/loading states
 │   │   └── {timetable,booking,approvals,dashboard,assistant}/   # (planned)
 │   ├── lib/

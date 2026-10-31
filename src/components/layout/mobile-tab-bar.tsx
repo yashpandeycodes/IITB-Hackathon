@@ -15,6 +15,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { getMobileNavForRole, isNavItemActive } from "@/config/nav";
+import { siteConfig } from "@/config/site";
 import type { Role } from "@/lib/contracts/enums";
 import { cn } from "@/lib/utils";
 
@@ -115,7 +116,7 @@ export function MobileTabBar({
                 <SheetHeader className="pb-2">
                   <SheetTitle>More</SheetTitle>
                   <SheetDescription>
-                    Everything else in CIT Scheduler.
+                    Everything else in {siteConfig.name}.
                   </SheetDescription>
                 </SheetHeader>
                 <ul className="flex flex-col gap-1 overflow-y-auto px-2">
