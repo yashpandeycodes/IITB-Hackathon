@@ -20,6 +20,7 @@ import {
   isCategoryCapped,
   type Assignment,
   type BookingDecision,
+  type BookingFacts,
   type BookingRequest,
   type BookingStats,
   type Category,
@@ -67,36 +68,8 @@ import {
   type Placement,
 } from "./types";
 
-/** Structured facts behind a decision (explanations are phrased from these, never invented). */
-export type BookingFacts = {
-  attendance: number;
-  duration: number;
-  series_id: string | null;
-  requested_room: string | null;
-  /** False when `requested_room` names no room in the dataset. */
-  requested_room_known: boolean;
-  /** Closest room id when `requested_room` is unknown. */
-  room_suggestion: string | null;
-  /** Needs the requested (or suggested) room lacks. */
-  requested_room_missing: string[];
-  /** Rooms that fit type, capacity, needs and event use. */
-  candidate_rooms: string[];
-  largest_room: { room_id: string; capacity: number } | null;
-  /**
-   * What stood in the way of better in-window slots. `session`/`booking` hold `room_id` in those
-   * periods; `unavailable` is the room closed; `group` names a compulsory group (its `id`) that has
-   * class then, and the sessions responsible follow as `session` entries with their own room.
-   */
-  blocked_by: {
-    kind: "booking" | "session" | "group" | "unavailable";
-    id: string;
-    room_id?: string;
-    day: string;
-    periods: number[];
-  }[];
-  displaced: { session_id: string; from: Assignment; to: Assignment }[];
-  cancelled?: { by: string; at: string; note: string };
-};
+/** Structured facts behind a decision (`BookingFactsSchema`; explanations are phrased from these). */
+export type { BookingFacts };
 
 /** The export decision plus the stored metadata the engine decides (`StoredBookingDecision`). */
 export type EngineBookingDecision = BookingDecision &
@@ -113,6 +86,11 @@ export type SpectraOptions = {
   priority?: PriorityRules;
   /** Allow institute events to displace sessions (default true). */
   allowDisplacement?: boolean;
+  /**
+   * Requests that never displace sessions, whatever their category (default none): decided as
+   * if displacement were switched off for them alone. Every other request is unaffected.
+   */
+  noDisplacement?: ReadonlySet<string>;
 };
 
 export type SpectraDecisionResult = {
@@ -175,7 +153,7 @@ type Prepared = {
   capped: boolean;
   /** The category may displace sessions (ranks at or above `institute_event`). */
   eligible: boolean;
-  /** `eligible` and displacement is switched on. */
+  /** `eligible` and displacement is switched on (for this request). */
   canDisplace: boolean;
   /** `requested_room` unless blank. */
   requested: string | null;
@@ -255,12 +233,14 @@ export function decideBookings(
 ): SpectraDecisionResult {
   const rules = options.priority ?? instance.priority;
   const allowDisplacement = options.allowDisplacement !== false;
+  const noDisplacement = options.noDisplacement;
   const baseAssign = toAssignMap(base).assign;
 
   const prepared = new Map<string, Prepared>();
   let index = 0;
   for (const [id, req] of instance.requests) {
-    prepared.set(id, prepare(instance, rules, allowDisplacement, req, index++));
+    const mayDisplace = allowDisplacement && !noDisplacement?.has(id);
+    prepared.set(id, prepare(instance, rules, mayDisplace, req, index++));
   }
   const ctx: Ctx = {
     instance,
