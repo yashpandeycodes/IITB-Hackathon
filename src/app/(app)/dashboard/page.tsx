@@ -70,7 +70,7 @@ export default function DashboardPage() {
               >
                 <Card
                   size="sm"
-                  className="group-hover/kpi:bg-muted/50 h-full gap-1 shadow-sm transition-colors"
+                  className="group-hover/kpi:ring-primary/30 h-full gap-1 shadow-sm transition-colors"
                 >
                   <CardHeader className="gap-1">
                     <CardDescription className="text-xs font-medium">

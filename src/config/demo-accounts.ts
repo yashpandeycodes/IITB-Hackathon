@@ -1,8 +1,8 @@
 import type { Role, User } from "@/lib/contracts";
 
 /**
- * The four public demo accounts (docs/architecture.md §9), as shown on the login
- * page. Identity fields mirror the `User` contract; passwords live server-side
+ * The four public demo accounts (docs/architecture.md §9); one-click login cards
+ * for them are added to /login with real sign-in. Identity fields mirror the `User` contract; passwords live server-side
  * only (they are also listed in the README for judges). Icons come from
  * `ROLE_META[role].icon`.
  */

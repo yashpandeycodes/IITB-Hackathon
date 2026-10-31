@@ -35,9 +35,7 @@ function TabIcon({
     <span
       className={cn(
         "relative flex h-7 w-12 items-center justify-center rounded-full transition-colors",
-        active
-          ? "bg-brand/12 text-brand dark:bg-brand/25 dark:text-foreground"
-          : "group-hover:bg-muted",
+        active ? "bg-primary/15 text-primary" : "group-hover:bg-muted",
       )}
     >
       <Icon className="size-5" aria-hidden="true" />

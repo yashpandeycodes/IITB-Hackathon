@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentProps } from "react";
 
+import { CITLogo } from "@/components/brand/logo";
 import { BrandMark } from "@/components/layout/brand-mark";
 import { formatNavCount, type NavCounts } from "@/components/layout/nav-count";
 import { useMediaQuery } from "@/components/layout/use-media-query";
@@ -43,13 +44,11 @@ export function AppSidebar({
           href="/dashboard"
           className="focus-visible:ring-ring/50 flex items-center gap-2.5 rounded-lg outline-none focus-visible:ring-3"
         >
-          <BrandMark />
-          <span className="sr-only lg:not-sr-only lg:flex lg:flex-col lg:leading-tight">
-            <span className="text-sm font-semibold">{siteConfig.name}</span>
-            <span className="text-muted-foreground text-xs">
-              {siteConfig.themeLead}
-            </span>
+          <BrandMark className="lg:hidden" />
+          <span className="hidden lg:block" aria-hidden="true">
+            <CITLogo size="sm" showSubtitle={false} />
           </span>
+          <span className="sr-only">{siteConfig.name}</span>
         </Link>
       </div>
 
@@ -85,7 +84,7 @@ export function AppSidebar({
       </nav>
 
       <div className="border-sidebar-border hidden shrink-0 border-t p-3 lg:block">
-        <div className="bg-override-subtle text-override-foreground flex items-start gap-2.5 rounded-lg p-3">
+        <div className="border-override/30 bg-override/10 text-override-foreground flex items-start gap-2.5 rounded-lg border p-3">
           <Zap className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <p className="text-xs leading-relaxed">
             <span className="font-semibold">
@@ -123,7 +122,7 @@ function SidebarLink({
         "focus-visible:ring-ring/50 focus-visible:ring-3",
         "max-lg:justify-center max-lg:px-0",
         active &&
-          "bg-sidebar-accent text-sidebar-accent-foreground before:bg-brand font-semibold before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-full",
+          "bg-sidebar-accent text-sidebar-accent-foreground before:bg-primary font-semibold before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-full",
       )}
     >
       <Icon className="size-[18px] shrink-0" aria-hidden="true" />

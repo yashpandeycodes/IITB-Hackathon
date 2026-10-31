@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/states/empty-state";
 import { siteConfig } from "@/config/site";
 
 export const metadata: Metadata = {
-  title: "Page not found",
+  title: `Page not found · ${siteConfig.name}`,
 };
 
 export default function NotFound() {

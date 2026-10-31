@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/layout/app-shell";
@@ -9,6 +9,11 @@ import type { Role } from "@/lib/contracts/enums";
 
 export const metadata: Metadata = {
   title: { template: `%s · ${siteConfig.name}`, default: siteConfig.name },
+};
+
+export const viewport: Viewport = {
+  viewportFit: "cover",
+  themeColor: "#070a12",
 };
 
 export default function AppLayout({ children }: { children: ReactNode }) {

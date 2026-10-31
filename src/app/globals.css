@@ -141,9 +141,9 @@ body {
    *   <name>            solid accent: borders, dots, bars, icons, outlines
    *   <name>-subtle     tinted background for chips, cards and grid cells
    *   <name>-foreground text/icon colour; AA (≥ 4.5:1) on <name>-subtle,
-   *                     on --background and on --card, in both themes
+   *                     on --background and on --card, in the dark theme
    * Example chip: "border-status-approved/40 bg-status-approved-subtle text-status-approved-foreground".
-   * Text, icons and status dots use <name>-foreground (AA in both themes). The solid <name>
+   * Text, icons and status dots use <name>-foreground (AA in the dark theme). The solid <name>
    * accent is decoration only (stripes, outlines, hatching) and never carries meaning alone.
    * Colour is never the only signal: always pair it with a label or icon. The shared
    * value → label/icon/class mapping lives in src/config/semantics.ts.
@@ -230,7 +230,7 @@ body {
   --accent-foreground: #f4f7fb;
   --destructive: oklch(0.704 0.191 22.216);
   --border: rgba(244, 247, 251, 0.08);
-  --input: rgba(244, 247, 251, 0.14);
+  --input: rgba(244, 247, 251, 0.35);
   --ring: #66e3f0;
   --chart-1: #66e3f0;
   --chart-2: #8279ff;
@@ -319,4 +319,9 @@ body {
   * {
     @apply border-border outline-ring/50;
   }
+}
+
+/* Instant scroll-to-top between app routes (main's html rule enables smooth scrolling). */
+html:has(#main-content) {
+  scroll-behavior: auto;
 }

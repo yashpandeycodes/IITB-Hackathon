@@ -29,7 +29,9 @@ export function PageHeader({
     >
       <div className="flex min-w-0 flex-col gap-1">
         {eyebrow ? (
-          <p className="text-muted-foreground text-xs font-medium">{eyebrow}</p>
+          <p className="border-primary/20 bg-card text-primary self-start rounded-full border px-3 py-1 font-mono text-[11px] tracking-wider uppercase">
+            {eyebrow}
+          </p>
         ) : null}
         <h1 className="text-2xl font-semibold tracking-tight text-balance">
           {title}
