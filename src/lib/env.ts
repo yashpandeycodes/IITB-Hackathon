@@ -36,7 +36,7 @@ const EnvSchema = z.object({
   /** One-click sign-in for the four public demo accounts (the judges need it on the deployment). */
   DEMO_LOGIN_ENABLED: boolFlag.default(true),
   // Account sign-up mail (Brevo). The key prefix picks the transport: `xsmtpsib-` → SMTP relay
-  // (needs BREVO_SMTP_LOGIN), anything else (`xkeysib-`) → REST API. No key: codes are only
+  // (needs BREVO_SMTP_LOGIN or its alias BREVO_SMTP_USER), anything else (`xkeysib-`) → REST API. No key: codes are only
   // logged to the server console in development; production answers MAIL_UNAVAILABLE.
   BREVO_API_KEY: z.string().trim().min(1).optional(),
   /** `noreply@example.org` or `CIT Nexus <noreply@example.org>`; must be a Brevo-verified sender. */
@@ -58,6 +58,8 @@ const EnvSchema = z.object({
     .default(587),
   /** The SMTP login Brevo shows next to the `xsmtpsib-` key (required for SMTP). */
   BREVO_SMTP_LOGIN: z.string().trim().min(1).optional(),
+  /** Accepted alias for BREVO_SMTP_LOGIN (the name used in the team's env files). */
+  BREVO_SMTP_USER: z.string().trim().min(1).optional(),
   // Google sign-in (not wired yet: no callback route).
   GOOGLE_CLIENT_ID: z.string().trim().min(1).optional(),
   NEXT_PUBLIC_APP_URL: z
@@ -159,7 +161,11 @@ export function parseEnv(
     }
   }
   if (deployIssues.length > 0) throw new EnvValidationError(deployIssues);
-  return result.data;
+  return {
+    ...result.data,
+    BREVO_SMTP_LOGIN:
+      result.data.BREVO_SMTP_LOGIN ?? result.data.BREVO_SMTP_USER,
+  };
 }
 
 /** Placeholder-looking or low-variety secrets, e.g. the CI dummy value or "aaaa…". */

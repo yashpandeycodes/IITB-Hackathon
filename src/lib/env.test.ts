@@ -302,3 +302,23 @@ describe("deployment checks", () => {
     ).toBe("cit_prod");
   });
 });
+
+describe("Brevo SMTP login", () => {
+  it("accepts BREVO_SMTP_USER as an alias for BREVO_SMTP_LOGIN", () => {
+    expect(
+      parseEnv({ BREVO_SMTP_USER: "relay-user@smtp-brevo.com" })
+        .BREVO_SMTP_LOGIN,
+    ).toBe("relay-user@smtp-brevo.com");
+  });
+
+  it("prefers BREVO_SMTP_LOGIN when both are set", () => {
+    expect(
+      parseEnv({ BREVO_SMTP_LOGIN: "primary", BREVO_SMTP_USER: "alias" })
+        .BREVO_SMTP_LOGIN,
+    ).toBe("primary");
+  });
+
+  it("leaves the login unset when neither is set", () => {
+    expect(parseEnv({}).BREVO_SMTP_LOGIN).toBeUndefined();
+  });
+});

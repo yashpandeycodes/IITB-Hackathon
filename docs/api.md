@@ -255,7 +255,7 @@ Self-service sign-up for **Club Representative** only. Account-form shape. The a
 Notes:
 - Re-submitting from the same browser (or from any browser once the 10-minute code has expired) replaces the pending details and sends a new code.
 - Unverified accounts are deleted after 24 hours.
-- The code is never returned. In development without a mail key it is printed to the server console (`[dev] OTP for <email>: <code>`); in production without a key the route answers `503 MAIL_UNAVAILABLE`. Mail transport: a `BREVO_API_KEY` starting with `xsmtpsib-` uses the Brevo SMTP relay (`BREVO_SMTP_LOGIN` required; `BREVO_SMTP_HOST`/`BREVO_SMTP_PORT` optional), any other key uses the Brevo REST API.
+- The code is never returned. In development without a mail key it is printed to the server console (`[dev] OTP for <email>: <code>`); in production without a key the route answers `503 MAIL_UNAVAILABLE`. Mail transport: a `BREVO_API_KEY` starting with `xsmtpsib-` uses the Brevo SMTP relay (`BREVO_SMTP_LOGIN` — or its alias `BREVO_SMTP_USER` — required; `BREVO_SMTP_HOST`/`BREVO_SMTP_PORT` optional), any other key uses the Brevo REST API.
 
 ### POST /api/auth/verify-otp
 

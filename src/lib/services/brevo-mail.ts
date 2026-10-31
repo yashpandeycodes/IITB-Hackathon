@@ -5,7 +5,7 @@ import { getServerEnv, parseMailbox } from "@/lib/env";
 /**
  * Brevo transactional mail for sign-up OTP codes. Settings come from `getServerEnv()` at call
  * time. The `BREVO_API_KEY` prefix picks the transport:
- * - `xsmtpsib-…` → SMTP relay via nodemailer (`BREVO_SMTP_HOST`/`_PORT`, `BREVO_SMTP_LOGIN`
+ * - `xsmtpsib-…` → SMTP relay via nodemailer (`BREVO_SMTP_HOST`/`_PORT`, `BREVO_SMTP_LOGIN` or its alias `BREVO_SMTP_USER`
  *   required, 15 s timeouts);
  * - any other key (`xkeysib-…`) → the REST API.
  *
@@ -67,7 +67,7 @@ function configurationProblem(transport: MailTransport): string | null {
   }
   if (!sender()) return "BREVO_SENDER_EMAIL";
   if (transport === "smtp" && !getServerEnv().BREVO_SMTP_LOGIN) {
-    return "BREVO_SMTP_LOGIN";
+    return "BREVO_SMTP_LOGIN (or BREVO_SMTP_USER)";
   }
   return null;
 }
