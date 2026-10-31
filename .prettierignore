@@ -1,0 +1,29 @@
+node_modules
+.next
+coverage
+package-lock.json
+CrunchWeek_StarterPack
+data
+exports
+docs
+src/components/ui
+
+# CIT Nexus frontend merged from main: kept as on main (globals.css: main's block verbatim,
+# app tokens appended) so later edits on main still merge by content. Format with the team.
+PROGRESS.md
+src/app/globals.css
+src/app/layout.tsx
+src/app/page.tsx
+src/app/login
+src/app/signup
+src/components/auth
+src/components/brand
+src/components/landing
+src/lib/mock-data.ts
+src/lib/validation.ts
+src/app/admin
+src/app/dashboard
+src/app/club
+src/app/coordinator
+src/app/faculty
+src/app/unauthorized

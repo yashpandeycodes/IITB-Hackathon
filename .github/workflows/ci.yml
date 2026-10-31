@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Env is read lazily at request time, so lint and the build need no credentials.
+      # Database-backed tests use the mongo service container (throwaway databases).
+      LLM_ENABLED: "false"
+      MONGODB_URI: "mongodb://127.0.0.1:27017"
+      MONGODB_DB: "cit_ci"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Validator parity (engine vs official validator.py)
+        run: npm run parity
+
+      - name: Validate exports/schedule.json
+        if: hashFiles('exports/schedule.json') != ''
+        run: npm run validate
+
+      - name: Validate exports/schedule_after.json
+        if: hashFiles('exports/schedule_after.json') != ''
+        run: npm run validate -- --after
