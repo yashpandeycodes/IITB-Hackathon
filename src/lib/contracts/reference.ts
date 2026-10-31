@@ -2,8 +2,8 @@
  * Reference data for the UI (`GET /api/reference`): the active dataset's calendar, rooms,
  * faculty, student groups, courses, sessions, exams and Spectra requests, projected to the fields
  * screens need for labels, pickers and filters. The schedule endpoints return ids only; this is
- * where the names come from. Dataset-origin requests only (live user requests come from the
- * bookings API in Phase 4).
+ * where the names come from. Dataset-origin requests only (live user requests come from
+ * `GET /api/bookings`).
  *
  * Every shape is picked from the dataset schemas (`./dataset`), so field types can't drift, and
  * made strict, so unknown keys from an uploaded file, free text (`raw_text`) and solver-only
