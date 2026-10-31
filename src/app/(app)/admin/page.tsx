@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -14,6 +14,8 @@ import {
   apiPatch,
   isApiClientError,
   streamTimetableGeneration,
+  canExport,
+  EXPORT_SCHEDULE_URL,
 } from '@/lib/api-client';
 import {
   Category,
@@ -321,6 +323,7 @@ function SettingsForm({
 }
 
 export default function AdminConsolePage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const sessionUser = useSessionUser();
   const searchParams = useSearchParams();
@@ -354,6 +357,7 @@ export default function AdminConsolePage() {
     queryClient.invalidateQueries({ queryKey: ['exams'] });
     queryClient.invalidateQueries({ queryKey: ['spectra'] });
     queryClient.invalidateQueries({ queryKey: ['validate'] });
+    queryClient.invalidateQueries({ queryKey: ['export', 'eligibility'] });
     queryClient.invalidateQueries({ queryKey: ['settings'] });
   };
 
@@ -375,6 +379,21 @@ export default function AdminConsolePage() {
     queryKey: ['validate'],
     queryFn: () => apiGet('/api/validate', ValidatorReportSchema),
     enabled: activeTab === 'validate',
+  });
+
+  // Export eligibility query (canExport)
+  const {
+    data: exportEligibility,
+    isLoading: isExportEligibilityLoading,
+    isError: isExportEligibilityError,
+    error: exportEligibilityError,
+    refetch: refetchExportEligibility,
+    isFetching: isExportEligibilityFetching,
+  } = useQuery({
+    queryKey: ['export', 'eligibility'],
+    queryFn: ({ signal }) => canExport({ signal }),
+    enabled: activeTab === 'export',
+    staleTime: 10_000,
   });
 
   // Timetable Versions query
@@ -1379,47 +1398,190 @@ export default function AdminConsolePage() {
 
         {/* Tab 4: Export JSON (§5.12) */}
         {activeTab === 'export' && (
-          <div className="p-6 rounded-3xl bg-[#0B1220] border border-white/10 space-y-4">
-            <h2 className="text-lg font-bold text-white">Download Standardized Outputs</h2>
-            <p className="text-xs font-mono text-[#98A6BB]">
-              Outputs conform strictly to hackathon data contracts for automated scoring.
-            </p>
-
-            <div className="space-y-3">
-              <div className="p-4 rounded-2xl bg-[#101A2B] border border-white/10 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-mono font-bold text-white">schedule.json</div>
-                  <div className="text-[11px] font-mono text-[#98A6BB]">
-                    Baseline schedule from active timetable version
-                  </div>
-                </div>
-                <a
-                  href="/api/export?file=schedule"
-                  download="schedule.json"
-                  className="px-4 py-2 rounded-xl text-xs font-mono font-bold bg-[#66E3F0] text-[#070A12] flex items-center gap-1.5"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download</span>
-                </a>
+          <div className="p-6 rounded-3xl bg-[#0B1220] border border-white/10 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+              <div>
+                <h2 className="text-lg font-bold text-white">Official Schedule Export (schedule.json)</h2>
+                <p className="text-xs font-mono text-[#98A6BB]">
+                  Official baseline schedule download strictly verified against <code>validator.py</code>.
+                </p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-[#101A2B] border border-white/10 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-mono font-bold text-white">schedule_after.json</div>
-                  <div className="text-[11px] font-mono text-[#98A6BB]">
-                    Post-disruption schedule with applied change proposals
-                  </div>
-                </div>
-                <a
-                  href="/api/export?file=schedule_after"
-                  download="schedule_after.json"
-                  className="px-4 py-2 rounded-xl text-xs font-mono font-bold bg-[#8279FF] text-white flex items-center gap-1.5"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download</span>
-                </a>
-              </div>
+              <button
+                onClick={() => refetchExportEligibility()}
+                disabled={isExportEligibilityLoading || isExportEligibilityFetching}
+                className="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-white/5 hover:bg-white/10 text-[#66E3F0] border border-[#66E3F0]/30 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isExportEligibilityFetching ? 'animate-spin' : ''}`} />
+                <span>{isExportEligibilityFetching ? 'Checking...' : 'Re-check Eligibility'}</span>
+              </button>
             </div>
+
+            {/* Loading state */}
+            {isExportEligibilityLoading && (
+              <div className="py-12 text-center space-y-3">
+                <RefreshCw className="w-8 h-8 text-[#66E3F0] animate-spin mx-auto" />
+                <p className="text-xs font-mono text-[#98A6BB]">
+                  Auditing export eligibility with backend validator...
+                </p>
+              </div>
+            )}
+
+            {/* Error state */}
+            {isExportEligibilityError && (
+              <div className="p-4 rounded-2xl bg-rose-950/20 border border-rose-500/40 space-y-2">
+                <div className="flex items-center gap-2 text-rose-400 font-mono text-xs font-bold uppercase">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>Unable to verify export eligibility</span>
+                </div>
+                <p className="text-xs text-[#cbd5e1]">
+                  {exportEligibilityError instanceof Error
+                    ? exportEligibilityError.message
+                    : 'The server rejected the validator query.'}
+                </p>
+                <button
+                  onClick={() => refetchExportEligibility()}
+                  className="px-3 py-1.5 rounded-xl text-xs font-mono bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30"
+                >
+                  Retry Eligibility Check
+                </button>
+              </div>
+            )}
+
+            {/* Ready State */}
+            {exportEligibility && (
+              <div className="space-y-4">
+                {exportEligibility.ok ? (
+                  <div className="p-5 rounded-2xl bg-emerald-950/20 border border-emerald-500/40 space-y-3">
+                    <div className="flex items-center gap-2 text-emerald-400 font-mono text-xs font-bold uppercase">
+                      <CheckCircle2 className="w-5 h-5 shrink-0 text-[#10b981]" />
+                      <span>Schedule Verified & Ready for Official Export</span>
+                    </div>
+                    <p className="text-xs text-[#cbd5e1] leading-relaxed">
+                      Zero hard constraint violations detected across all H1–H14 rules, and decisions are recorded for all Spectra week booking requests.
+                    </p>
+                    <div className="flex flex-wrap gap-4 text-xs font-mono pt-1 text-[#98A6BB]">
+                      <span>Soft penalty: <strong className="text-white">{exportEligibility.report.soft_total} pts</strong></span>
+                      {exportEligibility.report.bookings && (
+                        <span>
+                          Booking quality score: <strong className="text-emerald-400">{exportEligibility.report.bookings.booking_score} / {exportEligibility.report.bookings.booking_score_max_if_all_approved}</strong>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-5 rounded-2xl bg-rose-950/20 border border-rose-500/40 space-y-4">
+                    <div className="flex items-center gap-2 text-rose-400 font-mono text-xs font-bold uppercase">
+                      <ShieldAlert className="w-5 h-5 shrink-0" />
+                      <span>Export Blocked by Backend Verification</span>
+                    </div>
+                    <p className="text-xs text-[#cbd5e1] leading-relaxed">
+                      The export endpoint refuses to produce a schedule file because the current schedule does not satisfy all competition requirements.
+                    </p>
+
+                    {/* Hard Clashes Reason */}
+                    {exportEligibility.report.hard_violation_count > 0 && (
+                      <div className="p-3.5 rounded-xl bg-black/40 border border-rose-500/30 space-y-2">
+                        <div className="text-xs font-mono font-bold text-rose-400 flex items-center justify-between">
+                          <span>Hard Violations Detected: {exportEligibility.report.hard_violation_count}</span>
+                          <button
+                            onClick={() => setActiveTab('validate')}
+                            className="text-[#66E3F0] hover:underline text-[11px]"
+                          >
+                            View in Validator Tab ▸
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-[#cbd5e1] leading-relaxed">
+                          Hard constraint clashes exist in the active timetable. Generate a clean timetable or activate a valid version in the <strong>Generate & Solver</strong> tab.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Missing Spectra Decisions Reason */}
+                    {exportEligibility.missing_decisions.length > 0 && (
+                      <div className="p-3.5 rounded-xl bg-black/40 border border-amber-500/30 space-y-2">
+                        <div className="text-xs font-mono font-bold text-amber-400 flex items-center justify-between">
+                          <span>Missing Spectra Decisions: {exportEligibility.missing_decisions.length} Request(s)</span>
+                          <Link href="/spectra" className="text-pink-400 hover:underline text-[11px] font-bold">
+                            Run Spectra Engine ▸
+                          </Link>
+                        </div>
+                        <p className="text-[11px] text-[#cbd5e1] leading-relaxed">
+                          The official export requires a stored decision for every Spectra week request.
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {exportEligibility.missing_decisions.map((id) => (
+                            <span key={id} className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              {id}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Download Card */}
+                <div className="p-4 rounded-2xl bg-[#101A2B] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="text-xs font-mono font-bold text-white flex items-center gap-2">
+                      <span>schedule.json</span>
+                      {exportEligibility.ok ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          Eligible
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                          Blocked
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] font-mono text-[#98A6BB] mt-1">
+                      Official standardized schedule output containing active timetable, Week-7 Spectra decisions, and exam slots.
+                    </div>
+                  </div>
+
+                  {exportEligibility.ok ? (
+                    <a
+                      href={EXPORT_SCHEDULE_URL}
+                      download="schedule.json"
+                      className="px-4 py-2.5 rounded-xl text-xs font-mono font-bold bg-[#66E3F0] hover:bg-[#66E3F0]/90 text-[#070A12] shadow-md flex items-center justify-center gap-2 transition-all shrink-0 cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download schedule.json</span>
+                    </a>
+                  ) : (
+                    <a
+                      href={EXPORT_SCHEDULE_URL}
+                      download="schedule.json"
+                      aria-disabled="true"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (exportEligibility.missing_decisions.length > 0) {
+                          toast.error(
+                            `${exportEligibility.missing_decisions.length} Spectra request(s) missing decisions. Run Spectra first.`,
+                            { action: { label: 'Go to Spectra', onClick: () => router.push('/spectra') } }
+                          );
+                        } else if (exportEligibility.report.hard_violation_count > 0) {
+                          toast.error(
+                            `${exportEligibility.report.hard_violation_count} hard violations block export. Audit in Validator tab.`,
+                            { action: { label: 'Validator', onClick: () => setActiveTab('validate') } }
+                          );
+                        }
+                      }}
+                      className="px-4 py-2.5 rounded-xl text-xs font-mono font-bold bg-white/5 text-white/30 border border-white/5 cursor-not-allowed flex items-center justify-center gap-2 shrink-0"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download Disabled</span>
+                    </a>
+                  )}
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 text-[11px] font-mono text-[#98A6BB]">
+                  <strong>Note:</strong> <code>schedule_after.json</code> belongs to future Phase 5 disruption & change proposals and is not part of the active baseline export.
+                </div>
+              </div>
+            )}
           </div>
         )}
 
