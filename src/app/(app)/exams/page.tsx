@@ -1,23 +1,99 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/app-shell';
-import { EXAM_SCHEDULE } from '@/lib/dataset/cit-data';
-import { DayCode } from '@/lib/contracts';
+import { apiGet } from '@/lib/api-client';
+import { ExamScheduleSchema, type ExamDay } from '@/lib/contracts';
+import { useReferenceData } from '@/hooks/use-reference-data';
+import { PageSkeleton } from '@/components/states/page-skeleton';
+import { ErrorState } from '@/components/states/error-state';
+import { EmptyState } from '@/components/states/empty-state';
 import { formatDay } from '@/lib/format';
-import { CheckCircle2, GraduationCap, Users, Building } from 'lucide-react';
+import { CheckCircle2, Building } from 'lucide-react';
 
 export default function ExamsGridPage() {
+  const { referenceData, roomName, courseName } = useReferenceData();
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
-  const [mobileDay, setMobileDay] = useState<DayCode>('MON');
+  const [mobileDay, setMobileDay] = useState<ExamDay>('MON');
 
-  const examDays: DayCode[] = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const examDays: ExamDay[] = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
   const slots: Array<'AM' | 'PM'> = ['AM', 'PM'];
 
-  const filteredExams = EXAM_SCHEDULE.filter((exam) => {
-    if (selectedGroup !== 'all' && !exam.groups.includes(selectedGroup)) return false;
-    return true;
+  // Query active exam schedule from backend
+  const { data: examSchedule, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['exams'],
+    queryFn: () => apiGet('/api/exams', ExamScheduleSchema.nullable()),
+    staleTime: 15_000,
   });
+
+  // Map reference exams by ID
+  const refExamMap = useMemo(() => {
+    return new Map(referenceData.exams.map((e) => [e.id, e]));
+  }, [referenceData.exams]);
+
+  // Exam sessions timing from reference calendar
+  const amSession = referenceData.calendar.exam_week?.sessions.find((s) => s.id === 'AM');
+  const pmSession = referenceData.calendar.exam_week?.sessions.find((s) => s.id === 'PM');
+  const amTiming = amSession ? `${amSession.start}–${amSession.end}` : '09:30–11:30';
+  const pmTiming = pmSession ? `${pmSession.start}–${pmSession.end}` : '14:00–16:00';
+
+  // Placed exams merged with reference details
+  const placedExams = useMemo(() => {
+    if (!examSchedule?.exams) return [];
+    return examSchedule.exams.map((placed) => {
+      const ref = refExamMap.get(placed.exam_id);
+      const courseId = ref?.course_ids?.[0] ?? placed.exam_id;
+      return {
+        id: placed.exam_id,
+        courseId,
+        courseName: courseName(courseId),
+        groups: ref?.groups ?? [],
+        size: ref?.size ?? 0,
+        day: placed.day,
+        session: placed.session,
+        rooms: placed.rooms,
+      };
+    });
+  }, [examSchedule, refExamMap, courseName]);
+
+  const filteredExams = useMemo(() => {
+    if (selectedGroup === 'all') return placedExams;
+    return placedExams.filter((e) => e.groups.includes(selectedGroup));
+  }, [placedExams, selectedGroup]);
+
+  if (isLoading) {
+    return (
+      <AppShell pageTitle="Exam Schedule" breadcrumbs={[{ label: 'Exams' }]}>
+        <PageSkeleton />
+      </AppShell>
+    );
+  }
+
+  if (isError) {
+    return (
+      <AppShell pageTitle="Exam Schedule" breadcrumbs={[{ label: 'Exams' }]}>
+        <ErrorState
+          title="Failed to load exam schedule"
+          message={error instanceof Error ? error.message : 'Unable to query /api/exams.'}
+          onRetry={() => refetch()}
+        />
+      </AppShell>
+    );
+  }
+
+  if (!examSchedule) {
+    return (
+      <AppShell pageTitle="Exam Schedule" breadcrumbs={[{ label: 'Exams' }]}>
+        <EmptyState
+          icon={Building}
+          title="No exam schedule generated yet"
+          description="The active semester dataset does not have a generated exam schedule. Authorized administrators can generate the exam schedule from the Admin console."
+          cta={{ label: 'Go to Admin Console', href: '/admin' }}
+        />
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell
@@ -32,14 +108,14 @@ export default function ExamsGridPage() {
               <span className="text-xs font-mono font-bold text-[#66E3F0] uppercase tracking-wider">
                 EXAMINATION CELL AUTOMATION
               </span>
-              <span className="px-2 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400">
-                0 CLASHES ✓
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                ACTIVE ({examSchedule.id})
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-white">Autumn Semester Exam Schedule</h1>
             <div className="flex items-center gap-2 text-xs font-mono text-[#34d399] mt-1 font-bold">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>✓ Max one exam per day constraint satisfied across all student cohorts.</span>
+              <span>✓ 1-exam-per-day rule satisfied across all scheduled cohorts.</span>
             </div>
           </div>
 
@@ -48,13 +124,14 @@ export default function ExamsGridPage() {
             <select
               value={selectedGroup}
               onChange={(e) => setSelectedGroup(e.target.value)}
-              className="bg-[#101A2B] border border-white/10 rounded-xl px-3 py-1.5 text-xs font-mono text-white outline-none"
+              className="bg-[#101A2B] border border-white/10 rounded-xl px-3 py-1.5 text-xs font-mono text-white outline-none focus:border-[#66E3F0]/50"
             >
-              <option value="all">All Cohorts</option>
-              <option value="Y1-A">Y1-A (First Year A)</option>
-              <option value="Y1-B">Y1-B (First Year B)</option>
-              <option value="CSE-2">CSE-2 (Second Year CSE)</option>
-              <option value="CSE-3">CSE-3 (Third Year CSE)</option>
+              <option value="all">All Cohorts ({referenceData.student_groups.length})</option>
+              {referenceData.student_groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.id} ({g.name})
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -64,7 +141,7 @@ export default function ExamsGridPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-white/10 bg-[#101A2B] text-xs font-mono text-[#98A6BB]">
-                <th className="p-3 w-32 sticky left-0 z-10 bg-[#101A2B]">Slot / Window</th>
+                <th className="p-3 w-36 sticky left-0 z-10 bg-[#101A2B]">Slot / Window</th>
                 {examDays.map((d) => (
                   <th key={d} className="p-3 border-l border-white/10 text-white font-bold">
                     {formatDay(d)} ({d})
@@ -76,43 +153,45 @@ export default function ExamsGridPage() {
               {slots.map((slot) => (
                 <tr key={slot} className="hover:bg-white/[0.01]">
                   <td className="p-3 bg-[#0B1220] border-r border-white/10 sticky left-0 z-10 align-top">
-                    <div className="font-bold text-sm text-white">{slot} Slot</div>
+                    <div className="font-bold text-sm text-white">{slot} Session</div>
                     <div className="text-[10px] text-[#98A6BB]">
-                      {slot === 'AM' ? '09:30–11:30' : '14:00–16:00'}
+                      {slot === 'AM' ? amTiming : pmTiming}
                     </div>
                   </td>
 
                   {examDays.map((d) => {
-                    const examsInCell = filteredExams.filter((e) => e.day === d && e.slot === slot);
+                    const examsInCell = filteredExams.filter((e) => e.day === d && e.session === slot);
 
                     return (
-                      <td key={d} className="p-2 border-l border-white/5 align-top min-w-[170px] h-32">
+                      <td key={d} className="p-2 border-l border-white/5 align-top min-w-[180px] h-36">
                         {examsInCell.length > 0 ? (
-                          examsInCell.map((exam) => (
-                            <div
-                              key={exam.id}
-                              className="p-3 rounded-2xl bg-[#101A2B] border border-white/10 space-y-2 shadow-sm"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-black text-sm text-[#66E3F0]">{exam.courseCode}</span>
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white">
-                                  {exam.groups.join(', ')}
-                                </span>
-                              </div>
-                              <div className="text-xs font-medium text-white line-clamp-1">{exam.courseName}</div>
+                          <div className="space-y-2">
+                            {examsInCell.map((exam) => (
+                              <div
+                                key={exam.id}
+                                className="p-3 rounded-2xl bg-[#101A2B] border border-white/10 space-y-2 shadow-sm"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-black text-sm text-[#66E3F0]">{exam.courseId}</span>
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white truncate max-w-[90px]">
+                                    {exam.groups.join(', ')}
+                                  </span>
+                                </div>
+                                <div className="text-xs font-medium text-white line-clamp-1">{exam.courseName}</div>
 
-                              {/* Seat Splits (§5.11) */}
-                              <div className="pt-1.5 border-t border-white/5 text-[10px] text-[#fbbf24]">
-                                <div className="font-bold flex items-center gap-1 mb-0.5">
-                                  <Building className="w-3 h-3" />
-                                  <span>Room Allocation & Seat Split:</span>
-                                </div>
-                                <div className="text-white/90">
-                                  {exam.roomAllocations.map((r) => `${r.roomName} (${r.seatsAssigned})`).join(' + ')}
+                                {/* Seat Splits (§5.11) */}
+                                <div className="pt-1.5 border-t border-white/5 text-[10px] text-[#fbbf24]">
+                                  <div className="font-bold flex items-center gap-1 mb-0.5">
+                                    <Building className="w-3 h-3" />
+                                    <span>Rooms ({exam.size} seats):</span>
+                                  </div>
+                                  <div className="text-white/90">
+                                    {exam.rooms.map((roomId) => roomName(roomId)).join(' + ')}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))
+                            ))}
+                          </div>
                         ) : (
                           <div className="h-full rounded-xl border border-dashed border-white/5 flex items-center justify-center text-[10px] text-white/20">
                             No Exams
@@ -149,12 +228,12 @@ export default function ExamsGridPage() {
               .map((exam) => (
                 <div key={exam.id} className="p-4 rounded-2xl bg-[#0B1220] border border-white/10 space-y-2">
                   <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="font-bold text-[#66E3F0]">{exam.courseCode} ({exam.slot} Slot)</span>
+                    <span className="font-bold text-[#66E3F0]">{exam.courseId} ({exam.session} Session)</span>
                     <span className="text-[#98A6BB]">{exam.groups.join(', ')}</span>
                   </div>
                   <div className="font-bold text-sm text-white">{exam.courseName}</div>
                   <div className="text-xs font-mono text-[#fbbf24]">
-                    Allocations: {exam.roomAllocations.map((r) => `${r.roomName} (${r.seatsAssigned})`).join(' + ')}
+                    Rooms: {exam.rooms.map((roomId) => roomName(roomId)).join(' + ')}
                   </div>
                 </div>
               ))}
@@ -164,4 +243,3 @@ export default function ExamsGridPage() {
     </AppShell>
   );
 }
-

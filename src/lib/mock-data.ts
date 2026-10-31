@@ -300,7 +300,7 @@ export const MOCK_DISRUPTION: DisruptionScenario = {
 };
 
 export const CAMPUS_METRICS = {
-  totalRoomsManaged: 68,
+  totalRoomsManaged: 27,
   activeTeachingHours: '08:00 – 19:30',
   scheduledSessionsWeekly: 1420,
   averageConflictResolutionSecs: 1.4,

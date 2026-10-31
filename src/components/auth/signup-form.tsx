@@ -37,7 +37,7 @@ export const SignupForm: React.FC = () => {
   const [formData, setFormData] = useState<SignupFormData>({
     fullName: '',
     email: '',
-    role: 'Faculty',
+    role: 'Club Representative',
     password: '',
     confirmPassword: '',
     agreedToTerms: false,
@@ -345,7 +345,7 @@ export const SignupForm: React.FC = () => {
               </div>
 
               {/* OTP Form */}
-              <form onSubmit={handleVerifyOtp} className="space-y-6">
+              <form method="post" onSubmit={handleVerifyOtp} className="space-y-6">
                 <div>
                   <div className="flex items-center justify-between mb-3 px-1">
                     <label className="text-xs font-mono font-medium text-[#A7B3C9] uppercase tracking-wider">
@@ -467,7 +467,7 @@ export const SignupForm: React.FC = () => {
                 </p>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+              <form method="post" onSubmit={handleSubmit} className="space-y-4" noValidate>
                 {/* Full Name */}
                 <div>
                   <label
@@ -576,6 +576,9 @@ export const SignupForm: React.FC = () => {
                       );
                     })}
                   </div>
+                  <p className="text-[11px] text-[#A7B3C9] mt-2 font-mono">
+                    Self-service registration is available for <strong>Club Representatives</strong>. Admin, Coordinator, and Faculty accounts are pre-provisioned — <Link href="/login" className="text-[#22D3EE] hover:underline">sign in with demo accounts</Link>.
+                  </p>
                 </div>
 
                 {/* Password with Strength Indicators */}

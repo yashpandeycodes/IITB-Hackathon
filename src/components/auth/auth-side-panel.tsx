@@ -87,7 +87,7 @@ export const AuthSidePanel: React.FC<AuthSidePanelProps> = ({ mode = 'signup' })
               </span>
             </div>
             <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30">
-              OPTIMAL (0 CLASHES)
+              VALIDATED (0 CLASHES)
             </span>
           </div>
 
@@ -154,14 +154,14 @@ export const AuthSidePanel: React.FC<AuthSidePanelProps> = ({ mode = 'signup' })
                 <Layers className="w-3.5 h-3.5 text-[#6366F1]" />
                 S1–S6 Soft Penalty Score
               </span>
-              <span className="text-[#F8FAFC] font-semibold">48 pts (Optimal)</span>
+              <span className="text-[#F8FAFC] font-semibold">Active Minimization</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-[#22D3EE]" />
                 Spectra Booking Satisfaction
               </span>
-              <span className="text-[#22D3EE] font-semibold">64 / 70 Sat.</span>
+              <span className="text-[#22D3EE] font-semibold">Priority Evaluated</span>
             </div>
           </div>
         </motion.div>

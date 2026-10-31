@@ -19,41 +19,22 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { LoginFormData, ValidationErrors, validateLoginForm } from '@/lib/validation';
+import { DEMO_ACCOUNTS } from '@/config/demo-accounts';
+import { safeRedirectPath } from '@/lib/redirect';
 
-const DEMO_USERS = [
-  {
-    role: 'Admin',
-    name: 'Dr. Rajesh Verma',
-    email: 'admin@citnexus.edu',
-    title: 'Dean of Academic Planning & Timetabling',
-    description: 'Full privileges: solver generation, master approvals, disruption override, data export & validator audits.',
-    avatar: '👨‍💼',
-  },
-  {
-    role: 'Department Coordinator',
-    name: 'Prof. Arindam Das',
-    email: 'cse.coord@citnexus.edu',
-    title: 'CSE Department Timetable Coordinator',
-    description: 'Manage CSE cohorts (Y1-A, CSE-2, CSE-3), approve department lab bookings, submit faculty leaves.',
-    avatar: '🧑‍🏫',
-  },
-  {
-    role: 'Faculty',
-    name: 'Dr. Shalini Gupta',
-    email: 'f07.sharma@citnexus.edu',
-    title: 'Associate Professor (F07)',
-    description: 'Personal teaching timetable, lecture reschedule requests, mark leave unavailability, query AI assistant.',
-    avatar: '👩‍🔬',
-  },
-  {
-    role: 'Club Representative',
-    name: 'Kabir Mehta',
-    email: 'robotics.club@citnexus.edu',
-    title: 'President, CIT Robotics & Automations',
-    description: 'Book auditoriums, seminar halls & grounds for Spectra Week 7, track venue status & live approvals.',
-    avatar: '🚀',
-  },
-];
+const ROLE_AVATARS: Record<string, string> = {
+  admin: '👨‍💼',
+  department_coordinator: '🧑‍🏫',
+  faculty: '👨‍🏫',
+  club: '🚀',
+};
+
+const ROLE_BADGES: Record<string, string> = {
+  admin: 'Dean',
+  department_coordinator: 'Coord',
+  faculty: 'Prof',
+  club: 'Club',
+};
 
 export const LoginForm: React.FC = () => {
   const router = useRouter();
@@ -125,10 +106,16 @@ export const LoginForm: React.FC = () => {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to authenticate demo user');
+        const errorMsg = typeof data.error === 'object' && data.error?.message
+          ? data.error.message
+          : (typeof data.error === 'string' ? data.error : 'Failed to authenticate demo user');
+        throw new Error(errorMsg);
       }
 
-      router.push('/dashboard');
+      const searchParams = new URLSearchParams(window.location.search);
+      const redirectParam = searchParams.get('redirect');
+      const destination = safeRedirectPath(redirectParam) || '/dashboard';
+      router.push(destination);
       router.refresh();
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : 'Demo login error');
@@ -171,11 +158,17 @@ export const LoginForm: React.FC = () => {
           setRequiresOtp(true);
           return;
         }
-        setServerError(data.error || 'Authentication rejected. Please check credentials.');
+        const errorMsg = typeof data.error === 'object' && data.error?.message
+          ? data.error.message
+          : (typeof data.error === 'string' ? data.error : 'Authentication rejected. Please check credentials.');
+        setServerError(errorMsg);
         return;
       }
 
-      router.push('/dashboard');
+      const searchParams = new URLSearchParams(window.location.search);
+      const redirectParam = searchParams.get('redirect');
+      const destination = safeRedirectPath(redirectParam) || '/dashboard';
+      router.push(destination);
       router.refresh();
     } catch {
       setServerError('Network dispatch error. Please retry.');
@@ -226,7 +219,10 @@ export const LoginForm: React.FC = () => {
         return;
       }
 
-      router.push('/dashboard');
+      const searchParams = new URLSearchParams(window.location.search);
+      const redirectParam = searchParams.get('redirect');
+      const destination = safeRedirectPath(redirectParam) || '/dashboard';
+      router.push(destination);
       router.refresh();
     } catch {
       setOtpError('Connection error. Please try again.');
@@ -273,33 +269,33 @@ export const LoginForm: React.FC = () => {
 
               {/* Four Demo Role Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-                {DEMO_USERS.map((user) => {
-                  const isLoading = demoLoadingRole === user.role;
+                {DEMO_ACCOUNTS.map((account) => {
+                  const isLoading = demoLoadingRole === account.role;
                   return (
                     <button
-                      key={user.role}
+                      key={account.role}
                       type="button"
                       disabled={demoLoadingRole !== null}
-                      onClick={() => handleDemoLogin(user.role)}
+                      onClick={() => handleDemoLogin(account.role)}
                       className="group text-left p-3.5 rounded-xl bg-[#111B30] hover:bg-[#111B30]/90 border border-[rgba(148,163,184,0.18)] hover:border-[#6366F1]/60 transition-all hover:-translate-y-0.5 active:translate-y-0 shadow-sm flex flex-col justify-between"
                     >
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-2xl">{user.avatar}</span>
+                          <span className="text-2xl">{ROLE_AVATARS[account.role] ?? '👤'}</span>
                           <span className="text-[10px] font-mono font-semibold uppercase px-2 py-0.5 rounded bg-[#080D1B] border border-[rgba(148,163,184,0.15)] text-[#A7B3C9] group-hover:text-[#22D3EE] group-hover:border-[#22D3EE]/40 transition-colors">
-                            {user.role === 'Admin' ? 'Dean' : user.role === 'Department Coordinator' ? 'Coord' : user.role === 'Club Representative' ? 'Club' : 'Prof'}
+                            {ROLE_BADGES[account.role] ?? account.title}
                           </span>
                         </div>
                         <div className="font-semibold text-sm text-[#F8FAFC] group-hover:text-[#22D3EE] transition-colors">
-                          {user.role}
+                          {account.title}
                         </div>
                         <div className="text-[11px] text-[#A7B3C9] line-clamp-2 mt-1">
-                          {user.description}
+                          {account.description}
                         </div>
                       </div>
 
                       <div className="mt-3 pt-2.5 border-t border-[rgba(148,163,184,0.12)] flex items-center justify-between text-xs font-mono font-medium text-[#6366F1] group-hover:text-[#22D3EE]">
-                        <span>{isLoading ? 'Entering Console...' : 'Launch as ' + user.role}</span>
+                        <span>{isLoading ? 'Entering Console...' : 'Launch as ' + account.title}</span>
                         <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                       </div>
                     </button>
@@ -324,6 +320,7 @@ export const LoginForm: React.FC = () => {
                 <AnimatePresence>
                   {showManualForm && (
                     <motion.form
+                      method="post"
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
@@ -432,7 +429,7 @@ export const LoginForm: React.FC = () => {
                 </div>
               )}
 
-              <form onSubmit={handleVerifyOtp} className="space-y-6">
+              <form method="post" onSubmit={handleVerifyOtp} className="space-y-6">
                 <div className="flex justify-center gap-2 sm:gap-3">
                   {otpDigits.map((digit, i) => (
                     <input

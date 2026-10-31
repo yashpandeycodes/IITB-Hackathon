@@ -21,6 +21,10 @@ import { useOptionalSessionUser } from '@/components/providers/session-provider'
 import { ROLE_META } from '@/config/roles';
 import { getNavForRole, isNavItemActive } from '@/config/nav';
 import type { Role } from '@/lib/contracts/enums';
+import { useQuery } from '@tanstack/react-query';
+import { apiGet } from '@/lib/api-client';
+import { DashboardSchema } from '@/lib/contracts/dashboard';
+import { formatNavCount } from '@/components/layout/nav-count';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -67,6 +71,15 @@ export const AppShell: React.FC<AppShellProps> = ({
   const currentName = sessionUser?.name ?? userName ?? 'Campus User';
   const roleLabel = ROLE_META[currentRole]?.label ?? 'Admin';
   const navItems = getNavForRole(currentRole);
+
+  const { data: dashboardData } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: () => apiGet('/api/dashboard', DashboardSchema),
+    enabled: !!sessionUser,
+    staleTime: 30_000,
+  });
+
+  const pendingApprovalsCount = dashboardData?.pending_approvals?.total ?? 0;
 
   const handleLogout = async () => {
     try {
@@ -125,6 +138,9 @@ export const AppShell: React.FC<AppShellProps> = ({
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = isNavItemActive(item.href, pathname);
+              const isApprovals = item.href === '/approvals';
+              const showBadge = isApprovals && pendingApprovalsCount > 0;
+
               return (
                 <Link
                   key={item.href}
@@ -139,6 +155,11 @@ export const AppShell: React.FC<AppShellProps> = ({
                     <Icon className={`w-4 h-4 ${isActive ? 'text-[#66E3F0]' : 'text-[#98A6BB]'}`} />
                     <span>{item.label}</span>
                   </span>
+                  {showBadge && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#8279FF] text-white shadow-sm">
+                      {formatNavCount(pendingApprovalsCount)}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -249,6 +270,9 @@ export const AppShell: React.FC<AppShellProps> = ({
                 {navItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = isNavItemActive(item.href, pathname);
+                  const isApprovals = item.href === '/approvals';
+                  const showBadge = isApprovals && pendingApprovalsCount > 0;
+
                   return (
                     <Link
                       key={item.href}
@@ -264,6 +288,11 @@ export const AppShell: React.FC<AppShellProps> = ({
                         <Icon className="w-4 h-4" />
                         <span>{item.label}</span>
                       </span>
+                      {showBadge && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#8279FF] text-white">
+                          {formatNavCount(pendingApprovalsCount)}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
@@ -322,7 +351,11 @@ export const AppShell: React.FC<AppShellProps> = ({
           >
             <CheckCircle2 className="w-4 h-4" />
             <span>Approvals</span>
-            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#8279FF]" />
+            {pendingApprovalsCount > 0 && (
+              <span className="absolute -top-1 -right-1 px-1 min-w-[16px] h-4 rounded-full bg-[#8279FF] text-white text-[9px] font-mono font-bold flex items-center justify-center">
+                {formatNavCount(pendingApprovalsCount)}
+              </span>
+            )}
           </Link>
         ) : (
           <Link

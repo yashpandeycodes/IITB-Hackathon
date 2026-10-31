@@ -1,45 +1,97 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/app-shell';
-import { SPECTRA_BOOKINGS } from '@/lib/dataset/cit-data';
+import { apiGet } from '@/lib/api-client';
+import { SpectraStateSchema, DayCode } from '@/lib/contracts';
+import { useReferenceData } from '@/hooks/use-reference-data';
 import { StatusBadge, CategoryChip } from '@/components/semantic/badges';
-import { Ticket, Filter, Ban, CheckCircle2, ArrowRight } from 'lucide-react';
-import { BookingStatus, DayCode } from '@/lib/contracts';
+import { Ticket, ArrowRight, AlertTriangle } from 'lucide-react';
 import { formatDay } from '@/lib/format';
 
 export default function MyBookingsPage() {
+  const { referenceData, roomName } = useReferenceData();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dayFilter, setDayFilter] = useState<string>('all');
-  const [bookingsList, setBookingsList] = useState(SPECTRA_BOOKINGS);
 
-  const filtered = bookingsList.filter((b) => {
+  // Query actual persisted Spectra decisions from backend
+  const { data: spectraState } = useQuery({
+    queryKey: ['spectra'],
+    queryFn: () => apiGet('/api/spectra', SpectraStateSchema),
+    staleTime: 15_000,
+  });
+
+  // Map decisions by request ID
+  const decisionsMap = useMemo(() => {
+    const map = new Map<string, {
+      decision: string;
+      reason: string;
+      reasonCode?: string;
+      assignedRoom?: string;
+      day?: DayCode;
+      period?: string;
+    }>();
+
+    if (spectraState?.decisions) {
+      for (const d of spectraState.decisions) {
+        map.set(d.request_id, {
+          decision: d.status,
+          reason: d.reason,
+          reasonCode: d.reason_code,
+          assignedRoom: d.room_id,
+          day: d.day,
+          period: d.start_period && d.end_period ? `${d.start_period}–${d.end_period}` : undefined,
+        });
+      }
+    }
+    return map;
+  }, [spectraState]);
+
+  // Combine reference requests with backend decisions
+  const bookings = useMemo(() => {
+    return referenceData.booking_requests.map((req) => {
+      const decision = decisionsMap.get(req.id);
+      const firstWindow = req.windows[0];
+      const day = decision?.day ?? firstWindow?.day ?? 'MON';
+      const periodRange = decision?.period ?? (firstWindow ? `P${firstWindow.from_period}–P${firstWindow.to_period}` : '');
+
+      let status: 'approved' | 'alternative' | 'rejected' | 'pending' | 'cancelled' = 'pending';
+      if (req.cancelled) {
+        status = 'cancelled';
+      } else if (decision?.decision === 'approved') {
+        status = 'approved';
+      } else if (decision?.decision === 'alternative_offered') {
+        status = 'alternative';
+      } else if (decision?.decision === 'rejected') {
+        status = 'rejected';
+      }
+
+      return {
+        id: req.id,
+        title: req.title,
+        requesterName: req.requester,
+        requesterRole: req.role,
+        requestedCategory: req.requested_category,
+        effectiveCategory: req.effective_category,
+        isCapped: req.category_capped,
+        day,
+        periodRange,
+        requestedRoom: req.requested_room ? roomName(req.requested_room) : 'Any suitable',
+        assignedRoom: decision?.assignedRoom ? roomName(decision.assignedRoom) : null,
+        status,
+        decisionReason: decision?.reason ?? 'Pending Spectra decision engine run.',
+        decisionReasonCode: decision?.reasonCode,
+      };
+    });
+  }, [referenceData.booking_requests, decisionsMap, roomName]);
+
+  const filtered = bookings.filter((b) => {
     if (statusFilter !== 'all' && b.status !== statusFilter) return false;
     if (dayFilter !== 'all' && b.day !== dayFilter) return false;
     return true;
   });
-
-  const handleCancelBooking = (id: string) => {
-    setBookingsList((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, status: 'cancelled' as BookingStatus } : b))
-    );
-  };
-
-  const handleAcceptAlternative = (id: string) => {
-    setBookingsList((prev) =>
-      prev.map((b) =>
-        b.id === id
-          ? {
-              ...b,
-              status: 'approved' as BookingStatus,
-              assignedRoomId: b.alternativeOffer?.roomId || b.assignedRoomId,
-              assignedRoomName: b.alternativeOffer?.roomName || b.assignedRoomName,
-            }
-          : b
-      )
-    );
-  };
 
   return (
     <AppShell
@@ -47,6 +99,17 @@ export default function MyBookingsPage() {
       breadcrumbs={[{ label: 'Bookings' }]}
     >
       <div className="space-y-6 max-w-7xl mx-auto">
+        {/* Preview Banner */}
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs font-mono flex items-start gap-3">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+          <div>
+            <div className="font-bold text-amber-300">Preview — not connected yet</div>
+            <div className="text-[11px] text-amber-200/80 mt-0.5">
+              Live booking submission, user request history, and cancellation endpoints will be integrated in Phase 4. Below are the institutional Spectra Week 7 booking requests from the active dataset.
+            </div>
+          </div>
+        </div>
+
         {/* Header & Filter Controls (§5.6) */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-[#0B1220] border border-white/10 shadow-sm">
           <div>
@@ -66,6 +129,7 @@ export default function MyBookingsPage() {
               <option value="approved">Approved</option>
               <option value="alternative">Alternative Offered</option>
               <option value="rejected">Rejected</option>
+              <option value="pending">Pending Run</option>
               <option value="cancelled">Cancelled</option>
             </select>
 
@@ -107,7 +171,7 @@ export default function MyBookingsPage() {
             </Link>
           </div>
         ) : (
-          /* Bookings Table (Desktop) / Cards (Mobile) (§5.6) */
+          /* Bookings Table (§5.6) */
           <div className="overflow-x-auto rounded-3xl bg-[#0B1220] border border-white/10 shadow-sm">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -116,7 +180,7 @@ export default function MyBookingsPage() {
                   <th className="p-3.5">When & Where</th>
                   <th className="p-3.5">Category</th>
                   <th className="p-3.5">Status</th>
-                  <th className="p-3.5">Reason (Always Visible)</th>
+                  <th className="p-3.5">Reason & Details</th>
                   <th className="p-3.5 text-right">Actions</th>
                 </tr>
               </thead>
@@ -127,17 +191,17 @@ export default function MyBookingsPage() {
                     <td className="p-3.5 align-top">
                       <div className="font-bold text-white text-sm">{item.title}</div>
                       <div className="text-[10px] text-[#98A6BB] mt-0.5">
-                        {item.id} · Req by {item.requesterName}
+                        {item.id} · Req by {item.requesterName} ({item.requesterRole})
                       </div>
                     </td>
 
                     {/* When & Where */}
                     <td className="p-3.5 align-top whitespace-nowrap">
                       <div className="text-white font-bold">
-                        {formatDay(item.day)} {item.periodStart}–{item.periodEnd}
+                        {formatDay(item.day)} {item.periodRange}
                       </div>
                       <div className="text-[#66E3F0] text-[11px]">
-                        {item.assignedRoomName || item.requestedRoomId}
+                        {item.assignedRoom ? `Assigned: ${item.assignedRoom}` : `Req: ${item.requestedRoom}`}
                       </div>
                     </td>
 
@@ -146,7 +210,7 @@ export default function MyBookingsPage() {
                       <CategoryChip
                         category={item.effectiveCategory}
                         isCapped={item.isCapped}
-                        originalClaim={item.originalClaim}
+                        originalClaim={item.requestedCategory}
                       />
                     </td>
 
@@ -155,34 +219,21 @@ export default function MyBookingsPage() {
                       <StatusBadge status={item.status} />
                     </td>
 
-                    {/* Decision Reason (Always Visible per §5.6) */}
+                    {/* Decision Reason */}
                     <td className="p-3.5 align-top max-w-xs text-[#cbd5e1] text-[11px] leading-relaxed">
-                      {item.decisionReason}
-                      {item.alternativeOffer && (
-                        <div className="mt-1 text-amber-300 font-bold">
-                          Alternative slot: {item.alternativeOffer.day} {item.alternativeOffer.roomId}
+                      <div>{item.decisionReason}</div>
+                      {item.decisionReasonCode && (
+                        <div className="mt-1 text-[10px] font-mono text-[#98A6BB]">
+                          Code: <code>{item.decisionReasonCode}</code>
                         </div>
                       )}
                     </td>
 
                     {/* Actions */}
                     <td className="p-3.5 align-top text-right whitespace-nowrap">
-                      {item.status === 'alternative' && (
-                        <button
-                          onClick={() => handleAcceptAlternative(item.id)}
-                          className="mr-2 px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-[10px] border border-emerald-500/30 transition-colors"
-                        >
-                          Accept Alt
-                        </button>
-                      )}
-                      {item.status !== 'cancelled' && item.status !== 'rejected' && (
-                        <button
-                          onClick={() => handleCancelBooking(item.id)}
-                          className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-rose-500/20 text-rose-300 text-[10px] border border-white/10 hover:border-rose-500/30 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      )}
+                      <span className="text-[10px] text-[#98A6BB]/60 font-mono italic">
+                        Preview only
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -194,4 +245,3 @@ export default function MyBookingsPage() {
     </AppShell>
   );
 }
-
