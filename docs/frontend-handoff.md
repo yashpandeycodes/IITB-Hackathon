@@ -1,6 +1,6 @@
 # Frontend Handoff
 
-> For the frontend teammates. **Lakshay owns wiring the screens to the API**; the step-by-step guide is [integration-guide.md](./integration-guide.md). The backend is being built phase by phase on the `Aryan` branch. Phases 2–3 are done (engine checker, data layer, auth, read APIs; timetable generation, exams, Spectra decisions, export and the validator report); bookings, the AI layer and rescheduling come in Phases 4–5. This page lists what the backend provides now and the items found in review that live in frontend files. The end-of-Phase-3 review of the merged frontend (what's wired, what's fake, what to fix first) is in [project-status.md](./project-status.md). API details: [api.md](./api.md). Data shapes: `src/lib/contracts` (import types from `@/lib/contracts`).
+> For the frontend teammates. **Lakshay owns wiring the screens to the API**; the step-by-step guide is [integration-guide.md](./integration-guide.md). The backend is being built phase by phase on the `Aryan` branch. Phases 2–4 are done (engine checker, data layer, auth, read APIs; timetable generation, exams, Spectra decisions, export and the validator report; the plain-language booking parser and the bookings API with approvals); rescheduling, change approvals and the assistant come in Phase 5. This page lists what the backend provides now and the items found in review that live in frontend files. The end-of-Phase-3 review of the merged frontend (what's wired, what's fake, what to fix first) is in [project-status.md](./project-status.md). API details: [api.md](./api.md). Data shapes: `src/lib/contracts` (import types from `@/lib/contracts`).
 
 ## Working on the shared layout
 
@@ -11,7 +11,7 @@
 
 ## Backend endpoints you can use now
 
-_As of Phase 3 + integration support (auth, data, read views, generation, exams, Spectra, export, reference data). Request/response shapes and examples: [api.md](./api.md)._
+_As of Phase 4 (auth, data, read views, generation, exams, Spectra, export, reference data, plain-language booking, bookings and approvals). Request/response shapes and examples: [api.md](./api.md)._
 
 | UI | Endpoint | Notes |
 |---|---|---|
@@ -32,6 +32,10 @@ _As of Phase 3 + integration support (auth, data, read views, generation, exams,
 | Admin › Timetable versions (history, activate) | `GET /api/timetable/versions` · `POST /api/timetable/versions/{id}/activate` | Admin only. The list has no assignments (`assignment_count` instead). Activation re-checks the version and re-runs Spectra decisions; it returns `{version, spectra}` (booking score, approved/alternatives/rejected counts). `409 STALE_VERSION` if the version belongs to another dataset. |
 | Exams page | `GET /api/exams` (any role) · `POST /api/exams/generate` (admin) | `data` = the active `ExamSchedule` (`exams[]`: `{exam_id, day, session: "AM"\|"PM", rooms[]}`, `penalty`) or `null` before one exists. Reset generates one automatically. |
 | Spectra › **Run decisions** | `POST /api/spectra/run` | Admin only. Re-decides every Week-7 request against the active timetable. `data` = summary (`booking_score` / `booking_score_max_if_all_approved`, counts, `priority_inversions`) + `decisions[]` (each with `status`, slot, `reason`, `reason_code`, `effective_category`, `category_capped` → show a "category capped" badge, `requires_admin_approval`) + `overrides[]` (sessions moved for Week 7). `404` before a timetable exists. The Spectra-week timetable view (`week=spectra`) already shows the results. |
+| New booking: describe it in English/Hinglish | `POST /api/bookings/parse` `{"text": "…"}` | Editable draft + assumptions + one follow-up question + category (capped notice) + room note + what the engine would decide now. Works with AI off. See [integration-guide.md](./integration-guide.md) §2. |
+| Submit / list / cancel bookings | `POST /api/bookings`, `GET /api/bookings`, `POST /api/bookings/{id}/cancel` | Decided at once (or waiting for approval); `bumped` lists earlier bookings it moved. |
+| Booking detail + explanation | `GET /api/bookings/{id}` | `explanation.text` explains the decision from the engine's facts. |
+| Approve / reject bookings | `GET /api/bookings?scope=approvals`, `POST /api/bookings/{id}/decide` | Admin: class moves and labs; coordinator: own department's labs; never your own request. |
 | Spectra board for every role | `GET /api/spectra` | Stored decisions (reason, `reason_code`, `category_capped`) + overrides + the booking score for the active timetable; approver ids only for admins. Empty before generation. |
 | Names for every screen (rooms, faculty, student groups, courses, exams, requests) and pickers | `GET /api/reference` | Fetch once (`staleTime: Infinity`), refetch after reset/import; replaces the names and lists in `src/lib/dataset/cit-data.ts`. |
 | Who is signed in, in a server layout | `getSessionUser()` from `@/lib/auth/server-session` | Server-only; returns `User \| null` with the logout check. On `null`, redirect to `SESSION_EXPIRED_PATH` (`GET /api/auth/session-expired`, clears the cookie, then `/login`). See the guide §1.2. |

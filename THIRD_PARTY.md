@@ -6,6 +6,7 @@ Versions are the installed versions from `package-lock.json` / `node_modules`. L
 
 | Package                    | Version | License      | Purpose                                                              |
 | -------------------------- | ------- | ------------ | -------------------------------------------------------------------- |
+| `@google/genai`            | 2.32.0  | Apache-2.0   | Official Google Gemini SDK (booking parser, explanation phrasing)    |
 | `@hookform/resolvers`      | 6.0.2   | MIT          | Connects Zod schemas to react-hook-form (`zodResolver`)              |
 | `@tanstack/react-query`    | 5.105.0 | MIT          | Server-state fetching, caching and mutations in the UI               |
 | `bcryptjs`                 | 3.0.3   | BSD-3-Clause | Password hashing for user accounts                                   |

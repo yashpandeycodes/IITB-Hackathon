@@ -179,10 +179,20 @@ export function GeneratePanel() {
 
 If the user leaves mid-run, the server still finishes and saves the run (and releases the lock), so refetch `GET /api/timetable/versions` rather than generating again.
 
-**Screens whose backend isn't built yet** (bookings submit/list/parse in Phase 4; approvals, changes, assistant and explanations in Phase 5):
+**Bookings (live since Phase 4):**
+
+| Screen | Call | Contract | Notes |
+|---|---|---|---|
+| **New booking › Describe it** | `POST /api/bookings/parse` `{ text }` | `ParseBookingResult` | Fill the form from `draft`; show `assumptions` as chips and `follow_up` as the question; show `category` (capped notice when `capped`), `requested_room.note`, `problems` next to their fields, and `preview` ("If you submit now: approved in LH-1 …", plus "needs the CSE coordinator's approval" from `preview.approval`). Works with AI off (`source: "rules"`). Never show a decision from the preview as final. |
+| **New booking › Form + Submit** | `POST /api/bookings` | `CreateBookingRequest` → `CreateBookingResult` | Build the form on `BookingDraftSchema` (react-hook-form + zod). Send `source: "nl"` and `ai_log_id: log_id` when the draft came from the parser. Show each booking's decision and reason; `bumped` lists earlier bookings this one moved. `400` field errors come in `error.details.fieldErrors` (+ `suggestion`). Hide the compulsory-groups field for clubs (they may name none). `409` with `details.limit`: 20 open requests already. |
+| **My bookings** | `GET /api/bookings` (`scope=mine`) | `BookingView[]` | Show state (`submitted`, `pending_approval` "waiting for approval by …", `decided`, `cancelled`), decision and reason. Cancel: `POST /api/bookings/{id}/cancel`. |
+| **Booking detail** | `GET /api/bookings/{id}` | `BookingDetail` | `explanation.text` ("why this room / why not"). `404` also means "not yours to see". |
+| **Week-7 views** | `GET /api/timetable?week=spectra`, `GET /api/rooms/available` | `TimetableView`, `RoomAvailability[]` | Show `pending_approval` bookings and moved classes as tentative. Another user's live booking arrives titled "Booked". |
+| **Approvals › Bookings** | `GET /api/bookings?scope=approvals`; `POST /api/bookings/{id}/decide` `{ decision, comment? }` | `BookingView` | Admin: class moves and labs; coordinator: their department's labs. Never the user's own (`403 SELF_APPROVAL`). |
+
+**Screens whose backend isn't built yet** (changes, change approvals, the assistant and session explanations in Phase 5):
 - Show a clear "Preview, not connected yet" banner.
-- Never show a decision, "applied" or "verified" message the server didn't send.
-- The manual booking form can already use `BookingDraftSchema` (react-hook-form + zod) and check room availability with `GET /api/rooms/available`.
+- Never show an "applied" or "verified" message the server didn't send.
 
 ## 3. Errors you'll meet
 
@@ -191,11 +201,12 @@ If the user leaves mid-run, the server still finishes and saves the run (and rel
 | `401 UNAUTHENTICATED` | Signed out or token revoked | Go to `/api/auth/session-expired?redirect=…` (`SESSION_EXPIRED_PATH`) |
 | `403 FORBIDDEN` | Role not allowed | Hide the action for that role |
 | `404 NOT_FOUND` | Unknown id; no active timetable for Spectra runs | Empty state or `notFound()` |
-| `409 CONFLICT` | Another reset, import or run is in progress; or (export) Spectra decisions missing | "Busy, try again"; run Spectra |
+| `403 SELF_APPROVAL` | Approving or rejecting your own booking | Hide approve/reject on the user's own requests |
+| `409 CONFLICT` | Another reset, import, run or booking change is in progress; (export) Spectra decisions missing; a booking write that can't apply (20 open requests already, cancelling a dataset request, deciding one that isn't pending) | "Busy, try again"; run Spectra; show the message |
 | `409 HARD_CONSTRAINT` | Export or activation would break a rule; `details` = violations | List them (`rule`, `detail`) |
 | `409 STALE_VERSION` | Version built for another dataset | "Generate a new timetable" |
 | `422 INFEASIBLE` | Can't place everything; `details.unplaced`, `details.violations` | Say what couldn't be placed |
-| `429 RATE_LIMITED` | Too many runs; `details.retry_after_seconds` | Disable the button for that long |
+| `429 RATE_LIMITED` | Too many runs, parses or booking changes; `details.retry_after_seconds` | Disable the button for that long |
 
 ## 4. Remove the fakes (checklist)
 

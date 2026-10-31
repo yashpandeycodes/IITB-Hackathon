@@ -1,6 +1,6 @@
 # API reference
 
-> The routes that exist today (end of Phase 3: auth, data, read views, timetable generation, exams, Spectra decisions, export and the validator report). Planned routes and their shapes are in [architecture.md §6](./architecture.md#6-api-catalogue). Types come from `src/lib/contracts` (`import type { User, Dashboard } from "@/lib/contracts"`). Example responses below were captured from a local server on the bundled dataset; long arrays are trimmed.
+> The routes that exist today (end of Phase 4: auth, data, read views, timetable generation, exams, Spectra decisions, export, the validator report, plain-language booking parsing and the bookings API). Planned routes and their shapes are in [architecture.md §6](./architecture.md#6-api-catalogue). Types come from `src/lib/contracts` (`import type { User, Dashboard } from "@/lib/contracts"`). Example responses below were captured from a local server on the bundled dataset; long arrays are trimmed.
 
 ## Contents
 
@@ -89,17 +89,17 @@ All codes are in `src/lib/contracts/api.ts` (`ErrorCode`, `ERROR_HTTP_STATUS`).
 |---|---|---|---|
 | `VALIDATION_ERROR` | 400 | Body or query failed validation, wrong content type, body too large, bad dataset file (incl. dangling references), wrong/expired OTP, OTP step from another browser | every route with input |
 | `UNAUTHENTICATED` | 401 | No valid session (missing, expired, logged out, account gone), or wrong email/password | proxy, every data route, `me`, `login` |
-| `FORBIDDEN` | 403 | Role not allowed (`details: { role, allowed }`); Faculty or staff role at sign-up; unverified account at login (`requiresOtp`); demo sign-in turned off; cross-origin mutation | admin routes, `PATCH /settings`, `signup`, `login`, `demo-login`, proxy |
-| `SELF_APPROVAL` | 403 | Approver is the requester | not yet (Phase 5 approvals) |
-| `NOT_FOUND` | 404 | Unknown id; no active timetable yet | `GET /timetable`, `versions/:id/activate`, `spectra/run` |
+| `FORBIDDEN` | 403 | Role not allowed (`details: { role, allowed }`); Faculty or staff role at sign-up; unverified account at login (`requiresOtp`); demo sign-in turned off; cross-origin mutation | admin routes, `PATCH /settings`, `signup`, `login`, `demo-login`, proxy, `GET /bookings?scope=all`, `bookings/:id/cancel` (not owner/admin), `bookings/:id/decide` (wrong approver) |
+| `SELF_APPROVAL` | 403 | Approver is the requester | `bookings/:id/decide` (Phase 5: change approvals too) |
+| `NOT_FOUND` | 404 | Unknown id (or a booking request you may not see); no active timetable yet | `GET /timetable`, `versions/:id/activate`, `spectra/run`, `GET /bookings/:id`, `bookings/:id/cancel`, `bookings/:id/decide` |
 | `HARD_CONSTRAINT` | 409 | Engine found violations (`details` = `Violation[]`) | `export`, `versions/:id/activate`, `generate` with `activate` |
 | `STALE_VERSION` | 409 | Timetable built for another dataset; later also a proposal built on a timetable that is no longer active | `versions/:id/activate` (Phase 5: approvals) |
 | `EMAIL_TAKEN` | 409 | A verified account already uses this email | `signup` |
-| `CONFLICT` | 409 | Another reset, import or schedule run holds the dataset lock; a sign-up for this email is waiting for verification in another browser | `admin/reset`, `admin/dataset`, `timetable/generate`, `versions/:id/activate`, `exams/generate`, `spectra/run`, `signup` |
+| `CONFLICT` | 409 | Another reset, import, schedule run or booking change holds the dataset lock; a sign-up for this email is waiting for verification in another browser; a booking write that can't apply (open-request cap reached, no imported dataset, cancelling a dataset request, deciding one that isn't pending) | `admin/reset`, `admin/dataset`, `timetable/generate`, `versions/:id/activate`, `exams/generate`, `spectra/run`, `signup`, `POST /bookings`, `bookings/:id/cancel`, `bookings/:id/decide` |
 | `INFEASIBLE` | 422 | No valid schedule exists (`details`: unplaced items + blocking violations) | `timetable/generate`, `exams/generate` |
-| `RATE_LIMITED` | 429 | Too many attempts; `details.retry_after_seconds` and a `Retry-After` header | `login`, `signup`, `verify-otp`, `resend-otp`, `demo-login`, schedule runs (`generate`, `activate`, `exams/generate`, `spectra/run`) |
+| `RATE_LIMITED` | 429 | Too many attempts; `details.retry_after_seconds` and a `Retry-After` header | `login`, `signup`, `verify-otp`, `resend-otp`, `demo-login`, schedule runs (`generate`, `activate`, `exams/generate`, `spectra/run`), `bookings/parse`, booking writes |
 | `INTERNAL_ERROR` | 500 | Unexpected failure; generic message, details never exposed | any |
-| `LLM_UNAVAILABLE` | 503 | Gemini failed; switch to the manual form | not yet (Phase 4) |
+| `LLM_UNAVAILABLE` | 503 | Gemini failed; switch to the manual form | not used: the parser falls back to the rule parser instead (`fallback_reason`) |
 | `MAIL_UNAVAILABLE` | 503 | The verification email can't be sent: mail not configured (production), Brevo failed, or the global hourly cap is reached (with `Retry-After`) | `signup`, `resend-otp`, `login` (unverified) |
 
 ## Rate limits
@@ -121,6 +121,10 @@ Fixed windows held in memory per server instance (they reset on restart, and eac
 | 30 demo sign-ins / 10 min | IP | `demo-login` (standard envelope) |
 | 30 schedule runs / 10 min | admin user | `timetable/generate`, `versions/:id/activate`, `exams/generate`, `spectra/run` together (standard envelope). The demo admin is shared, so this caps the public deployment as a whole. |
 | 60 schedule runs / 10 min | IP | same routes |
+| 30 parses / 10 min | user | `bookings/parse` (each may cost an LLM call; failed validation counts too) |
+| 120 parses / 10 min | IP | `bookings/parse` |
+| 30 booking writes / 10 min | user | `POST /api/bookings`, `bookings/:id/cancel`, `bookings/:id/decide` together |
+| 120 booking writes / 10 min | IP | same routes |
 
 Example `429` (account-form shape):
 
@@ -161,6 +165,12 @@ Example `429` (account-form shape):
 | POST | [`/api/spectra/run`](#post-apispectrarun) | admin | → `SpectraRunResult` |
 | GET | [`/api/spectra`](#get-apispectra) | any signed-in | → `SpectraState` |
 | GET | [`/api/reference`](#get-apireference) | any signed-in | → `ReferenceData` |
+| POST | [`/api/bookings/parse`](#post-apibookingsparse) | any signed-in | `{ text }` → `ParseBookingResult` |
+| GET | [`/api/bookings`](#get-apibookings) | any signed-in | `?scope=mine\|all\|approvals&state=` → `BookingView[]` |
+| POST | [`/api/bookings`](#post-apibookings) | any signed-in | `CreateBookingRequest` → `CreateBookingResult` (201) |
+| GET | [`/api/bookings/:id`](#get-apibookingsid) | owner, admin, approver | → `BookingDetail` |
+| POST | [`/api/bookings/:id/cancel`](#post-apibookingsidcancel) | owner, admin | → `BookingView` |
+| POST | [`/api/bookings/:id/decide`](#post-apibookingsiddecide) | approver (never the requester) | `{ decision, comment? }` → `BookingView` |
 | GET | [`/api/export`](#get-apiexport) | admin | `?file=schedule` → `schedule.json` (file download) |
 | GET | [`/api/validate`](#get-apivalidate) | admin | → `ValidatorReport` |
 
@@ -360,9 +370,10 @@ One student group's, faculty member's or room's week. Every role can read every 
 ```ts
 { view, id, week, version_id: string | null,
   cells: TimetableCell[],          // { session_id, course_id, kind, groups, faculty_id, room_id, day, start_period,
-                                   //   duration, basket_slot, size, override: { displaced_by } | null }
-  bookings: TimetableBookingCell[] // { request_id, title, room_id, day, start_period, end_period (inclusive),
-                                   //   status, effective_category }
+                                   //   duration, basket_slot, size,
+                                   //   override: { displaced_by, pending_approval } | null }
+  bookings: TimetableBookingCell[] // { request_id, title, pending_approval, room_id, day, start_period,
+                                   //   end_period (inclusive), status, effective_category }
 }
 ```
 
@@ -377,7 +388,9 @@ One student group's, faculty member's or room's week. Every role can read every 
 
 Notes:
 - **No timetable yet is not an error:** `version_id: null` with empty `cells` (and `bookings`), e.g. right after a dataset import (a reset generates one). Show an empty state.
-- `week=spectra` applies the Week-7 session overrides (a moved cell has `override.displaced_by`) and adds bookings that hold a room (`approved` or `alternative_offered`; cancelled requests skipped). Room view matches bookings by room, group view by the request's `mandatory_for_groups`, faculty view by requester name.
+- `week=spectra` applies the Week-7 session overrides (a moved cell has `override.displaced_by`) and adds bookings that hold a room (`approved` or `alternative_offered`; cancelled requests skipped). Room view matches bookings by room, group view by the request's `mandatory_for_groups`; the faculty view matches dataset requests by requester name and live requests by the account that filed them (the faculty member's own login), never by name.
+- **Pending approvals:** a booking still waiting for an approver has `pending_approval: true`, and so does `override` on a class it moves (the move isn't confirmed yet). Show them as tentative.
+- **Privacy:** another user's live request shows `title: "Booked"` unless you're an admin or its owner. Dataset requests keep their titles.
 - Cells and bookings are sorted by day, then start period.
 
 ### POST /api/timetable/check
@@ -420,7 +433,7 @@ Rooms that match the filters, with what occupies each one in the period range. T
 | `types` | comma list or repeated key: `classroom`, `lecture_hall`, `auditorium`, `seminar_hall`, `outdoor`, `lab_cs`, `lab_elec`, `lab_phy`, `workshop`, `lab_civil` | optional; any of them |
 | `accessible` | `true` / `false` | optional |
 
-`data` is `RoomAvailability[]`: `{ room_id, free, busy_with: [{ kind: "session" | "booking" | "unavailable", id, label }] }`.
+`data` is `RoomAvailability[]`: `{ room_id, free, busy_with: [{ kind: "session" | "booking" | "unavailable", id, label, pending_approval }] }`.
 
 ```json
 // ?day=THU&from_period=10&to_period=12&min_capacity=150&needs=stage,pa_system
@@ -445,7 +458,8 @@ Rooms that match the filters, with what occupies each one in the period range. T
 Notes:
 - Every matching room is returned: free rooms first, then by capacity (smallest first), then id.
 - In the bundled dataset every room allows `event`, so the default lists all 27; `use=lab` lists only the labs and the workshop.
-- `busy_with` ids: a session id (label like `CS202 lecture · CSE-2`, with `(moved for <request>)` when overridden), a booking request id (label = request title), or the room id for maintenance (label = reason).
+- `busy_with` ids: a session id (label like `CS202 lecture · CSE-2`, with `(moved for <request>)` when overridden), a booking request id (label = request title, or "Booked" for another user's live request unless you're an admin or its owner), or the room id for maintenance (label = reason).
+- `pending_approval` is true for a booking waiting for an approver and for a session moved there for one; false otherwise.
 - Unknown `needs` / `types` values aren't rejected; they simply match no room.
 - Before any timetable is active (e.g. right after an import), only room unavailability shows up as busy.
 
@@ -674,9 +688,10 @@ Re-decides every Week-7 booking request against the active timetable: priority o
 
 Notes:
 - `reason_code` is one of `ReasonCode` (`src/lib/contracts/booking.ts`); `category_capped` is true when the claimed category was lowered to the requester's role cap (show a "category capped" badge); `requires_admin_approval` is true when the decision moves sessions (`overrides` then lists them, with `displaced_by`).
-- `approved_by` is `null` for plain engine decisions; for a decision that moves sessions it is the admin whose run applied the Week-7 moves (the overrides carry the same `approved_by`).
+- `approved_by` is `null` for plain engine decisions; for a dataset decision that moves sessions it is the admin whose run applied the Week-7 moves (the overrides carry the same `approved_by`); a later non-admin run keeps it only while the slot and the moves are unchanged. For a live booking it is the approver who accepted that slot.
 - The summary fields are the validator's booking stats, with the same names as `ValidatorReport.bookings`.
-- Only dataset requests are decided in Phase 3, with the dataset's own `priority_order` (the editable `settings.priority_order` doesn't change exported decisions).
+- Every non-draft request is decided (dataset and live, see [POST /api/bookings](#post-apibookings)), with the dataset's own `priority_order` (the editable `settings.priority_order` doesn't change decisions). Cancelled live requests get no decision. The summary totals cover dataset requests only, like `schedule.json`.
+- **Export safeguard:** `schedule.json` never shows a live request's class moves. When a run would leave the export inconsistent, it is repeated with class moves switched off for those live requests (they get another room, an alternative or a rejection). The same applies to every booking write and to activation.
 - Rejected decisions carry no slot fields.
 
 ### GET /api/spectra
@@ -708,13 +723,13 @@ The stored Spectra decisions of the active timetable, readable by every role (th
 ```
 
 Notes:
-- **Admins only** see `decided_by` and `approved_by` on decisions and `approved_by` on overrides; for other roles those keys are absent. Other roles also only see decisions for the dataset's requests (live users' requests, from Phase 4, stay with their owners and admins). The response is `Cache-Control: no-store`.
+- **Admins only** see `decided_by` and `approved_by` on decisions and `approved_by` on overrides; for other roles those keys are absent. Other roles also only see decisions for the dataset's requests (live users' requests stay with their owners and admins, through `GET /api/bookings`). The response is `Cache-Control: no-store`.
 - Before a timetable is active: `{ "timetable_version": null, "summary": null, "decisions": [], "overrides": [] }`. With an active timetable but no decisions yet, `timetable_version` is set and the rest is null/empty.
 - Request titles, requesters and windows come from `GET /api/reference` (`booking_requests`).
 
 ### GET /api/reference
 
-Everything the screens need to label ids and fill pickers, for the active dataset: calendar (with period clock times), rooms, room maintenance, faculty names, student groups, courses, sessions, exams and the Week-7 requests. Lists keep dataset order. Dataset-origin requests only (live user requests come from the bookings API in Phase 4).
+Everything the screens need to label ids and fill pickers, for the active dataset: calendar (with period clock times), rooms, room maintenance, faculty names, student groups, courses, sessions, exams and the Week-7 requests. Lists keep dataset order. Dataset-origin requests only (live user requests come from `GET /api/bookings`).
 
 | | |
 |---|---|
@@ -754,6 +769,136 @@ Notes:
 - Fetch it once per session (`staleTime: Infinity`) and refetch after a reset or dataset import.
 - `effective_category` is the category after the requester's role cap (what priority uses). Show a "category capped" badge when `category_capped` is true (the same rule as the decisions' `category_capped`: a known claim that the cap lowered). `submitted_at` breaks ties between requests of the same effective category (earlier wins).
 - Keys keep the dataset's names (`student_groups`, as in `cit_public.json`). The response is `Cache-Control: no-store`.
+
+### POST /api/bookings/parse
+
+Turns an English or Hinglish request into an editable draft and shows what the engine would decide for it right now. Nothing is stored except one `ai_logs` entry. The LLM (Gemini, when on) only extracts fields; without a key, with `LLM_ENABLED=false` or the admin's LLM toggle off, or if Gemini fails, the offline rule parser does the same job (`source: "rules"`; `fallback_reason` is `timeout`, `invalid_output` or `llm_error` when AI was on, and the detail stays in `ai_logs`).
+
+| | |
+|---|---|
+| Who | any signed-in user |
+| Body | `{ "text": string }`: trimmed, 1–2000 characters, strict; body ≤ 8 KB |
+| `data` | `ParseBookingResult` (`src/lib/contracts/ai.ts`) |
+| Errors | `400 VALIDATION_ERROR` (blank text, unknown field, not JSON, over 8 KB: `details.max_bytes`) · `401` · `429 RATE_LIMITED` |
+
+```json
+{ "ok": true, "data": {
+  "draft": { "title": "Quiz prelims", "attendance": 140, "duration_periods": 2,
+    "windows": [ { "day": "THU", "from_period": 10, "to_period": 11 } ],
+    "room_types": ["seminar_hall", "lecture_hall"], "needs": ["pa_system", "projector"],
+    "requested_room": "SH-1", "mandatory_for_groups": [], "repeat_days": [],
+    "assumptions": ["Room type from 140 people and needs (pa_system, projector): seminar_hall, lecture_hall"],
+    "follow_up": null, "missing": [] },
+  "source": "rules", "model": null, "ai_enabled": false, "fallback_reason": null,
+  "category": { "claimed": "institute_event", "effective": "club_event", "capped": true },
+  "requested_room": { "text": "SH-1", "room_id": "SH-1", "suggestion": null, "note": null },
+  "conditions": [], "confidence": 0.97, "problems": [],
+  "preview": { "status": "approved", "reason_code": "ROOM_SWAPPED_IN_WINDOW",
+    "reason": "SH-1 is held by BR-06 (club event, submitted earlier). LH-1 has pa_system and projector and is free inside your window, THU P10–P11 (18:00–20:00).",
+    "room_id": "LH-1", "day": "THU", "start_period": 10, "end_period": 11,
+    "approval": { "needed": false, "approver_role": null, "department": null } },
+  "log_id": "AI-6ae63d75276bf98828c9eaef" } }
+```
+
+(A club rep's text "Quiz prelims Thursday 6 to 8 pm, 140 people, SH-1, projector and mic. This is an official Spectra event so mark it institute level.", AI off, captured after a reset.)
+
+Notes:
+- `draft.missing` lists what the form still needs (`title`, `attendance`, `duration_periods`, `windows`, `room_types`; `duration_periods` also when the length doesn't fit the window); `draft.follow_up` is the one question to ask (e.g. "How long do you need it: 1, 2 or 3 hours?"). `preview` is `null` while anything is missing, while `problems` isn't empty, or when no timetable is active.
+- `problems` lists why submitting the draft as it is would be refused, with the same `field` and message as the `400` from `POST /api/bookings`: e.g. `{ "field": "duration_periods", "message": "A 2-period booking doesn't fit in any window (the longest is 1 period)." }`, an unknown room, or compulsory groups the user may not name. Show them next to the fields.
+- `draft.assumptions` are chips to show and let the user correct (e.g. `'kal' read as tomorrow (TUE)`, `'afternoon' read as 14:00–18:00 (P6–P9)`, `Attendance about 450 (approximate)`).
+- **Category never comes from the text**: a submitted booking ranks at the requester's role cap. `category.claimed` reports what the text asked for and `capped` is true when that was above the cap (show a "category capped" notice).
+- `requested_room.note` explains an unknown or unsuitable named room ("LHC-5 doesn't exist; did you mean LH-5? It has no pa_system.", "SH-2 isn't wheelchair accessible. SH-1 (Seminar Hall 1) has everything you asked for.") and `suggestion` is a room id that exists.
+- `preview` is what the engine would decide if this draft were submitted now: the same engine input and export safeguard as a submission, and the draft ranks after every request already filed. A series is decided whole; the preview shows its first day. `preview.approval` says who would have to approve it (e.g. `{ "needed": true, "approver_role": "department_coordinator", "department": "CSE" }` for CS-LAB-1). Nothing is held.
+- Day ranges ("Mon-Fri", "somvar se budhvar tak") become one window plus `repeat_days` (a series), with a chip.
+- Pass `log_id` as `ai_log_id` to `POST /api/bookings` so the booking records where its draft came from.
+
+### GET /api/bookings
+
+| | |
+|---|---|
+| Who | any signed-in user |
+| Query | `scope=mine` (default: the user's own requests) · `all` (admin only) · `approvals` (requests waiting for this user's approval: admin sees class moves and labs; a coordinator their department's labs; never their own; faculty and club get `[]`). Optional `state` (`submitted`, `pending_approval`, `decided`, `cancelled`). |
+| `data` | `BookingView[]` = `{ request, decision, approval }` in submission order |
+| Errors | `400` (bad query) · `401` · `403` (`scope=all` for a non-admin) |
+
+`decision` is the request's decision for the active timetable (`null` before one exists, and for cancelled live requests). `approval` = `{ needed, approver_role: "admin" \| "department_coordinator" \| null, department }`. Approver ids (`decided_by`, `approved_by` on decisions; `request.approval.approved_by` and `request.rejection.rejected_by`) are user ids for admins only; other roles see the approver's role label there ("Admin", "CSE Department Coordinator").
+
+### POST /api/bookings
+
+Submits a booking. The engine immediately re-decides every Week-7 request (dataset and live) in priority order, so a higher-priority submission can move an earlier booking (reported in `bumped`).
+
+| | |
+|---|---|
+| Who | any signed-in user (club, coordinator, faculty, admin) |
+| Body | `CreateBookingRequest` = `BookingDraft` (`title`, `attendance`, `duration_periods`, `windows` P1–P13 (≤ 20), `room_types`, `needs`, `requested_room`, `mandatory_for_groups`, `repeat_days`, `assumptions` (≤ 16 × 300 chars), `follow_up` (≤ 300 chars)) + `source: "nl" \| "form"` (default `form`) + `ai_log_id` (from the parse). ≤ 16 KB. |
+| `data` | `201` · `CreateBookingResult` = `{ bookings: BookingView[] (one per series day), bumped: BumpNotice[], spectra: SpectraRunSummary \| null }` |
+| Errors | `400 VALIDATION_ERROR` (unknown room with `details.suggestion`, unknown group, compulsory groups the role may not name, a day off the calendar, a duration no window fits) · `401` · `409 CONFLICT` (the dataset lock stayed busy for 3 s: "Another change is being saved right now; try again in a moment."; 20 open requests already, `details: { limit, open }`; no dataset imported yet: "Reset or import the dataset first.") · `429` · `500` if the engine's self-check fails (nothing is stored) |
+
+```json
+{ "ok": true, "data": {
+  "bookings": [ {
+    "request": { "id": "REQ-0001", "submitted_at": "2027-02-02T10:00:01+05:30", "requester": "Dramatics Society",
+      "role": "club", "department": null, "requested_category": "club_event", "title": "Improv night",
+      "attendance": 80, "duration_periods": 2, "windows": [ { "day": "TUE", "from_period": 10, "to_period": 11 } ],
+      "room_types": ["seminar_hall"], "needs": ["projector"], "requested_room": null, "mandatory_for_groups": [],
+      "series_id": null, "state": "decided", "source": "form", "created_by": "u_club_dramatics" },
+    "decision": { "request_id": "REQ-0001", "status": "approved", "day": "TUE", "start_period": 10, "end_period": 11,
+      "room_id": "SH-2", "reason": "SH-2 is free TUE P10–P11 (18:00–20:00) and has projector.",
+      "reason_code": "APPROVED_AS_REQUESTED", "effective_category": "club_event", "category_capped": false,
+      "requires_admin_approval": false, "auto": true, "timetable_version": "TT-0001",
+      "decided_at": "2026-11-01T00:41:49+05:30", "facts": { "…": "…" } },
+    "approval": { "needed": false, "approver_role": null, "department": null } } ],
+  "bumped": [],
+  "spectra": { "booking_score": 67, "booking_score_max_if_all_approved": 70, "approved": 22, "alternatives": 1,
+    "rejected": 2, "session_overrides": 0, "priority_inversions": [], "timetable_version": "TT-0001" } } }
+```
+
+A bump (an admin's institute event for SH-1 THU P10–P11): `"bumped": [ { "request_id": "BR-06", "before": { "status": "approved", "room_id": "SH-1", "day": "THU", "start_period": 10, "end_period": 11 }, "after": { "status": "approved", "room_id": "LH-1", "day": "THU", "start_period": 10, "end_period": 11 }, "by": ["REQ-0002"] } ]`.
+
+Notes:
+- **Category** is always the requester's role cap (`requested_category`); text claims are ignored.
+- **Requester** is the club name, else `"<name> (<role label>)"`.
+- **Compulsory groups:** admins may name any group; faculty and coordinators only their own department's; clubs none.
+- **Open-request cap:** at most 20 open (`submitted`, `pending_approval`, `decided`) live requests per user, each series day counting once; cancel old ones to submit more.
+- **AI provenance** (`request.ai_meta`, `raw_text`) is copied from the parse's `ai_logs` entry (`ai_log_id`, the user's own); the body's `assumptions` / `follow_up` are never stored as AI output.
+- **Submission time** is now, but never earlier than a request already filed (the dataset's requests carry fest-season dates), so a new request never wins a same-category tie it would lose in real life.
+- **States:** `decided` at once, or `pending_approval` when an approver must confirm: a class has to move for Week 7 (admin), or the booking is in a department lab (that department's coordinator, or an admin). A pending booking holds its slot meanwhile. Without an active timetable the request stays `submitted` with no decision.
+- `repeat_days` creates one request per extra day (same periods), sharing a `series_id`.
+- The official `schedule.json` still contains dataset requests only; live requests can change which rooms dataset requests get (a reset clears live requests). A live request never makes the file inconsistent: if its class moves would, they are switched off and it gets another room, an alternative or a rejection instead.
+
+### GET /api/bookings/:id
+
+| | |
+|---|---|
+| Who | the requester, an admin, or an approver who may act on it (or did) |
+| `data` | `BookingDetail` = `BookingView` + `explanation: { text, source: "template" \| "llm", facts } \| null` |
+| Errors | `401` · `404` (unknown, malformed or not visible to you; dataset requests are admin-only) |
+
+`explanation.text` is the engine's reason when AI is off; with AI on, Gemini rephrases the same `facts`: accepted only when every number appears in the facts and it doesn't contradict the status, cached by the decision's content, at most 30 model calls per user per 10 minutes (the engine's text beyond that), and each call logged to `ai_logs`. Approver rejections and cancellations always use the stored text (the approver's comment never goes to the model). `facts` holds the engine's structured facts (`BookingFacts`: candidate rooms, what blocked the window, moved sessions, …, or `{ rejected_by, rejected_at, comment }` for an approver's rejection); `null` for older decisions.
+
+### POST /api/bookings/:id/cancel
+
+| | |
+|---|---|
+| Who | the requester or an admin |
+| Body | none |
+| `data` | `BookingView` (state `cancelled`, `decision: null`: a cancelled live request is no longer decided; any approval is cleared) |
+| Errors | `401` · `403` ("Only the requester or an admin can cancel a booking.", for an approver who can see it) · `404` (unknown, or not visible to you) · `409` (a dataset request: the official file's cancellations are fixed; a busy lock; no dataset imported) · `429` · `500` (the re-run failed: the cancel is undone) |
+
+Cancelling again returns the same view. Freed slots go to other requests in the same re-run.
+
+### POST /api/bookings/:id/decide
+
+Approves or rejects a booking waiting for approval. Never the requester.
+
+| | |
+|---|---|
+| Who | an admin, or the coordinator of the lab's department |
+| Body | `{ "decision": "approve" \| "reject", "comment"?: string ≤ 500 }` |
+| `data` | `BookingView`. Approve: `request.approval` records the approver and the exact slot, state `decided`. Reject: `request.rejection`, decision `rejected` / `REJ_BY_APPROVER` ("Rejected by the Admin: Use the seminar hall instead."), slot freed. |
+| Errors | `401` · `404` (unknown, or not visible to you: checked first, so other users' requests look unknown) · `403 FORBIDDEN` (wrong approver, e.g. a coordinator for a class move) · `403 SELF_APPROVAL` ("You can't approve your own request.") · `409 CONFLICT` ("This request isn't waiting for approval."; "This request has no approval to give right now."; busy lock) · `429` · `500` (the re-run failed: the decision is undone) |
+
+If a later re-run moves an approved booking to another slot, or makes it move classes after a coordinator approved the lab, it needs approval again (back to `pending_approval`).
 
 ### GET /api/export
 
@@ -797,5 +942,4 @@ Planned routes, with their request/response shapes, are listed in [architecture.
 
 | Phase | Routes |
 |---|---|
-| 4: bookings and AI | `POST /api/bookings/parse`, `GET` / `POST /api/bookings`, `POST /api/bookings/:id/cancel` |
-| 5: changes and approvals | `GET` / `POST /api/changes`, `POST /api/changes/:id/approve` · `/reject`, `POST /api/bookings/:id/decide`, `POST /api/manual/place`, `POST /api/assistant`, `POST /api/explain` |
+| 5: changes and approvals | `GET` / `POST /api/changes`, `POST /api/changes/:id/approve` · `/reject`, `POST /api/manual/place`, `POST /api/assistant`, `POST /api/explain` |

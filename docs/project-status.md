@@ -1,6 +1,6 @@
 # Project status
 
-> **Written:** 31 Oct 2026, at the end of backend Phase 3, right after merging the frontend team's latest `main` into `Aryan`. **Updated:** after the integration-support step (B1–B4, client helpers, [integration-guide.md](./integration-guide.md)).
+> **Written:** 31 Oct 2026, at the end of backend Phase 3, right after merging the frontend team's latest `main` into `Aryan`. **Updated:** after the integration-support step (B1–B4, client helpers, [integration-guide.md](./integration-guide.md)) and after Phase 4 (AI booking parser, bookings API).
 >
 > **For:** the whole team (Aryan on backend; Yash and Lakshay on frontend; **Lakshay owns wiring the screens to the API**).
 >
@@ -64,7 +64,7 @@
 | Spectra (Week-7) decisions | ✅ | 🟡 | The API decides all 25 requests with reasons. The screen shows sample decisions and wrong totals. |
 | Export `schedule.json` + validator report | ✅ | 🟡 | The API export passes `validator.py`. **The button builds a fake file.** |
 | Dashboard | ✅ | 🟡 | The API returns real counts and utilisation. The screen shows invented numbers. |
-| Plain-language (English/Hinglish) booking + manual form | ❌ (Phase 4) | 🟡 | The screen fakes parsing and always says "Approved". |
+| Plain-language (English/Hinglish) booking + manual form | ✅ | 🟡 | `POST /api/bookings/parse` + the bookings API work (AI off too). The screen still fakes parsing and always says "Approved". |
 | Change requests, approvals, rescheduling | ❌ (Phase 5) | 🟡 | The screens flip local state and claim "applied, everyone notified". |
 | Faculty assistant and "why?" explanations | ❌ (Phase 5) | 🟡 | Canned replies marked "Verified by constraint engine". |
 | `schedule_after.json` (after the sample disruption) | ❌ (Phase 5) | 🟡 | The button downloads `{updated: true}`. |
@@ -123,8 +123,10 @@ Generating takes about 25 ms, and the same seed always gives the same timetable.
   - Schedule runs are rate-limited and can't overlap (dataset lock).
   - Old versions are pruned.
   - Every action is written to an audit log.
+- **Plain-language booking (Phase 4).** English and Hinglish requests become an editable draft with assumption chips and one follow-up question. Gemini does it when switched on (with a key); otherwise an offline rule parser does, scoring 97.5 % on the dataset's own request texts. The category always comes from the requester's role, never from the text. Every parse is logged (`ai_logs`).
+- **Bookings API (Phase 4).** Submit, list, detail with an explanation, cancel, and approve or reject. Department-lab bookings wait for that department's coordinator; bookings that move a class wait for an admin; nobody approves their own request. A higher-priority booking can move an earlier one, and the move is reported.
 - **Quality.**
-  - 579 automated tests.
+  - 815 automated tests.
   - CI runs lint, typecheck, tests, build, the parity check and the validator.
 
 ### 4.2 Needs fixing
@@ -140,10 +142,7 @@ Generating takes about 25 ms, and the same seed always gives the same timetable.
 
 **Then, small and known, none urgent:**
 
-- **Phase 4: live booking requests.**
-  - Saving decisions currently replaces *all* stored decisions. Once real users submit bookings, it must keep theirs.
-  - An admin must never auto-approve their own request.
-  - Request status should update after each Spectra run.
+- **Done in Phase 4 (was listed here):** live requests are decided together with the dataset's (decisions are re-computed for all requests each run), an admin's own request is never auto-approved by their run, and request states update on every run.
 - **Tidy-ups found in review:**
   - a few duplicated helpers;
   - the progress-stream code could be shared for Phase 5;
@@ -158,7 +157,7 @@ Generating takes about 25 ms, and the same seed always gives the same timetable.
 
 | Phase | What | What it means for the frontend |
 |---|---|---|
-| **4: AI + bookings** | Gemini adapter with a rule-based fallback (English + Hinglish), `POST /api/bookings/parse`, booking submit/list/cancel, booking explanations, AI accuracy script, `AI_USAGE.md` update | The booking page can call the real parser and submit endpoint and show the engine's decision and reason. It must keep working with AI switched off. |
+| **4: AI + bookings** ✅ done | Gemini adapter with a rule-based fallback (English + Hinglish; 97.5 % on the dataset texts without AI), `POST /api/bookings/parse`, bookings submit/list/detail/cancel/decide with approvals and bump notices, `ai_logs`, `npm run ai-eval` | The booking page and the booking approvals can be wired now ([integration-guide.md](./integration-guide.md) §2). |
 | **5: Changes + assistant** | Rescheduler (fewest moves; says *why* when impossible), change requests, approve/reject (never your own), manual placement, faculty unavailability, assistant (`POST /api/assistant`), "why?" explanations (`POST /api/explain`), `schedule_after.json` | The approvals, changes and assistant pages connect to real endpoints. The validator panel gets a "moved sessions" count. |
 | **6: Hardening + delivery** | Load and time tuning for Vercel, end-to-end smoke script, deployment guide, final README and docs | The deployed link with all 4 demo accounts. |
 
@@ -248,7 +247,7 @@ Request and response shapes, with real examples: [api.md](./api.md). Types: `imp
 
 ### 5.6 Screens that must wait for the backend (build against the contracts meanwhile)
 
-- **Bookings: parse + submit + list + cancel (Phase 4).** Use `BookingDraft` from `@/lib/contracts` (the API contract). Keep the manual form working without AI. Never show a decision the server didn't make.
+- **Bookings (live now):** parse, submit, list, detail, cancel and approve: see [integration-guide.md](./integration-guide.md) §2. Keep the manual form working without AI. Never show a decision the server didn't make.
 - **Approvals, changes, assistant, explanations (Phase 5).** Use `ChangeRequest`, `MoveDiff` and `ConflictEntry` from `@/lib/contracts`. Hide approve/reject on your own requests (the server refuses with `SELF_APPROVAL`). Show the server's "why not" conflict report when a change is impossible.
 
 ---
@@ -270,7 +269,7 @@ Request and response shapes, with real examples: [api.md](./api.md). Types: `imp
 
 1. **Lakshay (integration):** items 1–4b of §5.2 (export, admin actions, no fake numbers, real user in the shell, demo cards), following [integration-guide.md](./integration-guide.md). Highest risk, mostly wiring. (The B1–B4 additions he needs are done.)
 2. **Lakshay:** items 5–6 (timetable, rooms, exams, Spectra from the API), then 9 (loading/empty/error states). **Yash:** the design and accessibility items (§5.3) on screens Lakshay has wired.
-3. **Aryan:** Phase 4 (AI booking parser + bookings API), contracts first so **Lakshay** can wire the booking page as each endpoint lands.
+3. **Aryan:** ✅ Phase 4 (AI booking parser + bookings API) is done; **Lakshay** wires the booking page and booking approvals (integration guide §2).
 4. **Frontend:** the remaining Musts (preview banners, false claims, keyboard and forms).
 5. **Aryan:** Phase 5 (rescheduling, approvals, assistant, explanations, `schedule_after.json`), contracts first; **Lakshay** connects those screens. Aryan re-runs the frontend reviews at each sync and updates this page.
 6. **Together:** Phase 6, i.e. deploy, run the smoke test with all 4 demo accounts, final docs and video. Then the §5.3 polish if time allows.
