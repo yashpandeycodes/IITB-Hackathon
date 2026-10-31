@@ -1,71 +1,32 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { signupSchema } from '@/lib/validation';
-import { findUserByEmail, createUser, updateUserOtp } from '@/lib/db/user-store';
-import { sendOtpEmail } from '@/lib/services/brevo-mail';
+import { SignupRequestSchema } from "@/lib/contracts/auth";
+import { registerAccount } from "@/lib/auth/accounts";
+import { legacyJson, parseFormBody, withLegacyHandler } from "@/lib/auth/http";
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json().catch(() => null);
-    if (!body) {
-      return NextResponse.json({ error: 'Invalid JSON request body' }, { status: 400 });
-    }
+/**
+ * Self-service sign-up, Club Representative only (Faculty, Admin and Department Coordinator →
+ * 403). Body: the signup form (`fullName, email, role, password, confirmPassword,
+ * agreedToTerms`). 200 `{ success, message, email, demoMode, demoOtp? }` + an httpOnly
+ * pending-sign-up cookie that /verify-otp and /resend-otp require · 409 `EMAIL_TAKEN` (verified)
+ * or `CONFLICT` (another browser's sign-up is pending) · 429 rate limits.
+ */
+export const POST = withLegacyHandler(async (request) => {
+  const body = await parseFormBody(request, SignupRequestSchema);
+  const { dispatch, pending } = await registerAccount(request, {
+    name: body.fullName,
+    email: body.email,
+    role: body.role,
+    password: body.password,
+  });
 
-    // Validate with Zod
-    const parsed = signupSchema.safeParse(body);
-    if (!parsed.success) {
-      const firstIssue = parsed.error.issues[0];
-      return NextResponse.json(
-        { error: firstIssue.message, details: parsed.error.format() },
-        { status: 400 }
-      );
-    }
-
-    const { fullName, email, role, password } = parsed.data;
-    const existingUser = await findUserByEmail(email);
-
-    if (existingUser && existingUser.isVerified) {
-      return NextResponse.json(
-        { error: 'An account with this institutional email is already registered. Please sign in.' },
-        { status: 409 }
-      );
-    }
-
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-    if (existingUser && !existingUser.isVerified) {
-      // Update existing unverified user with new password & OTP
-      await updateUserOtp(email, otp, otpExpiresAt);
-    } else {
-      // Create new user record
-      await createUser({
-        name: fullName,
-        email,
-        password,
-        role,
-        isVerified: false,
-        otp,
-        otpExpiresAt,
-      });
-    }
-
-    // Send OTP email via Brevo
-    const emailResult = await sendOtpEmail(email, fullName, otp);
-
-    return NextResponse.json({
-      success: true,
-      message: 'A 6-digit verification code has been dispatched to your email address.',
-      email,
-      demoMode: emailResult.demoMode,
-      demoOtp: emailResult.demoOtp, // Surfaced in demo mode for instant local testing without live key
-    });
-  } catch (err) {
-    console.error('[API /signup] Server error:', err);
-    return NextResponse.json(
-      { error: 'Internal server error while processing signup.' },
-      { status: 500 }
-    );
-  }
-}
-
+  const response = legacyJson({
+    ok: true,
+    data: { email: body.email, ...dispatch },
+    success: true,
+    message:
+      "A 6-digit verification code has been dispatched to your email address.",
+    email: body.email,
+    ...dispatch,
+  });
+  response.cookies.set(pending);
+  return response;
+});

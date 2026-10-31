@@ -1,73 +1,27 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { verifyOtpSchema } from '@/lib/validation';
-import { verifyAndClearOtp } from '@/lib/db/user-store';
-import { signSessionToken, COOKIE_NAME } from '@/lib/auth/jwt';
+import { VerifyOtpRequestSchema } from "@/lib/contracts/auth";
+import {
+  clearPendingCookie,
+  toLegacyUser,
+  verifyAccountOtp,
+} from "@/lib/auth/accounts";
+import { legacyJson, parseFormBody, withLegacyHandler } from "@/lib/auth/http";
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json().catch(() => null);
-    if (!body) {
-      return NextResponse.json({ error: 'Invalid JSON request body' }, { status: 400 });
-    }
-
-    const parsed = verifyOtpSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || 'Invalid OTP payload' },
-        { status: 400 }
-      );
-    }
-
-    const { email, otp } = parsed.data;
-    const verification = await verifyAndClearOtp(email, otp);
-
-    if (!verification.success || !verification.user) {
-      return NextResponse.json(
-        { error: verification.message || 'Verification failed.' },
-        { status: 400 }
-      );
-    }
-
-    const user = verification.user;
-
-    // Issue signed JWT token
-    const token = await signSessionToken({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      isVerified: true,
-    });
-
-    const response = NextResponse.json({
-      success: true,
-      message: 'Email verified successfully! Session established.',
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
-    });
-
-    // Set secure HTTP-only cookie
-    response.cookies.set({
-      name: COOKIE_NAME,
-      value: token,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-    });
-
-    return response;
-  } catch (err) {
-    console.error('[API /verify-otp] Server error:', err);
-    return NextResponse.json(
-      { error: 'Internal server error during verification.' },
-      { status: 500 }
-    );
-  }
-}
-
+/**
+ * Body `{ email, otp }`, sent from the browser holding the pending-sign-up cookie.
+ * 200 `{ ok, data: User, success, message, user }` + session cookie · 400 wrong/expired code
+ * or wrong browser · 429 rate limits or 5 wrong codes.
+ */
+export const POST = withLegacyHandler(async (request) => {
+  const { email, otp } = await parseFormBody(request, VerifyOtpRequestSchema);
+  const { user, session } = await verifyAccountOtp(request, email, otp);
+  const response = legacyJson({
+    ok: true,
+    data: user,
+    success: true,
+    message: "Email verified successfully! Session established.",
+    user: toLegacyUser(user),
+  });
+  response.cookies.set(session);
+  response.cookies.set(clearPendingCookie());
+  return response;
+});

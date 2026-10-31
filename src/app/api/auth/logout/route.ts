@@ -1,22 +1,23 @@
-import { NextResponse } from 'next/server';
-import { COOKIE_NAME } from '@/lib/auth/jwt';
+import { NextResponse } from "next/server";
+import { withHandler } from "@/lib/api";
+import { logoutSession } from "@/lib/auth/accounts";
+import { NO_STORE } from "@/lib/auth/http";
 
-export async function POST() {
-  const response = NextResponse.json({
-    success: true,
-    message: 'Logged out successfully.',
-  });
-
-  response.cookies.set({
-    name: COOKIE_NAME,
-    value: '',
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0,
-  });
-
+/**
+ * Revokes this session's token (other browsers signed in to the same account are unaffected)
+ * and clears the cookie. POST only.
+ */
+export const POST = withHandler(async (request) => {
+  const cleared = await logoutSession(request);
+  const response = NextResponse.json(
+    {
+      ok: true,
+      data: null,
+      success: true,
+      message: "Logged out successfully.",
+    },
+    { headers: NO_STORE },
+  );
+  response.cookies.set(cleared);
   return response;
-}
-
+});

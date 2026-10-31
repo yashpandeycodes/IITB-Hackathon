@@ -1,34 +1,44 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { verifySessionToken, COOKIE_NAME } from '@/lib/auth/jwt';
-import { findUserById } from '@/lib/db/user-store';
+import { NextResponse } from "next/server";
+import { withHandler } from "@/lib/api";
+import { toLegacyUser } from "@/lib/auth/accounts";
+import { getCurrentUser } from "@/lib/auth/guards";
+import { NO_STORE } from "@/lib/auth/http";
+import { clearSession } from "@/lib/auth/session";
 
-export async function GET(req: NextRequest) {
-  try {
-    const token = req.cookies.get(COOKIE_NAME)?.value;
-    if (!token) {
-      return NextResponse.json({ authenticated: false, user: null }, { status: 401 });
-    }
+export const dynamic = "force-dynamic";
 
-    const payload = await verifySessionToken(token);
-    if (!payload) {
-      return NextResponse.json({ authenticated: false, user: null }, { status: 401 });
-    }
-
-    // Double check with DB
-    const freshUser = await findUserById(payload.id);
-
-    return NextResponse.json({
-      authenticated: true,
-      user: {
-        id: payload.id,
-        name: freshUser?.name || payload.name,
-        email: payload.email,
-        role: freshUser?.role || payload.role,
-        isVerified: true,
+function signedOut() {
+  const response = NextResponse.json(
+    {
+      ok: false,
+      error: {
+        code: "UNAUTHENTICATED",
+        message: "Please sign in to continue.",
       },
-    });
-  } catch (err) {
-    console.error('[API /me] Server error:', err);
-    return NextResponse.json({ authenticated: false, user: null }, { status: 500 });
-  }
+      authenticated: false,
+      user: null,
+    },
+    { status: 401, headers: NO_STORE },
+  );
+  response.cookies.set(clearSession());
+  return response;
 }
+
+/**
+ * The signed-in user as stored now (revoked sessions and deleted accounts → 401).
+ * 200 `{ ok: true, data: User, authenticated: true, user: { id, name, email, role: label,
+ * isVerified } }` · 401 envelope (also `authenticated: false, user: null`).
+ */
+export const GET = withHandler(async (request) => {
+  const user = await getCurrentUser(request);
+  if (!user) return signedOut();
+  return NextResponse.json(
+    {
+      ok: true,
+      data: user,
+      authenticated: true,
+      user: { ...toLegacyUser(user), isVerified: true },
+    },
+    { headers: NO_STORE },
+  );
+});

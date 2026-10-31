@@ -23,10 +23,30 @@ const EnvSchema = z.object({
   // Database. The URI is optional here and enforced at use time by requireMongoUri().
   MONGODB_URI: z.string().trim().min(1).optional(),
   MONGODB_DB: z.string().trim().min(1).default("cit_dev"),
-  // Auth. Optional here; requireAuthSecret() enforces presence where sessions are signed.
+  // Auth. Optional here; requireSessionSecret() enforces presence where sessions are signed.
   AUTH_SECRET: z
     .string()
     .min(32, "AUTH_SECRET must be at least 32 characters")
+    .optional(),
+  /** Optional session-signing override; AUTH_SECRET is used when unset. */
+  JWT_SECRET: z
+    .string()
+    .min(32, "JWT_SECRET must be at least 32 characters")
+    .optional(),
+  /** One-click sign-in for the four public demo accounts (the judges need it on the deployment). */
+  DEMO_LOGIN_ENABLED: boolFlag.default(true),
+  // Account sign-up mail (Brevo). Without a key, sign-up codes are only shown in development.
+  BREVO_API_KEY: z.string().trim().min(1).optional(),
+  BREVO_SENDER_EMAIL: z
+    .string()
+    .trim()
+    .pipe(z.email("BREVO_SENDER_EMAIL must be an email address"))
+    .optional(),
+  BREVO_SENDER_NAME: z.string().trim().min(1).default("CIT Nexus"),
+  // Google sign-in (not wired yet: no callback route).
+  GOOGLE_CLIENT_ID: z.string().trim().min(1).optional(),
+  NEXT_PUBLIC_APP_URL: z
+    .url("NEXT_PUBLIC_APP_URL must be an absolute URL")
     .optional(),
   // AI (Gemini)
   GEMINI_API_KEY: z.string().trim().min(1).optional(),
@@ -96,16 +116,15 @@ export function parseEnv(
       message: "Must be set explicitly on deployed environments",
     });
   }
-  if (
-    deployed &&
-    result.data.AUTH_SECRET &&
-    isWeakSecret(result.data.AUTH_SECRET)
-  ) {
-    deployIssues.push({
-      key: "AUTH_SECRET",
-      message:
-        "Looks like a placeholder; use a random value (openssl rand -base64 32)",
-    });
+  for (const key of ["AUTH_SECRET", "JWT_SECRET"] as const) {
+    const secret = result.data[key];
+    if (deployed && secret && isWeakSecret(secret)) {
+      deployIssues.push({
+        key,
+        message:
+          "Looks like a placeholder; use a random value (openssl rand -base64 32)",
+      });
+    }
   }
   if (deployIssues.length > 0) throw new EnvValidationError(deployIssues);
   return result.data;
@@ -136,6 +155,14 @@ export function requireAuthSecret(env: ServerEnv = getServerEnv()): string {
     );
   }
   return env.AUTH_SECRET;
+}
+
+/**
+ * The session-signing secret: `JWT_SECRET` when set, else `AUTH_SECRET`. Both are validated
+ * above (32+ chars, no placeholder in production); there is no fallback, so it fails closed.
+ */
+export function requireSessionSecret(env: ServerEnv = getServerEnv()): string {
+  return env.JWT_SECRET ?? requireAuthSecret(env);
 }
 
 /** Returns the MongoDB connection string or throws a clear configuration error. */
