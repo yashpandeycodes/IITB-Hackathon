@@ -1,40 +1,29 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/app-shell';
-import { CAMPUS_ROOMS, TIMETABLE_SESSIONS } from '@/lib/dataset/cit-data';
+import { useReferenceData } from '@/hooks/use-reference-data';
 import {
-  Shuffle,
-  Calendar,
-  Building,
-  Plus,
-  Trash2,
   Upload,
-  ArrowRight,
-  CheckCircle2,
-  FileJson,
+  AlertTriangle,
 } from 'lucide-react';
 
 export default function NewChangeRequestPage() {
   const router = useRouter();
+  const { referenceData } = useReferenceData();
 
   const [activeTab, setActiveTab] = useState<'faculty' | 'room' | 'add' | 'remove' | 'upload'>('faculty');
-  const [selectedFaculty, setSelectedFaculty] = useState('F07 (Dr. Shalini Gupta)');
+  const [selectedFaculty, setSelectedFaculty] = useState('F07');
   const [unavailDay, setUnavailDay] = useState('MON');
   const [selectedRoom, setSelectedRoom] = useState('CR-102');
   const [closureReason, setClosureReason] = useState('Plumbing / Water Leak Repair');
   const [jsonContent, setJsonContent] = useState('');
-  const [isSolving, setIsSolving] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSolving(true);
-    setTimeout(() => {
-      setIsSolving(false);
-      router.push('/approvals/CR-0001');
-    }, 1500);
+    // Navigate directly to the illustrative proposal diff preview
+    router.push('/approvals/CR-0001');
   };
 
   return (
@@ -43,6 +32,17 @@ export default function NewChangeRequestPage() {
       breadcrumbs={[{ label: 'Changes', href: '/changes' }, { label: 'New Change' }]}
     >
       <div className="space-y-6 max-w-4xl mx-auto">
+        {/* Preview Banner */}
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs font-mono flex items-start gap-3">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+          <div>
+            <div className="font-bold text-amber-300">Preview — not connected yet</div>
+            <div className="text-[11px] text-amber-200/80 mt-0.5">
+              Disruption recalculation and change proposals will be powered by Phase 5 backend solver endpoints. The form below provides an illustrative interactive preview.
+            </div>
+          </div>
+        </div>
+
         {/* Header (§5.9) */}
         <div className="p-5 rounded-3xl bg-[#0B1220] border border-white/10 shadow-sm">
           <h1 className="text-xl sm:text-2xl font-black text-white">Disruption & Reschedule Proposer</h1>
@@ -53,6 +53,7 @@ export default function NewChangeRequestPage() {
           {/* 5 Tabs (§5.9) */}
           <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-white/10">
             <button
+              type="button"
               onClick={() => setActiveTab('faculty')}
               className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all ${
                 activeTab === 'faculty' ? 'bg-[#66E3F0] text-[#070A12]' : 'bg-[#101A2B] text-[#98A6BB]'
@@ -61,6 +62,7 @@ export default function NewChangeRequestPage() {
               Faculty Leave
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('room')}
               className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all ${
                 activeTab === 'room' ? 'bg-[#66E3F0] text-[#070A12]' : 'bg-[#101A2B] text-[#98A6BB]'
@@ -69,6 +71,7 @@ export default function NewChangeRequestPage() {
               Room Closure
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('add')}
               className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all ${
                 activeTab === 'add' ? 'bg-[#66E3F0] text-[#070A12]' : 'bg-[#101A2B] text-[#98A6BB]'
@@ -77,6 +80,7 @@ export default function NewChangeRequestPage() {
               Add Session
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('remove')}
               className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all ${
                 activeTab === 'remove' ? 'bg-[#66E3F0] text-[#070A12]' : 'bg-[#101A2B] text-[#98A6BB]'
@@ -85,6 +89,7 @@ export default function NewChangeRequestPage() {
               Remove Session
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('upload')}
               className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all ${
                 activeTab === 'upload' ? 'bg-[#8279FF] text-white' : 'bg-[#101A2B] text-[#98A6BB]'
@@ -106,9 +111,19 @@ export default function NewChangeRequestPage() {
                   onChange={(e) => setSelectedFaculty(e.target.value)}
                   className="w-full bg-[#101A2B] border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
                 >
-                  <option value="F07 (Dr. Shalini Gupta)">F07 (Dr. Shalini Gupta)</option>
-                  <option value="F19 (Dr. A. Sengupta)">F19 (Dr. A. Sengupta)</option>
-                  <option value="F21 (Dr. M. Roy)">F21 (Dr. M. Roy)</option>
+                  {referenceData.faculty.length > 0 ? (
+                    referenceData.faculty.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.id} ({f.name})
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="F07">F07 (Dr. Shalini Gupta)</option>
+                      <option value="F19">F19 (Dr. A. Sengupta)</option>
+                      <option value="F21">F21 (Dr. M. Roy)</option>
+                    </>
+                  )}
                 </select>
               </div>
 
@@ -130,10 +145,9 @@ export default function NewChangeRequestPage() {
 
             <button
               type="submit"
-              disabled={isSolving}
-              className="w-full py-3 rounded-2xl text-xs font-mono font-bold bg-[#66E3F0] text-[#070A12] shadow-lg flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-2xl text-xs font-mono font-bold bg-[#66E3F0] text-[#070A12] shadow-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
             >
-              {isSolving ? 'Finding Smallest Perturbation Fix...' : 'Compute Minimal Reschedule Proposal ▸'}
+              <span>Preview Minimal Reschedule Proposal ▸</span>
             </button>
           </form>
         )}
@@ -149,11 +163,19 @@ export default function NewChangeRequestPage() {
                   onChange={(e) => setSelectedRoom(e.target.value)}
                   className="w-full bg-[#101A2B] border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
                 >
-                  {CAMPUS_ROOMS.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.id} ({r.name})
-                    </option>
-                  ))}
+                  {referenceData.rooms.length > 0 ? (
+                    referenceData.rooms.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.id} ({r.name})
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="CR-102">CR-102 (Classroom 102)</option>
+                      <option value="CR-201">CR-201 (Classroom 201)</option>
+                      <option value="LH-1">LH-1 (Lecture Hall 1)</option>
+                    </>
+                  )}
                 </select>
               </div>
 
@@ -170,10 +192,9 @@ export default function NewChangeRequestPage() {
 
             <button
               type="submit"
-              disabled={isSolving}
-              className="w-full py-3 rounded-2xl text-xs font-mono font-bold bg-[#66E3F0] text-[#070A12] shadow-lg flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-2xl text-xs font-mono font-bold bg-[#66E3F0] text-[#070A12] shadow-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
             >
-              {isSolving ? 'Calculating Room Relocations...' : 'Re-assign Affected Classes ▸'}
+              <span>Preview Room Relocations ▸</span>
             </button>
           </form>
         )}
@@ -197,10 +218,9 @@ export default function NewChangeRequestPage() {
 
             <button
               type="submit"
-              disabled={isSolving}
-              className="w-full py-3 rounded-2xl text-xs font-mono font-bold bg-[#8279FF] text-white shadow-lg flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-2xl text-xs font-mono font-bold bg-[#8279FF] text-white shadow-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
             >
-              {isSolving ? 'Validating Batch Schema & Finding Fix...' : 'Parse & Propose Fix ▸'}
+              <span>Preview Change Batch ▸</span>
             </button>
           </form>
         )}
@@ -208,4 +228,3 @@ export default function NewChangeRequestPage() {
     </AppShell>
   );
 }
-

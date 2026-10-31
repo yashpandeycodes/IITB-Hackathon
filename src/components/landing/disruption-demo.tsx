@@ -47,7 +47,7 @@ export const DisruptionDemo: React.FC = () => {
             </span>
           </h2>
           <p className="text-base sm:text-lg text-[#A7B3C9] font-normal leading-relaxed">
-            Experience how CIT Nexus isolates an unexpected room outage and proposes an optimal alternative space with minimal student transit and zero cascade clashing.
+            Experience how CIT Nexus isolates an unexpected room outage and proposes a validated alternative space with minimal student transit and zero cascade clashing.
           </p>
         </div>
 
@@ -72,7 +72,7 @@ export const DisruptionDemo: React.FC = () => {
                     ? 'REPAIR COMMITTED (SCHEDULE RESTORED)'
                     : isDisrupted
                     ? 'UNPLANNED OUTAGE DETECTED'
-                    : 'BASELINE SCHEDULE (OPTIMAL)'}
+                    : 'BASELINE SCHEDULE (VALIDATED)'}
                 </div>
                 <div className="text-xs text-[#A7B3C9] mt-0.5">
                   Target: <strong className="text-[#F8FAFC]">{MOCK_DISRUPTION.triggerVenue}</strong> • Window: {MOCK_DISRUPTION.triggerTime}
@@ -110,7 +110,7 @@ export const DisruptionDemo: React.FC = () => {
           <div className="py-8">
             <AnimatePresence mode="wait">
               {!isDisrupted ? (
-                /* 1. BASELINE OPTIMAL STATE */
+                /* 1. BASELINE VALIDATED STATE */
                 <motion.div
                   key="baseline"
                   initial={{ opacity: 0, y: 10 }}
@@ -213,7 +213,7 @@ export const DisruptionDemo: React.FC = () => {
                             onClick={handleApplyRepair}
                             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#22D3EE] text-[#080D1B] text-xs font-bold shadow-md hover:opacity-95 transition-all"
                           >
-                            <span>Apply Optimal Repair</span>
+                            <span>Apply Validated Repair</span>
                             <ArrowRight className="w-3.5 h-3.5" />
                           </button>
                         )}

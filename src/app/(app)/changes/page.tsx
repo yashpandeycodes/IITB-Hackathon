@@ -3,9 +3,9 @@
 import React from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
-import { MOCK_CHANGE_REQUESTS } from '@/lib/dataset/cit-data';
+import { MOCK_CHANGE_REQUESTS } from './preview-data';
 import { StatusBadge } from '@/components/semantic/badges';
-import { Shuffle, Plus, ArrowRight, Upload, AlertCircle } from 'lucide-react';
+import { Plus, ArrowRight, AlertTriangle } from 'lucide-react';
 
 export default function ChangesListPage() {
   return (
@@ -14,6 +14,17 @@ export default function ChangesListPage() {
       breadcrumbs={[{ label: 'Changes' }]}
     >
       <div className="space-y-6 max-w-7xl mx-auto">
+        {/* Preview Banner */}
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs font-mono flex items-start gap-3">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+          <div>
+            <div className="font-bold text-amber-300">Preview — not connected yet</div>
+            <div className="text-[11px] text-amber-200/80 mt-0.5">
+              Schedule change requests, faculty leave unavailabilities, and disruption rescheduling will be connected in Phase 5. The records below are illustrative previews.
+            </div>
+          </div>
+        </div>
+
         {/* Header (§5.9) */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-[#0B1220] border border-white/10 shadow-sm">
           <div>
@@ -70,4 +81,3 @@ export default function ChangesListPage() {
     </AppShell>
   );
 }
-
