@@ -1,11 +1,9 @@
 import mongoose from 'mongoose';
-
-const MONGODB_URI = process.env.MONGODB_URI;
+import { UserModel } from './models/user.model';
 
 interface MongooseCache {
   conn: typeof mongoose | null;
-  promise: Promise<typeof mongoose | null> | null;
-  lastFailureTime: number;
+  promise: Promise<typeof mongoose> | null;
 }
 
 declare global {
@@ -15,56 +13,55 @@ declare global {
 const cached: MongooseCache = global.mongooseCache || {
   conn: null,
   promise: null,
-  lastFailureTime: 0,
 };
 
 if (!global.mongooseCache) {
   global.mongooseCache = cached;
 }
 
-const FAILURE_COOLDOWN_MS = 30000; // 30s cooldown before retrying MongoDB if unreachable
+export async function connectToDatabase(): Promise<typeof mongoose> {
+  const uri = (process.env.MONGODB_URI || '').replace(/^["']|["']$/g, '').trim();
 
-export async function connectToDatabase(): Promise<typeof mongoose | null> {
-  if (!MONGODB_URI || MONGODB_URI.includes('demoUser') || MONGODB_URI.includes('example')) {
-    // Demo placeholder detected
-    return null;
+  if (!uri || uri.includes('demoUser') || uri.includes('replace')) {
+    throw new Error('MONGODB_URI is not configured in .env with real credentials.');
   }
 
-  if (cached.conn) {
+  if (cached.conn && mongoose.connection.readyState === 1) {
     return cached.conn;
   }
 
-  // Fast-fail if recent connection attempt failed (avoids 5s latency on every call)
-  if (Date.now() - cached.lastFailureTime < FAILURE_COOLDOWN_MS) {
-    return null;
-  }
-
   if (!cached.promise) {
+    console.log('[DB] Connecting to MongoDB Atlas cluster...');
     const opts = {
       bufferCommands: false,
-      serverSelectionTimeoutMS: 2500,
+      serverSelectionTimeoutMS: 8000,
     };
 
     cached.promise = mongoose
-      .connect(MONGODB_URI, opts)
-      .then((mongooseInstance) => {
-        cached.lastFailureTime = 0;
+      .connect(uri, opts)
+      .then(async (mongooseInstance) => {
+        console.log('[DB] >>> SUCCESSFULLY CONNECTED TO MONGODB ATLAS CLUSTER! <<<');
+        try {
+          await UserModel.createCollection();
+          await UserModel.init();
+          console.log('[DB] Verified "users" collection exists in Atlas database.');
+        } catch {
+          // ignore if already exists
+        }
         return mongooseInstance;
       })
       .catch((err) => {
-        console.warn('[DB] MongoDB connection unavailable (using in-memory store):', err.message);
-        cached.lastFailureTime = Date.now();
+        console.error('[DB] CRITICAL: Failed to connect to MongoDB Atlas cluster:', err.message);
         cached.promise = null;
-        return null;
+        throw err;
       });
   }
 
   try {
     cached.conn = await cached.promise;
-  } catch {
+    return cached.conn;
+  } catch (err) {
     cached.conn = null;
-    cached.lastFailureTime = Date.now();
+    throw err;
   }
-
-  return cached.conn;
 }

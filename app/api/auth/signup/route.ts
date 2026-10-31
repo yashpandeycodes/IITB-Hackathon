@@ -58,10 +58,10 @@ export async function POST(req: NextRequest) {
       message: 'A 6-digit verification code has been dispatched to your email address.',
       email,
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error('[API /signup] Server error:', err);
     return NextResponse.json(
-      { error: 'Internal server error while processing signup.' },
+      { error: err?.message || 'Database error while processing signup.' },
       { status: 500 }
     );
   }

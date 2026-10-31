@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:init": "npx tsx scripts/init-db.ts"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.2",

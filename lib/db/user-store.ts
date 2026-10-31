@@ -16,81 +16,47 @@ export interface UserRecord {
   updatedAt: Date;
 }
 
-// Resilient in-memory store for fallback when demo MongoDB URI is active
-declare global {
-  var __memoryUsers: Map<string, UserRecord> | undefined;
-}
-
-const memoryUsers: Map<string, UserRecord> = global.__memoryUsers || new Map();
-if (!global.__memoryUsers) {
-  global.__memoryUsers = memoryUsers;
-}
-
 export async function findUserByEmail(email: string): Promise<UserRecord | null> {
   const normalizedEmail = email.toLowerCase().trim();
-  const db = await connectToDatabase();
+  await connectToDatabase();
 
-  if (db) {
-    try {
-      const doc = await UserModel.findOne({ email: normalizedEmail }).lean().exec();
-      if (doc) {
-        const record: UserRecord = {
-          id: doc._id.toString(),
-          name: doc.name,
-          email: doc.email,
-          password: doc.password,
-          role: doc.role as UserRole,
-          isVerified: doc.isVerified,
-          otp: doc.otp,
-          otpExpiresAt: doc.otpExpiresAt,
-          googleId: doc.googleId,
-          createdAt: doc.createdAt,
-          updatedAt: doc.updatedAt,
-        };
-        memoryUsers.set(normalizedEmail, record);
-        return record;
-      }
-    } catch (err) {
-      console.warn('[UserStore] Mongo query failed, checking in-memory store:', (err as Error).message);
-    }
-  }
+  const doc = await UserModel.findOne({ email: normalizedEmail }).lean().exec();
+  if (!doc) return null;
 
-  const memoryUser = memoryUsers.get(normalizedEmail);
-  return memoryUser || null;
+  return {
+    id: doc._id.toString(),
+    name: doc.name,
+    email: doc.email,
+    password: doc.password,
+    role: doc.role as UserRole,
+    isVerified: doc.isVerified,
+    otp: doc.otp,
+    otpExpiresAt: doc.otpExpiresAt,
+    googleId: doc.googleId,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+  };
 }
 
 export async function findUserById(id: string): Promise<UserRecord | null> {
-  const db = await connectToDatabase();
+  await connectToDatabase();
 
-  if (db) {
-    try {
-      const doc = await UserModel.findById(id).lean().exec();
-      if (doc) {
-        const record: UserRecord = {
-          id: doc._id.toString(),
-          name: doc.name,
-          email: doc.email,
-          password: doc.password,
-          role: doc.role as UserRole,
-          isVerified: doc.isVerified,
-          otp: doc.otp,
-          otpExpiresAt: doc.otpExpiresAt,
-          googleId: doc.googleId,
-          createdAt: doc.createdAt,
-          updatedAt: doc.updatedAt,
-        };
-        memoryUsers.set(doc.email.toLowerCase().trim(), record);
-        return record;
-      }
-    } catch (err) {
-      console.warn('[UserStore] Mongo query by ID failed:', (err as Error).message);
-    }
-  }
+  const doc = await UserModel.findById(id).lean().exec();
+  if (!doc) return null;
 
-  for (const user of memoryUsers.values()) {
-    if (user.id === id) return user;
-  }
-  return null;
+  return {
+    id: doc._id.toString(),
+    name: doc.name,
+    email: doc.email,
+    password: doc.password,
+    role: doc.role as UserRole,
+    isVerified: doc.isVerified,
+    otp: doc.otp,
+    otpExpiresAt: doc.otpExpiresAt,
+    googleId: doc.googleId,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+  };
 }
 
 export async function createUser(data: {
@@ -104,50 +70,14 @@ export async function createUser(data: {
   googleId?: string;
 }): Promise<UserRecord> {
   const normalizedEmail = data.email.toLowerCase().trim();
-  const db = await connectToDatabase();
+  await connectToDatabase();
 
   let hashedPassword: string | undefined = undefined;
   if (data.password) {
     hashedPassword = await bcrypt.hash(data.password, 12);
   }
 
-  if (db) {
-    try {
-      const created = await UserModel.create({
-        name: data.name,
-        email: normalizedEmail,
-        password: hashedPassword,
-        role: data.role,
-        isVerified: data.isVerified || false,
-        otp: data.otp || null,
-        otpExpiresAt: data.otpExpiresAt || null,
-        googleId: data.googleId || null,
-      });
-
-      const record: UserRecord = {
-        id: created._id.toString(),
-        name: created.name,
-        email: created.email,
-        password: created.password,
-        role: created.role as UserRole,
-        isVerified: created.isVerified,
-        otp: created.otp,
-        otpExpiresAt: created.otpExpiresAt,
-        googleId: created.googleId,
-        createdAt: created.createdAt,
-        updatedAt: created.updatedAt,
-      };
-
-      memoryUsers.set(normalizedEmail, record);
-      return record;
-    } catch (err) {
-      console.warn('[UserStore] Mongo create failed, falling back to in-memory store:', (err as Error).message);
-    }
-  }
-
-  // Fallback in-memory creation
-  const newUser: UserRecord = {
-    id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+  const created = await UserModel.create({
     name: data.name,
     email: normalizedEmail,
     password: hashedPassword,
@@ -156,12 +86,23 @@ export async function createUser(data: {
     otp: data.otp || null,
     otpExpiresAt: data.otpExpiresAt || null,
     googleId: data.googleId || null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  });
 
-  memoryUsers.set(normalizedEmail, newUser);
-  return newUser;
+  console.log(`[UserStore] >>> SAVED TO MONGODB ATLAS: ${created.email} (${created._id}) <<<`);
+
+  return {
+    id: created._id.toString(),
+    name: created.name,
+    email: created.email,
+    password: created.password,
+    role: created.role as UserRole,
+    isVerified: created.isVerified,
+    otp: created.otp,
+    otpExpiresAt: created.otpExpiresAt,
+    googleId: created.googleId,
+    createdAt: created.createdAt,
+    updatedAt: created.updatedAt,
+  };
 }
 
 export async function updateUserOtp(
@@ -170,29 +111,15 @@ export async function updateUserOtp(
   otpExpiresAt: Date
 ): Promise<boolean> {
   const normalizedEmail = email.toLowerCase().trim();
-  const db = await connectToDatabase();
+  await connectToDatabase();
 
-  if (db) {
-    try {
-      await UserModel.updateOne(
-        { email: normalizedEmail },
-        { $set: { otp, otpExpiresAt } }
-      ).exec();
-    } catch (err) {
-      console.warn('[UserStore] Mongo update OTP failed:', (err as Error).message);
-    }
-  }
+  const res = await UserModel.updateOne(
+    { email: normalizedEmail },
+    { $set: { otp, otpExpiresAt } }
+  ).exec();
 
-  const user = memoryUsers.get(normalizedEmail);
-  if (user) {
-    user.otp = otp;
-    user.otpExpiresAt = otpExpiresAt;
-    user.updatedAt = new Date();
-    memoryUsers.set(normalizedEmail, user);
-    return true;
-  }
-
-  return true;
+  console.log(`[UserStore] >>> UPDATED OTP IN MONGODB ATLAS for ${normalizedEmail} <<<`);
+  return res.acknowledged;
 }
 
 export async function verifyAndClearOtp(email: string, otpToTest: string): Promise<{
@@ -204,7 +131,7 @@ export async function verifyAndClearOtp(email: string, otpToTest: string): Promi
   const user = await findUserByEmail(normalizedEmail);
 
   if (!user) {
-    return { success: false, message: 'No registered user found with this email.' };
+    return { success: false, message: 'No registered user found with this email in the database.' };
   }
 
   if (!user.otp || !user.otpExpiresAt) {
@@ -219,27 +146,12 @@ export async function verifyAndClearOtp(email: string, otpToTest: string): Promi
     return { success: false, message: 'Invalid 6-digit OTP code.' };
   }
 
-  // Clear OTP and mark verified
-  const db = await connectToDatabase();
-  if (db) {
-    try {
-      await UserModel.updateOne(
-        { email: normalizedEmail },
-        { $set: { isVerified: true, otp: null, otpExpiresAt: null } }
-      ).exec();
-    } catch (err) {
-      console.warn('[UserStore] Mongo OTP clear failed:', (err as Error).message);
-    }
-  }
+  await UserModel.updateOne(
+    { email: normalizedEmail },
+    { $set: { isVerified: true, otp: null, otpExpiresAt: null } }
+  ).exec();
 
-  const memoryUser = memoryUsers.get(normalizedEmail);
-  if (memoryUser) {
-    memoryUser.isVerified = true;
-    memoryUser.otp = null;
-    memoryUser.otpExpiresAt = null;
-    memoryUser.updatedAt = new Date();
-    memoryUsers.set(normalizedEmail, memoryUser);
-  }
+  console.log(`[UserStore] >>> MARKED USER VERIFIED IN MONGODB ATLAS: ${normalizedEmail} <<<`);
 
   user.isVerified = true;
   user.otp = null;
