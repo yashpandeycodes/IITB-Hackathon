@@ -1,6 +1,6 @@
 # Frontend Handoff
 
-> For the frontend teammates. The backend is being built phase by phase on the `Aryan` branch. Phases 2–3 are done (engine checker, data layer, auth, read APIs; timetable generation, exams, Spectra decisions, export and the validator report); bookings, the AI layer and rescheduling come in Phases 4–5. This page lists what the backend provides now and the items found in review that live in frontend files. API details: [api.md](./api.md). Data shapes: `src/lib/contracts` (import types from `@/lib/contracts`).
+> For the frontend teammates. The backend is being built phase by phase on the `Aryan` branch. Phases 2–3 are done (engine checker, data layer, auth, read APIs; timetable generation, exams, Spectra decisions, export and the validator report); bookings, the AI layer and rescheduling come in Phases 4–5. This page lists what the backend provides now and the items found in review that live in frontend files. The end-of-Phase-3 review of the merged frontend (what's wired, what's fake, what to fix first) is in [project-status.md](./project-status.md). API details: [api.md](./api.md). Data shapes: `src/lib/contracts` (import types from `@/lib/contracts`).
 
 ## Working on the shared layout
 
@@ -49,7 +49,7 @@ _As of Phase 3 (auth, data, read views, generation, exams, Spectra, export). Req
 - **Downloads.** A plain `<a href="/api/export?file=schedule" download>` works (the browser sends the session cookie), but it can't see an error status: call `GET /api/validate` first and enable the link only when `hard_violation_count === 0`, or `fetch` the export and save the blob.
 - **Schedule runs are rate-limited.** Generate, activate, exam generation and Spectra share a quota (30 per admin per 10 minutes): show the `429` message and disable the buttons while a run is in progress.
 - **After a reset the app has data.** `POST /api/admin/reset` now generates and activates a timetable, schedules exams and runs Spectra (a few seconds), so the timetable grids, dashboard and Spectra views are populated straight away. Show a spinner on the reset button.
-- **App shell role.** `src/app/(app)/layout.tsx` still hard-codes `role = "admin"`; read the user from `GET /api/auth/me` (or the session on the server) instead.
+- **App shell role.** `src/components/layout/app-shell.tsx` defaults to role "Admin" and the name "Dr. Rajesh Verma", and most pages pass nothing; read the user once from `GET /api/auth/me` (or the session on the server, in one shared layout) and pass it down. Full review: [project-status.md](./project-status.md).
 
 ## Items in frontend files (found in review)
 

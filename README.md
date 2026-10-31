@@ -104,7 +104,7 @@ API reference for the routes that exist today: [docs/api.md](docs/api.md).
 
 ## Demo accounts
 
-Sign in on `/login` with the email and password below. One-click sign-in is available through the API, `POST /api/auth/demo-login` with `{"role":"admin"}` (or `department_coordinator`, `faculty`, `club`); the one-click cards on `/login` that call it are pending in the frontend. Run `npm run seed` first on a new database (demo-login also re-creates a missing demo account). Demo sign-in is on by default; `DEMO_LOGIN_ENABLED=false` turns it off.
+Sign in on `/login` with the email and password below. One-click sign-in: the demo-account cards on `/login`, or the API directly, `POST /api/auth/demo-login` with `{"role":"admin"}` (or `department_coordinator`, `faculty`, `club`). Run `npm run seed` first on a new database (demo-login also re-creates a missing demo account). Demo sign-in is on by default; `DEMO_LOGIN_ENABLED=false` turns it off.
 
 ```bash
 curl -c jar -X POST -H 'content-type: application/json' -d '{"role":"admin"}' localhost:3000/api/auth/demo-login
@@ -117,13 +117,13 @@ curl -c jar -X POST -H 'content-type: application/json' -d '{"role":"admin"}' lo
 | Faculty                | `faculty@cit.demo`   | `Faculty@123` | `F06` Dr. Arjun Mehta (CSE, teaches CS202 / CS303) |
 | Club representative    | `club@cit.demo`      | `Club@123`    | Dramatics Society                                  |
 
-**Reset demo data:** signed in as Admin, `POST /api/admin/reset` restores the bundled starter-pack dataset and the demo accounts, so every judge can start from a clean state (the Admin page button that calls it is pending in the frontend).
+**Reset demo data:** signed in as Admin, `POST /api/admin/reset` restores the bundled starter-pack dataset and the demo accounts, so every judge can start from a clean state (the Admin page's Reset button is not connected to it yet; see [docs/project-status.md](docs/project-status.md)).
 
 Nobody can approve their own request. Self-service sign-up (`/signup`) creates Club Representative accounts only, verified by an emailed code in the same browser; faculty and staff accounts are provisioned. Role permissions: [docs/architecture.md §9](docs/architecture.md#9-auth-and-rbac).
 
 ## Validating
 
-Exports are produced only by the app (`GET /api/export`, which `npm run export` calls; the Admin page's Export button is pending in the frontend) and committed exactly as downloaded. The export endpoint refuses to serve a file our validator port finds a hard violation in.
+Exports are produced only by the app (`GET /api/export`, which `npm run export` calls; the Admin page's Export button is not connected yet and must not be used for submission) and committed exactly as downloaded. The export endpoint refuses to serve a file our validator port finds a hard violation in.
 
 **Current results** (`exports/schedule.json`, produced by the app from the bundled dataset with seed 42; output of `npm run validate`, which runs the unmodified `validator.py`):
 
@@ -208,19 +208,20 @@ Scripts that import server-only modules (database, env) run with `npx tsx --cond
 
 ## Documentation
 
-| Doc                                          | Contents                                                           |
-| -------------------------------------------- | ------------------------------------------------------------------ |
-| [docs/architecture.md](docs/architecture.md) | System design, data contracts, MongoDB schema, API catalogue, RBAC |
-| [docs/api.md](docs/api.md)                   | API reference for the implemented routes, with example responses   |
-| [docs/backend.md](docs/backend.md)           | Features, algorithms, dataset traps, AI layer                      |
-| [docs/frontend.md](docs/frontend.md)         | Design system, screens, components, responsive and state handling  |
-| [AI_USAGE.md](AI_USAGE.md)                   | AI in the product, AI tools used, prompts, what the LLM may not do |
-| [THIRD_PARTY.md](THIRD_PARTY.md)             | Libraries, components, fonts, services and data used               |
+| Doc                                              | Contents                                                                           |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| [docs/architecture.md](docs/architecture.md)     | System design, data contracts, MongoDB schema, API catalogue, RBAC                 |
+| [docs/project-status.md](docs/project-status.md) | Plain-language status: what works, what to fix, what's next (frontend and backend) |
+| [docs/api.md](docs/api.md)                       | API reference for the implemented routes, with example responses                   |
+| [docs/backend.md](docs/backend.md)               | Features, algorithms, dataset traps, AI layer                                      |
+| [docs/frontend.md](docs/frontend.md)             | Design system, screens, components, responsive and state handling                  |
+| [AI_USAGE.md](AI_USAGE.md)                       | AI in the product, AI tools used, prompts, what the LLM may not do                 |
+| [THIRD_PARTY.md](THIRD_PARTY.md)                 | Libraries, components, fonts, services and data used                               |
 
 ## Known limitations
 
 - Deployment link: pending.
-- Done so far: sign-in, sign-up and roles; dataset import and reset; timetable and room views; what-if checks; dashboard; settings; timetable generation (with live progress), version activation, exam scheduling, Spectra decisions, the `schedule.json` export and the in-app validator report ([docs/api.md](docs/api.md)). Natural-language booking and the AI layer land in Phase 4; change requests, approvals, rescheduling (`schedule_after.json`), the assistant and explanations in Phase 5. The UI for generation, exams, Spectra and export is in progress in the frontend.
+- Done so far: sign-in, sign-up and roles; dataset import and reset; timetable and room views; what-if checks; dashboard; settings; timetable generation (with live progress), version activation, exam scheduling, Spectra decisions, the `schedule.json` export and the in-app validator report ([docs/api.md](docs/api.md)). Natural-language booking and the AI layer land in Phase 4; change requests, approvals, rescheduling (`schedule_after.json`), the assistant and explanations in Phase 5. Most app screens still show sample data and are being connected to the API ([docs/project-status.md](docs/project-status.md)).
 - After a dataset **import**, no timetable is generated automatically: run `POST /api/timetable/generate` with `{"activate": true}` and `POST /api/exams/generate` (a reset does all of this).
 - Live drag-and-drop checks run on the server (`POST /api/timetable/check`); the in-browser Web Worker copy of the engine shown in the diagram is planned.
 - Google sign-in isn't available: `/api/auth/google` always redirects back to `/login?error=google_unavailable` (no callback yet). Use the demo accounts.
