@@ -5,7 +5,11 @@ import { z } from "zod";
 
 import { BookingRequestSchema } from "./dataset";
 import { Category, Day, Need, Period, RequestState, RoomType } from "./enums";
-import { BookingDecisionSchema, SessionOverrideSchema } from "./schedule";
+import {
+  BookingDecisionSchema,
+  SessionOverrideSchema,
+  type BookingDecision,
+} from "./schedule";
 import { Id, Timestamp, type KnownFields } from "./util";
 import { BookingStatsSchema } from "./violation";
 
@@ -25,19 +29,26 @@ export const ReasonCode = z.enum([
 ]);
 export type ReasonCode = z.infer<typeof ReasonCode>;
 
-/**
- * A decision as stored in `booking_decisions`: the export shape plus metadata.
- * Keeps the export checks (slot required unless rejected, reason required unless approved).
- */
-export const StoredBookingDecisionSchema = BookingDecisionSchema.safeExtend({
+/** Metadata every stored decision carries; shared by the stored and the view schemas. */
+const decisionMeta = {
   reason_code: ReasonCode,
   effective_category: Category,
-  /** True when the claimed category was lowered to the role's cap. */
+  /** True when the claimed category was lowered to the role's cap (`isCategoryCapped`). */
   category_capped: z.boolean(),
   /** True when the decision moves sessions for Week 7 (an institute event displacing classes). */
   requires_admin_approval: z.boolean(),
   /** True when the engine decided without an approver. */
   auto: z.boolean(),
+  timetable_version: Id.nullable(),
+  decided_at: Timestamp,
+};
+
+/**
+ * A decision as stored in `booking_decisions`: the export shape plus metadata.
+ * Keeps the export checks (slot required unless rejected, reason required unless approved).
+ */
+export const StoredBookingDecisionSchema = BookingDecisionSchema.safeExtend({
+  ...decisionMeta,
   /** "engine" or the deciding user's id. */
   decided_by: Id,
   /**
@@ -45,8 +56,6 @@ export const StoredBookingDecisionSchema = BookingDecisionSchema.safeExtend({
    * (`requires_admin_approval`), the admin whose Spectra run or activation approved the moves.
    */
   approved_by: Id.nullable(),
-  timetable_version: Id.nullable(),
-  decided_at: Timestamp,
 }).strict();
 export type StoredBookingDecision = z.infer<typeof StoredBookingDecisionSchema>;
 
@@ -77,6 +86,57 @@ export const SpectraRunResultSchema = SpectraRunSummarySchema.extend({
   overrides: z.array(StoredSessionOverrideSchema),
 }).strict();
 export type SpectraRunResult = z.infer<typeof SpectraRunResultSchema>;
+
+/**
+ * A stored decision as `GET /api/spectra` shows it. `decided_by` and `approved_by` (user ids)
+ * are included for admins only.
+ */
+export const SpectraDecisionViewSchema = BookingDecisionSchema.safeExtend({
+  ...decisionMeta,
+  decided_by: Id.optional(),
+  approved_by: Id.nullable().optional(),
+}).strict();
+export type SpectraDecisionView = z.infer<typeof SpectraDecisionViewSchema>;
+
+/** The non-admin decision view: no user ids at all (strict, so a leaked key fails loudly). */
+export const SpectraPublicDecisionViewSchema =
+  BookingDecisionSchema.safeExtend(decisionMeta).strict();
+
+/** A Week-7 session move as `GET /api/spectra` shows it (`approved_by` for admins only). */
+export const SpectraOverrideViewSchema = SessionOverrideSchema.extend({
+  timetable_version: Id,
+  approved_by: Id.nullable().optional(),
+}).strict();
+export type SpectraOverrideView = z.infer<typeof SpectraOverrideViewSchema>;
+
+/** The non-admin override view: no approver (strict). */
+export const SpectraPublicOverrideViewSchema = SessionOverrideSchema.extend({
+  timetable_version: Id,
+}).strict();
+
+/**
+ * The `schedule.json` shape of a stored (or viewed) decision: rejections carry no slot, metadata
+ * is dropped. Pure; shared by the export and the Spectra summary.
+ */
+export function toExportDecision(decision: BookingDecision): BookingDecision {
+  const { request_id, status, reason } = decision;
+  if (status === "rejected") return { request_id, status, reason };
+  const { day, start_period, end_period, room_id } = decision;
+  return { request_id, status, day, start_period, end_period, room_id, reason };
+}
+
+/**
+ * `GET /api/spectra` (`data`): the active timetable's stored Spectra decisions (dataset order),
+ * Week-7 overrides and their validator stats. Everything null/empty before a timetable is active
+ * or before Spectra has run for it.
+ */
+export const SpectraStateSchema = z.strictObject({
+  timetable_version: Id.nullable(),
+  summary: SpectraRunSummarySchema.nullable(),
+  decisions: z.array(SpectraDecisionViewSchema),
+  overrides: z.array(SpectraOverrideViewSchema),
+});
+export type SpectraState = z.infer<typeof SpectraStateSchema>;
 
 export const BookingSource = z.enum(["dataset", "nl", "form"]);
 export type BookingSource = z.infer<typeof BookingSource>;

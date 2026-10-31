@@ -17,6 +17,7 @@
  */
 import {
   effectiveCategory,
+  isCategoryCapped,
   type Assignment,
   type BookingDecision,
   type BookingRequest,
@@ -382,7 +383,6 @@ function prepare(
   const effective = effectiveCategory(rules, req);
   const effIdx = order.indexOf(effective);
   const rank = effIdx === -1 ? order.length : effIdx;
-  const claimedIdx = order.indexOf(req.requested_category as Category);
   const instituteIdx = order.indexOf(INSTITUTE);
   const eligible =
     effIdx !== -1 && instituteIdx !== -1 && effIdx <= instituteIdx;
@@ -447,7 +447,7 @@ function prepare(
     index,
     effective,
     rank,
-    capped: claimedIdx !== -1 && claimedIdx < effIdx,
+    capped: isCategoryCapped(rules, req),
     eligible,
     canDisplace: eligible && allowDisplacement,
     requested,

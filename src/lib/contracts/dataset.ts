@@ -328,6 +328,18 @@ export const DatasetSchema = z
         });
       }
     }
+    // A role without a cap is capped at club_event, which the validator also looks up.
+    if (!data.priority_order.includes("club_event")) {
+      data.booking_requests.forEach((request, index) => {
+        if (!Object.hasOwn(data.role_category_cap, request.role)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["booking_requests", index, "role"],
+            message: `Role "${request.role}" has no cap in role_category_cap, so it is capped at club_event, which is not in priority_order`,
+          });
+        }
+      });
+    }
     for (const key of ID_COLLECTIONS) {
       const items: ReadonlyArray<{ id: string }> = data[key];
       const seen = new Set<string>();

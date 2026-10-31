@@ -31,3 +31,19 @@ export function effectiveCategory(
   );
   return order[rank];
 }
+
+/**
+ * True when the role's cap lowered the request: its claimed category is a known one that ranks
+ * above the effective category (e.g. a club claiming `guest_lecture`). An unknown claim is not
+ * "capped"; it simply ranks lowest. Shown as a "category capped" badge.
+ */
+export function isCategoryCapped(
+  rules: PriorityRules,
+  request: { role: string; requested_category: string },
+): boolean {
+  const order = rules.priority_order;
+  const claimed = order.indexOf(request.requested_category as Category);
+  return (
+    claimed !== -1 && claimed < order.indexOf(effectiveCategory(rules, request))
+  );
+}
