@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -22,6 +22,9 @@ import {
 } from 'lucide-react';
 import { CITLogo } from '@/components/brand/logo';
 import { CommandPalette } from './command-palette';
+import { useCurrentUser, useDashboard } from '@/lib/api-queries';
+import { ROLE_LABEL } from '@/lib/auth/roles';
+import type { Role } from '@/lib/contracts';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -34,9 +37,9 @@ interface AppShellProps {
 
 export const AppShell: React.FC<AppShellProps> = ({
   children,
-  userRole = 'Admin',
-  userName = 'Dr. Rajesh Verma',
-  userEmail = 'admin@citnexus.edu',
+  userRole: propUserRole,
+  userName: propUserName,
+  userEmail: propUserEmail,
   pageTitle,
   breadcrumbs = [],
 }) => {
@@ -44,6 +47,37 @@ export const AppShell: React.FC<AppShellProps> = ({
   const router = useRouter();
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Read current user and dashboard from TanStack Query
+  const { user } = useCurrentUser();
+  const { data: dashboardData } = useDashboard();
+
+  // Resolve user identity: props take precedence if given, otherwise active session
+  const effectiveRoleValue: Role = user?.role ?? 'admin';
+  const effectiveRoleLabel = user ? ROLE_LABEL[user.role] : (propUserRole ?? 'Admin');
+  const effectiveName = propUserName ?? user?.name ?? 'User';
+  const effectiveEmail = propUserEmail ?? user?.email ?? '';
+
+  // Faculty timetable link points to their own timetable
+  const timetableHref =
+    user?.role === 'faculty' && user?.faculty_id
+      ? `/timetable/faculty/${user.faculty_id}`
+      : '/timetable/group/Y1-A';
+
+  // Pending approvals badge count from real dashboard data
+  const pendingApprovalsCount = dashboardData?.pending_approvals?.total ?? 0;
+
+  // Keyboard shortcut listener for ⌘K / Ctrl+K
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandOpen((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -56,20 +90,71 @@ export const AppShell: React.FC<AppShellProps> = ({
   };
 
   const navItems = [
-    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'] },
-    { label: 'Timetables', href: '/timetable/group/Y1-A', icon: Calendar, roles: ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'] },
-    { label: 'Find a room', href: '/rooms', icon: Building2, roles: ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'] },
-    { label: 'Bookings', href: '/bookings', icon: Ticket, roles: ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'] },
-    { label: 'Spectra week', href: '/spectra', icon: Sparkles, roles: ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'] },
-    { label: 'Approvals', href: '/approvals', icon: CheckCircle2, roles: ['Admin', 'Department Coordinator'], badge: '3' },
-    { label: 'Changes', href: '/changes', icon: Shuffle, roles: ['Admin', 'Department Coordinator', 'Faculty'] },
-    { label: 'AI assistant', href: '/assistant', icon: Bot, roles: ['Admin', 'Department Coordinator', 'Faculty'] },
-    { label: 'Exams', href: '/exams', icon: GraduationCap, roles: ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'] },
-    { label: 'Admin', href: '/admin', icon: ShieldAlert, roles: ['Admin'] },
+    {
+      label: 'Dashboard',
+      href: '/dashboard',
+      icon: LayoutDashboard,
+      roles: ['admin', 'department_coordinator', 'faculty', 'club'],
+    },
+    {
+      label: 'Timetables',
+      href: timetableHref,
+      icon: Calendar,
+      roles: ['admin', 'department_coordinator', 'faculty', 'club'],
+    },
+    {
+      label: 'Find a room',
+      href: '/rooms',
+      icon: Building2,
+      roles: ['admin', 'department_coordinator', 'faculty', 'club'],
+    },
+    {
+      label: 'Bookings',
+      href: '/bookings',
+      icon: Ticket,
+      roles: ['admin', 'department_coordinator', 'faculty', 'club'],
+    },
+    {
+      label: 'Spectra week',
+      href: '/spectra',
+      icon: Sparkles,
+      roles: ['admin', 'department_coordinator', 'faculty', 'club'],
+    },
+    {
+      label: 'Approvals',
+      href: '/approvals',
+      icon: CheckCircle2,
+      roles: ['admin', 'department_coordinator'],
+      badge: pendingApprovalsCount > 0 ? String(pendingApprovalsCount) : undefined,
+    },
+    {
+      label: 'Changes',
+      href: '/changes',
+      icon: Shuffle,
+      roles: ['admin', 'department_coordinator', 'faculty'],
+    },
+    {
+      label: 'AI assistant',
+      href: '/assistant',
+      icon: Bot,
+      roles: ['admin', 'department_coordinator', 'faculty'],
+    },
+    {
+      label: 'Exams',
+      href: '/exams',
+      icon: GraduationCap,
+      roles: ['admin', 'department_coordinator', 'faculty', 'club'],
+    },
+    {
+      label: 'Admin',
+      href: '/admin',
+      icon: ShieldAlert,
+      roles: ['admin'],
+    },
   ];
 
   // Filter allowed items for the role
-  const visibleNavItems = navItems.filter((item) => item.roles.includes(userRole));
+  const visibleNavItems = navItems.filter((item) => item.roles.includes(effectiveRoleValue));
 
   return (
     <div className="min-h-screen bg-[#070A12] text-white flex flex-col lg:flex-row relative">
@@ -90,10 +175,10 @@ export const AppShell: React.FC<AppShellProps> = ({
           <div className="my-4 px-3 py-2.5 rounded-xl bg-[#101A2B] border border-white/10 flex items-center justify-between">
             <div>
               <div className="text-xs font-bold text-white leading-tight truncate max-w-[140px]">
-                {userName}
+                {effectiveName}
               </div>
               <div className="text-[10px] font-mono font-bold text-[#66E3F0] uppercase tracking-wider">
-                {userRole}
+                {effectiveRoleLabel}
               </div>
             </div>
             <span className="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981]" />
@@ -117,7 +202,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           <nav className="space-y-1">
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+              const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
               return (
                 <Link
                   key={item.href}
@@ -198,55 +283,53 @@ export const AppShell: React.FC<AppShellProps> = ({
               className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#101A2B] hover:bg-[#132035] border border-white/10 text-xs font-mono text-[#98A6BB]"
             >
               <Search className="w-3.5 h-3.5 text-[#66E3F0]" />
-              <span>⌘K Jump</span>
+              <span>Find room, session or event...</span>
+              <kbd className="px-1.5 py-0.5 rounded bg-black/40 text-[10px] border border-white/10 text-white/50">
+                ⌘K
+              </kbd>
             </button>
 
             <Link
               href="/rooms"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-[#66E3F0]/15 hover:bg-[#66E3F0]/25 text-[#66E3F0] border border-[#66E3F0]/40 transition-colors"
+              className="px-3 py-1.5 rounded-xl bg-[#66E3F0]/10 hover:bg-[#66E3F0]/20 border border-[#66E3F0]/30 text-xs font-mono font-bold text-[#66E3F0] flex items-center gap-1.5 transition-colors"
             >
               <Compass className="w-3.5 h-3.5" />
-              <span>Find a room ▸</span>
-            </Link>
-
-            <Link
-              href="/bookings/new"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-gradient-to-r from-[#8279FF] to-[#66E3F0] hover:opacity-90 text-[#070A12] shadow-sm transition-opacity"
-            >
-              <Ticket className="w-3.5 h-3.5" />
-              <span>Book Venue</span>
+              <span>Find a room</span>
             </Link>
           </div>
         </header>
 
-        {/* Page Body */}
-        <main className="flex-1 p-4 md:p-6 pb-20 lg:pb-6 overflow-y-auto">
+        {/* Page Content Body */}
+        <main className="flex-1 p-4 md:p-6 lg:p-8 pb-20 lg:pb-8 max-w-7xl w-full mx-auto">
           {children}
         </main>
       </div>
 
-      {/* Mobile Drawer Navigation Sheet */}
+      {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden flex">
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
-          <div className="relative w-72 max-w-[85%] bg-[#0B1220] border-r border-white/10 p-5 flex flex-col justify-between z-10">
+        <div className="lg:hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm">
+          <div className="fixed inset-y-0 left-0 w-72 bg-[#0B1220] border-r border-white/10 p-5 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-4">
                 <CITLogo size="sm" />
-                <button onClick={() => setMobileMenuOpen(false)} className="p-1 rounded-lg hover:bg-white/10">
-                  <X className="w-5 h-5 text-white" />
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="p-3 rounded-xl bg-[#101A2B] border border-white/10 mb-4">
-                <div className="text-xs font-bold text-white">{userName}</div>
-                <div className="text-[10px] font-mono text-[#66E3F0] uppercase font-bold">{userRole}</div>
+              {/* User profile on mobile */}
+              <div className="mb-4 px-3 py-2.5 rounded-xl bg-[#101A2B] border border-white/10">
+                <div className="text-xs font-bold text-white truncate">{effectiveName}</div>
+                <div className="text-[10px] font-mono text-[#66E3F0] uppercase font-bold">{effectiveRoleLabel}</div>
               </div>
 
               <nav className="space-y-1">
                 {visibleNavItems.map((item) => {
                   const Icon = item.icon;
-                  const isActive = pathname === item.href;
+                  const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
                   return (
                     <Link
                       key={item.href}
@@ -254,8 +337,8 @@ export const AppShell: React.FC<AppShellProps> = ({
                       onClick={() => setMobileMenuOpen(false)}
                       className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium ${
                         isActive
-                          ? 'bg-[#66E3F0]/20 text-[#66E3F0] font-bold border border-[#66E3F0]/30'
-                          : 'text-[#98A6BB] hover:bg-white/5 hover:text-white'
+                          ? 'bg-[#66E3F0]/20 text-[#66E3F0] font-bold border border-[#66E3F0]/40'
+                          : 'text-[#98A6BB] hover:text-white'
                       }`}
                     >
                       <span className="flex items-center gap-3">
@@ -263,7 +346,7 @@ export const AppShell: React.FC<AppShellProps> = ({
                         <span>{item.label}</span>
                       </span>
                       {item.badge && (
-                        <span className="px-1.5 py-0.2 rounded bg-[#8279FF] text-white text-[10px] font-mono font-bold">
+                        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-[#8279FF] text-white">
                           {item.badge}
                         </span>
                       )}
@@ -273,19 +356,21 @@ export const AppShell: React.FC<AppShellProps> = ({
               </nav>
             </div>
 
-            <button
-              onClick={handleLogout}
-              className="w-full py-2.5 rounded-xl text-xs font-mono font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 flex items-center justify-center gap-2"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Log Out</span>
-            </button>
+            <div className="pt-4 border-t border-white/10">
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-mono text-rose-400 hover:bg-rose-500/10"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Mobile Bottom Tab Bar (§4.1 & §8) */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#0B1220]/95 backdrop-blur-lg border-t border-white/10 flex items-center justify-around px-2 z-40">
+      {/* Mobile Sticky Bottom Tab Bar */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#0B1220]/95 backdrop-blur-md border-t border-white/10 flex items-center justify-around px-2 z-40">
         <Link
           href="/dashboard"
           className={`flex flex-col items-center gap-1 text-[10px] font-mono ${
@@ -297,13 +382,13 @@ export const AppShell: React.FC<AppShellProps> = ({
         </Link>
 
         <Link
-          href="/timetable/group/Y1-A"
+          href={timetableHref}
           className={`flex flex-col items-center gap-1 text-[10px] font-mono ${
             pathname.startsWith('/timetable') ? 'text-[#66E3F0] font-bold' : 'text-[#98A6BB]'
           }`}
         >
           <Calendar className="w-4 h-4" />
-          <span>Timetable</span>
+          <span>Schedule</span>
         </Link>
 
         <Link
@@ -316,38 +401,31 @@ export const AppShell: React.FC<AppShellProps> = ({
           <span>Rooms</span>
         </Link>
 
-        {userRole === 'Admin' || userRole === 'Department Coordinator' ? (
+        {effectiveRoleValue === 'admin' || effectiveRoleValue === 'department_coordinator' ? (
           <Link
             href="/approvals"
             className={`flex flex-col items-center gap-1 text-[10px] font-mono relative ${
-              pathname.startsWith('/approvals') ? 'text-[#66E3F0] font-bold' : 'text-[#98A6BB]'
+              pathname === '/approvals' ? 'text-[#66E3F0] font-bold' : 'text-[#98A6BB]'
             }`}
           >
             <CheckCircle2 className="w-4 h-4" />
             <span>Approvals</span>
-            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#8279FF]" />
+            {pendingApprovalsCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#8279FF]" />
+            )}
           </Link>
         ) : (
           <Link
-            href="/bookings"
+            href="/spectra"
             className={`flex flex-col items-center gap-1 text-[10px] font-mono ${
-              pathname.startsWith('/bookings') ? 'text-[#66E3F0] font-bold' : 'text-[#98A6BB]'
+              pathname === '/spectra' ? 'text-pink-400 font-bold' : 'text-[#98A6BB]'
             }`}
           >
-            <Ticket className="w-4 h-4" />
-            <span>Bookings</span>
+            <Sparkles className="w-4 h-4" />
+            <span>Spectra</span>
           </Link>
         )}
-
-        <button
-          onClick={() => setMobileMenuOpen(true)}
-          className="flex flex-col items-center gap-1 text-[10px] font-mono text-[#98A6BB] hover:text-white"
-        >
-          <Menu className="w-4 h-4" />
-          <span>More</span>
-        </button>
       </div>
     </div>
   );
 };
-

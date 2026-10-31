@@ -45,29 +45,92 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
 
   const getSession = (sessionId: string) => sessions.find((s) => s.id === sessionId);
 
-  // Check if a 3-hour lab started at an earlier period and is currently spanning
-  const isCoveredByLabSpan = (day: DayCode, period: PeriodId) => {
-    if (period === 'P3') {
-      const p2 = assignments.find((a) => a.day === day && a.period === 'P2');
-      const sess = p2 ? getSession(p2.sessionId) : null;
-      if (sess?.kind === 'lab') return true;
+  const periodIndex = (p: PeriodId): number => {
+    const num = parseInt(p.replace('P', ''), 10);
+    return isNaN(num) ? 0 : num;
+  };
+
+  // Check if a multi-period session or booking started at an earlier period and is currently spanning
+  const isCovered = (day: DayCode, period: PeriodId): boolean => {
+    const currentP = periodIndex(period);
+
+    // 1. Check standard assignments
+    for (const a of assignments) {
+      if (a.day !== day) continue;
+      const startP = periodIndex(a.period);
+      const sess = getSession(a.sessionId);
+      const dur = sess?.durationPeriods ?? 1;
+      if (startP < currentP && startP + dur > currentP) {
+        return true;
+      }
     }
-    if (period === 'P4') {
-      const p2 = assignments.find((a) => a.day === day && a.period === 'P2');
-      const sess = p2 ? getSession(p2.sessionId) : null;
-      if (sess?.kind === 'lab') return true;
+
+    // 2. Check bookings (Spectra)
+    for (const b of bookings) {
+      if (b.day !== day) continue;
+      const startP = periodIndex(b.periodStart);
+      const endP = periodIndex(b.periodEnd);
+      if (startP < currentP && endP >= currentP) {
+        return true;
+      }
     }
-    if (period === 'P7') {
-      const p6 = assignments.find((a) => a.day === day && a.period === 'P6');
-      const sess = p6 ? getSession(p6.sessionId) : null;
-      if (sess?.kind === 'lab') return true;
+
+    // 3. Check new assignments (diff)
+    for (const a of newAssignments) {
+      if (a.day !== day) continue;
+      const startP = periodIndex(a.period);
+      const sess = getSession(a.sessionId);
+      const dur = sess?.durationPeriods ?? 1;
+      if (startP < currentP && startP + dur > currentP) {
+        return true;
+      }
     }
-    if (period === 'P8') {
-      const p6 = assignments.find((a) => a.day === day && a.period === 'P6');
-      const sess = p6 ? getSession(p6.sessionId) : null;
-      if (sess?.kind === 'lab') return true;
+
+    // 4. Check ghost assignments (diff)
+    for (const a of ghostAssignments) {
+      if (a.day !== day) continue;
+      const startP = periodIndex(a.period);
+      const sess = getSession(a.sessionId);
+      const dur = sess?.durationPeriods ?? 1;
+      if (startP < currentP && startP + dur > currentP) {
+        return true;
+      }
     }
+
     return false;
+  };
+
+  // Compute maximum duration starting at this slot to determine rowSpan
+  const getSlotRowSpan = (day: DayCode, period: PeriodId): number => {
+    let maxDur = 1;
+    for (const a of assignments) {
+      if (a.day === day && a.period === period) {
+        const sess = getSession(a.sessionId);
+        const dur = sess?.durationPeriods ?? 1;
+        if (dur > maxDur) maxDur = dur;
+      }
+    }
+    for (const b of bookings) {
+      if (b.day === day && b.periodStart === period) {
+        const dur = periodIndex(b.periodEnd) - periodIndex(b.periodStart) + 1;
+        if (dur > maxDur) maxDur = dur;
+      }
+    }
+    for (const a of newAssignments) {
+      if (a.day === day && a.period === period) {
+        const sess = getSession(a.sessionId);
+        const dur = sess?.durationPeriods ?? 1;
+        if (dur > maxDur) maxDur = dur;
+      }
+    }
+    for (const a of ghostAssignments) {
+      if (a.day === day && a.period === period) {
+        const sess = getSession(a.sessionId);
+        const dur = sess?.durationPeriods ?? 1;
+        if (dur > maxDur) maxDur = dur;
+      }
+    }
+    return maxDur;
   };
 
   const renderPeriodRow = (period: PeriodId) => {
@@ -83,50 +146,86 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
 
         {/* 5 Day Columns (Mon-Fri) */}
         {DAYS_LIST.map((day) => {
-          // If already spanned by a 3-hour lab that started at P2 or P6, skip rendering td to preserve grid
-          if (isCoveredByLabSpan(day.code, period)) {
+          // If already spanned by a session starting earlier, skip rendering td to preserve grid
+          if (isCovered(day.code, period)) {
             return null;
           }
 
-          // Check standard assignment
-          const assignment = assignments.find((a) => a.day === day.code && a.period === period);
-          const session = assignment ? getSession(assignment.sessionId) : undefined;
+          // Check standard assignments (supporting parallel elective basket sessions)
+          const cellAssignments = assignments.filter((a) => a.day === day.code && a.period === period);
 
-          // Check ghost assignment (Approval diff)
-          const ghost = ghostAssignments.find((a) => a.day === day.code && a.period === period);
-          const ghostSession = ghost ? getSession(ghost.sessionId) : undefined;
+          // Check ghost assignments (Approval diff)
+          const cellGhostAssignments = ghostAssignments.filter((a) => a.day === day.code && a.period === period);
 
-          // Check new assignment (Approval diff)
-          const newAssign = newAssignments.find((a) => a.day === day.code && a.period === period);
-          const newSession = newAssign ? getSession(newAssign.sessionId) : undefined;
+          // Check new assignments (Approval diff)
+          const cellNewAssignments = newAssignments.filter((a) => a.day === day.code && a.period === period);
 
-          // Check Spectra event booking
-          const booking = bookings.find((b) => b.day === day.code && b.periodStart === period);
+          // Check Spectra event bookings
+          const cellBookings = bookings.filter((b) => b.day === day.code && b.periodStart === period);
 
-          const isLabStart = session?.kind === 'lab' && (period === 'P2' || period === 'P6');
+          const slotSpan = getSlotRowSpan(day.code, period);
+          const hasContent =
+            cellAssignments.length > 0 ||
+            cellGhostAssignments.length > 0 ||
+            cellNewAssignments.length > 0 ||
+            cellBookings.length > 0;
 
           return (
             <td
               key={day.code}
-              rowSpan={isLabStart ? 3 : 1}
-              className={`p-1.5 align-top border-r border-white/5 min-w-[140px] max-w-[200px] h-20 sm:h-24 transition-colors ${
-                isLabStart ? 'h-[280px]' : ''
+              rowSpan={slotSpan > 1 ? slotSpan : 1}
+              className={`p-1.5 align-top border-r border-white/5 min-w-[140px] max-w-[220px] transition-colors ${
+                slotSpan >= 3 ? 'h-[260px]' : slotSpan === 2 ? 'h-[170px]' : 'h-20 sm:h-24'
               }`}
             >
-              {session && assignment ? (
-                <SessionCard
-                  session={session}
-                  assignment={assignment}
-                  onClick={() => onCellClick?.(session, assignment)}
-                />
-              ) : ghost && ghostSession ? (
-                <SessionCard session={ghostSession} assignment={ghost} isGhost />
-              ) : newAssign && newSession ? (
-                <SessionCard session={newSession} assignment={newAssign} isNewPlacement />
-              ) : booking ? (
-                <SessionCard booking={booking} onClick={() => onBookingClick?.(booking)} />
+              {hasContent ? (
+                <div className="flex flex-col gap-1.5 h-full justify-start">
+                  {/* Standard Assignments (parallel stacked) */}
+                  {cellAssignments.map((assignment) => {
+                    const session = getSession(assignment.sessionId);
+                    if (!session) return null;
+                    return (
+                      <SessionCard
+                        key={assignment.sessionId}
+                        session={session}
+                        assignment={assignment}
+                        onClick={() => onCellClick?.(session, assignment)}
+                      />
+                    );
+                  })}
+
+                  {/* Diff Ghost Assignments */}
+                  {cellGhostAssignments.map((ghost) => {
+                    const ghostSession = getSession(ghost.sessionId);
+                    if (!ghostSession) return null;
+                    return <SessionCard key={ghost.sessionId} session={ghostSession} assignment={ghost} isGhost />;
+                  })}
+
+                  {/* Diff New Placements */}
+                  {cellNewAssignments.map((newAssign) => {
+                    const newSession = getSession(newAssign.sessionId);
+                    if (!newSession) return null;
+                    return (
+                      <SessionCard
+                        key={newAssign.sessionId}
+                        session={newSession}
+                        assignment={newAssign}
+                        isNewPlacement
+                      />
+                    );
+                  })}
+
+                  {/* Spectra Bookings */}
+                  {cellBookings.map((booking) => (
+                    <SessionCard
+                      key={booking.id}
+                      booking={booking}
+                      onClick={() => onBookingClick?.(booking)}
+                    />
+                  ))}
+                </div>
               ) : (
-                <div className="w-full h-full rounded-lg border border-dashed border-white/5 hover:border-white/20 transition-colors flex items-center justify-center text-[10px] font-mono text-white/10 hover:text-white/30">
+                <div className="w-full h-full min-h-[60px] rounded-lg border border-dashed border-white/5 hover:border-white/20 transition-colors flex items-center justify-center text-[10px] font-mono text-white/10 hover:text-white/30">
                   +
                 </div>
               )}
@@ -199,4 +298,3 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
     </div>
   );
 };
-
