@@ -15,7 +15,14 @@ export function toErrorResponse(err: unknown): NextResponse<ApiErr> {
   if (err instanceof ApiError) {
     if (err.status >= 500)
       console.error(`[api] ${err.code}: ${err.message}`, err.cause ?? "");
-    return fail(err.code, err.message, err.details);
+    // Errors such as 429 may carry response headers (e.g. `Retry-After`).
+    const { headers } = err as { headers?: Record<string, string> };
+    return fail(
+      err.code,
+      err.message,
+      err.details,
+      headers ? { headers } : undefined,
+    );
   }
   if (err instanceof z.core.$ZodError) {
     // Client input is parsed by parseJsonBody/parseSearchParams and arrives as an ApiError.
@@ -32,7 +39,8 @@ export function toErrorResponse(err: unknown): NextResponse<ApiErr> {
 
 /**
  * Wraps a Route Handler so every failure becomes an `ApiErr` envelope.
- * For dynamic routes, type the context with Next's `RouteContext<"/api/x/[id]">`.
+ * For dynamic routes, type the context as `{ params: Promise<{ id: string }> }` (Next's
+ * `RouteContext` global only exists after `next dev` / `next build`, and CI typechecks first).
  */
 export function withHandler<C = unknown>(
   fn: (request: NextRequest, context: C) => Response | Promise<Response>,

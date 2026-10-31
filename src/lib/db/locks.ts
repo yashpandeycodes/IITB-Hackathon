@@ -17,11 +17,14 @@ type LockDoc = {
   expires_at: Date;
 };
 
-/** The lock every dataset-wide rewrite (reset, import) takes. */
+/** The lock every dataset-wide rewrite (reset, import, generation, Spectra run) takes. */
 export const DATASET_LOCK = "dataset";
 
-/** Generous: a reset takes under a second locally and Vercel caps routes at 60 s. */
-const DEFAULT_TTL_MS = 120_000;
+/**
+ * Just above Vercel's 60 s route cap (`maxDuration`): a holder killed by the platform frees the
+ * lock 15 s later. Runs stay well inside it (reset ≈ 1 s, solver capped at 30 s of work).
+ */
+const DEFAULT_TTL_MS = 75_000;
 
 const collection = (db: Db) => db.collection<LockDoc>(COLLECTIONS.locks);
 
@@ -62,14 +65,32 @@ export async function releaseLock(
   await collection(db).deleteOne({ _id: name, token });
 }
 
-/** `CONFLICT` (409) for a dataset rewrite that overlaps another one. */
+/** `CONFLICT` (409) for dataset-wide work that overlaps another run. */
 export const datasetBusy = (cause?: unknown) =>
   new ApiError(
     "CONFLICT",
-    "A reset or import is already running. Try again in a moment.",
+    "Another reset, import or schedule run is in progress. Try again in a moment.",
     undefined,
     cause === undefined ? undefined : { cause },
   );
+
+/**
+ * Takes the dataset lock and returns its release function, for work that outlives one call (a
+ * streamed generation). `CONFLICT` (409) at once when the lock is held. The release function is
+ * idempotent and never throws (a failed release is logged; the lock then expires on its TTL).
+ */
+export async function acquireDatasetLock(db: Db): Promise<() => Promise<void>> {
+  const token = await acquireLock(db, DATASET_LOCK);
+  if (token === null) throw datasetBusy();
+  let released = false;
+  return async () => {
+    if (released) return;
+    released = true;
+    await releaseLock(db, DATASET_LOCK, token).catch((err: unknown) => {
+      console.error("[locks] failed to release the dataset lock", err);
+    });
+  };
+}
 
 /**
  * Runs `fn` while holding the dataset lock. A concurrent caller gets `CONFLICT` at once, and a
@@ -80,16 +101,13 @@ export async function withDatasetLock<T>(
   db: Db,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const token = await acquireLock(db, DATASET_LOCK);
-  if (token === null) throw datasetBusy();
+  const release = await acquireDatasetLock(db);
   try {
     return await fn();
   } catch (err) {
     if (isDuplicateKeyError(err)) throw datasetBusy(err);
     throw err;
   } finally {
-    await releaseLock(db, DATASET_LOCK, token).catch((err: unknown) => {
-      console.error("[locks] failed to release the dataset lock", err);
-    });
+    await release();
   }
 }
