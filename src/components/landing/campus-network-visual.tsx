@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import { Building2, Cpu, CheckCircle2, Clock } from 'lucide-react';
 
 interface CampusNode {
@@ -15,6 +15,7 @@ interface CampusNode {
   detail: string;
   capacity: string;
   accent: string;
+  glow: string;
 }
 
 const NODES: CampusNode[] = [
@@ -22,265 +23,269 @@ const NODES: CampusNode[] = [
     id: 'n-1',
     name: 'Lecture Hall 204',
     code: 'LH 204',
-    type: 'Core Academic',
+    type: 'Core Academic Tiered',
     x: 22,
     y: 28,
     status: 'In Session',
-    detail: 'CS-301 Algorithms (82/90)',
+    detail: 'CS-301 Advanced Algorithms (82/90 Enrolled)',
     capacity: '90 Seats',
-    accent: '#66E3F0',
+    accent: '#38bdf8',
+    glow: 'rgba(56, 189, 248, 0.6)',
   },
   {
     id: 'n-2',
     name: 'Turing Computing Lab',
     code: 'TURING LAB',
-    type: 'AI & Systems',
+    type: 'AI & GPU Cluster',
     x: 74,
     y: 22,
     status: 'In Session',
-    detail: 'CS-342 Distributed Lab',
-    capacity: '65 Nodes',
-    accent: '#8279FF',
+    detail: 'CS-342 Distributed Systems (60/65)',
+    capacity: '65 RTX 4080 Nodes',
+    accent: '#c084fc',
+    glow: 'rgba(192, 132, 252, 0.7)',
   },
   {
     id: 'n-3',
     name: 'Seminar Hall 1',
     code: 'SEM HALL 1',
-    type: 'Hybrid Hall',
+    type: 'Hybrid Telepresence',
     x: 18,
     y: 72,
     status: 'Available',
-    detail: 'Ready for Requisition',
+    detail: 'Ready for Requisition • AC Pre-cooled',
     capacity: '120 Seats',
-    accent: '#10B981',
+    accent: '#34d399',
+    glow: 'rgba(52, 211, 153, 0.6)',
   },
   {
     id: 'n-4',
     name: 'Sarabhai Auditorium',
     code: 'SARABHAI AUD',
-    type: 'Grand Complex',
+    type: 'Grand Convocation',
     x: 78,
     y: 74,
     status: 'Exam Reserved',
-    detail: 'Mid-Sem Window Slot A',
+    detail: 'Mid-Sem Window Slot A (1:1 Spacing)',
     capacity: '450 Seats',
-    accent: '#F59E0B',
+    accent: '#fbbf24',
+    glow: 'rgba(251, 191, 36, 0.7)',
   },
   {
     id: 'n-5',
     name: 'CAD Simulation Lab 2',
     code: 'CAD LAB 2',
-    type: 'Engineering',
+    type: 'Engineering Workstations',
     x: 48,
     y: 86,
     status: 'In Session',
-    detail: 'ME-405 CFD Simulation',
+    detail: 'ME-405 CFD Simulation Batch B',
     capacity: '50 Seats',
-    accent: '#38BDF8',
+    accent: '#f43f5e',
+    glow: 'rgba(244, 63, 94, 0.6)',
   },
 ];
 
 export const CampusNetworkVisual: React.FC = () => {
-  const [activeNode, setActiveNode] = useState<CampusNode | null>(NODES[0]);
+  const [activeNode, setActiveNode] = useState<CampusNode>(NODES[0]);
+
+  // 3D Mouse Tilt Physics
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+
+  const mouseX = useSpring(x, { stiffness: 200, damping: 20 });
+  const mouseY = useSpring(y, { stiffness: 200, damping: 20 });
+
+  const rotateX = useTransform(mouseY, [-0.5, 0.5], ['14deg', '-14deg']);
+  const rotateY = useTransform(mouseX, [-0.5, 0.5], ['-18deg', '18deg']);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const xPct = (e.clientX - rect.left) / rect.width - 0.5;
+    const yPct = (e.clientY - rect.top) / rect.height - 0.5;
+    x.set(xPct);
+    y.set(yPct);
+  };
+
+  const handleMouseLeave = () => {
+    x.set(0);
+    y.set(0);
+  };
 
   return (
-    <div className="relative w-full aspect-[4/3] max-w-2xl mx-auto rounded-3xl bg-gradient-to-b from-[#0B1220] to-[#070A12] border border-[#F4F7FB]/10 p-4 sm:p-6 shadow-[0_0_50px_-10px_rgba(102,227,240,0.15)] overflow-hidden select-none">
-      {/* Background Architectural Grid Lines */}
-      <div className="absolute inset-0 campus-grid-bg opacity-40 pointer-events-none" />
+    <div
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{ perspective: 1400 }}
+      className="relative w-full aspect-[4/3] max-w-2xl mx-auto select-none"
+    >
+      {/* 3D Tilted Glass Container */}
+      <motion.div
+        style={{
+          rotateX,
+          rotateY,
+          transformStyle: 'preserve-3d',
+        }}
+        className="relative w-full h-full rounded-3xl bg-gradient-to-b from-[#14082e]/90 via-[#0a031a]/95 to-[#04010a] border-2 border-[#a855f7]/40 p-5 sm:p-7 shadow-[0_25px_60px_-15px_rgba(168,85,247,0.4)] backdrop-blur-3xl overflow-hidden transition-all duration-300"
+      >
+        {/* Luminous Core Glow in 3D Space */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-gradient-to-tr from-[#9333ea]/30 via-[#ec4899]/25 to-[#f59e0b]/20 blur-3xl pointer-events-none" />
 
-      {/* Atmospheric Spatial Glows */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full bg-[#66E3F0]/08 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-60 h-60 rounded-full bg-[#8279FF]/10 blur-3xl pointer-events-none" />
+        {/* Dynamic Holographic Grid Floor */}
+        <div
+          className="absolute inset-0 opacity-25 pointer-events-none"
+          style={{
+            backgroundImage: `
+              linear-gradient(to right, rgba(192, 132, 252, 0.3) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(192, 132, 252, 0.3) 1px, transparent 1px)
+            `,
+            backgroundSize: '36px 36px',
+          }}
+        />
 
-      {/* Campus Coordinate Header */}
-      <div className="relative z-20 flex items-center justify-between pb-3 border-b border-[#F4F7FB]/08 text-[11px] font-mono text-[#98A6BB]">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#66E3F0] animate-pulse" />
-          <span className="text-[#F4F7FB] font-semibold">CAMPUS SPATIAL TOPOLOGY</span>
-          <span className="hidden sm:inline text-white/30">|</span>
-          <span className="hidden sm:inline text-white/60">GRID 42.84°N 85.12°E</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="px-2 py-0.5 rounded bg-[#66E3F0]/10 text-[#66E3F0] text-[10px] font-semibold border border-[#66E3F0]/20">
-            SYNCED: 68 NODES
-          </span>
-        </div>
-      </div>
-
-      {/* Network Interactive Map Canvas */}
-      <div className="relative w-full h-[calc(100%-40px)] min-h-[300px]">
-        {/* SVG Interconnection Pathways */}
-        <svg
-          className="absolute inset-0 w-full h-full pointer-events-none z-10"
-          xmlns="http://www.w3.org/2000/svg"
+        {/* Top Telemetry Header Deck (Elevated in Z) */}
+        <div
+          style={{ transform: 'translateZ(40px)' }}
+          className="relative z-20 flex items-center justify-between pb-3.5 border-b border-[#a855f7]/25 text-xs font-mono"
         >
-          <defs>
-            <linearGradient id="cyanLine" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#66E3F0" stopOpacity="0.8" />
-              <stop offset="100%" stopColor="#8279FF" stopOpacity="0.2" />
-            </linearGradient>
-            <linearGradient id="pulseGlow" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#66E3F0" stopOpacity="0.1" />
-              <stop offset="50%" stopColor="#66E3F0" stopOpacity="0.9" />
-              <stop offset="100%" stopColor="#66E3F0" stopOpacity="0.1" />
-            </linearGradient>
-          </defs>
-
-          {/* Central Hub Lines radiating to each node */}
-          {/* Center coordinate: 50% 48% */}
-          <line
-            x1="50%"
-            y1="48%"
-            x2="22%"
-            y2="28%"
-            stroke="rgba(102, 227, 240, 0.25)"
-            strokeWidth="1.5"
-            strokeDasharray="4 4"
-          />
-          <line
-            x1="50%"
-            y1="48%"
-            x2="74%"
-            y2="22%"
-            stroke="rgba(130, 121, 255, 0.3)"
-            strokeWidth="1.5"
-            strokeDasharray="4 4"
-          />
-          <line
-            x1="50%"
-            y1="48%"
-            x2="18%"
-            y2="72%"
-            stroke="rgba(16, 185, 129, 0.25)"
-            strokeWidth="1.5"
-            strokeDasharray="4 4"
-          />
-          <line
-            x1="50%"
-            y1="48%"
-            x2="78%"
-            y2="74%"
-            stroke="rgba(245, 158, 11, 0.25)"
-            strokeWidth="1.5"
-            strokeDasharray="4 4"
-          />
-          <line
-            x1="50%"
-            y1="48%"
-            x2="48%"
-            y2="86%"
-            stroke="rgba(56, 189, 248, 0.25)"
-            strokeWidth="1.5"
-            strokeDasharray="4 4"
-          />
-
-          {/* Inter-block perimeter circuits */}
-          <path
-            d="M 22% 28% L 74% 22% L 78% 74% L 48% 86% L 18% 72% Z"
-            fill="none"
-            stroke="rgba(244, 247, 251, 0.08)"
-            strokeWidth="1"
-          />
-
-          {/* Animated Pulse Packets (Travel along vectors) */}
-          <circle cx="50%" cy="48%" r="3" fill="#66E3F0">
-            <animate attributeName="r" values="3;7;3" dur="3s" repeatCount="indefinite" />
-            <animate attributeName="opacity" values="0.8;0.2;0.8" dur="3s" repeatCount="indefinite" />
-          </circle>
-        </svg>
-
-        {/* Central Core: CIT Nexus Dispatch Engine */}
-        <div className="absolute top-[48%] left-[50%] -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center">
-          <div className="relative flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#101A2B] border-2 border-[#66E3F0]/60 shadow-[0_0_30px_rgba(102,227,240,0.35)]">
-            <div className="absolute -inset-1 rounded-2xl bg-gradient-to-tr from-[#66E3F0]/20 to-[#8279FF]/20 animate-pulse pointer-events-none" />
-            <Cpu className="w-7 h-7 sm:w-8 sm:h-8 text-[#66E3F0]" />
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#fbbf24] opacity-80" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-[#fbbf24]" />
+            </span>
+            <span className="text-white font-bold tracking-wider text-sm">
+              SPATIAL CAMPUS GRID
+            </span>
+            <span className="hidden sm:inline text-[#a855f7] font-extrabold">•</span>
+            <span className="hidden sm:inline text-[#e2e8f0] font-semibold">CIT COMMAND v2.4</span>
           </div>
-          <div className="mt-2 text-center pointer-events-none">
-            <span className="block text-[10px] font-mono font-bold tracking-widest text-[#F4F7FB]">NEXUS CORE</span>
-            <span className="block text-[9px] font-mono text-[#66E3F0]">DISPATCH ACTIVE</span>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 rounded-full bg-gradient-to-r from-[#9333ea]/30 to-[#f43f5e]/30 text-[#fbcfe8] text-xs font-black border border-[#ec4899]/50 shadow-[0_0_12px_rgba(236,72,153,0.4)]">
+              68 ACTIVE NODES
+            </span>
           </div>
         </div>
 
-        {/* Dynamic Campus Nodes */}
-        {NODES.map((node) => {
-          const isSelected = activeNode?.id === node.id;
-          return (
-            <motion.div
-              key={node.id}
-              style={{ top: `${node.y}%`, left: `${node.x}%` }}
-              className="absolute -translate-x-1/2 -translate-y-1/2 z-30 cursor-pointer"
-              onClick={() => setActiveNode(node)}
-              whileHover={{ scale: 1.08 }}
-              transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-            >
-              {/* Outer status glow */}
-              <div
-                className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border backdrop-blur-md transition-all duration-300 ${isSelected
-                    ? 'bg-[#132035] border-[#66E3F0] shadow-[0_0_20px_rgba(102,227,240,0.4)]'
-                    : 'bg-[#0B1220]/80 border-[#F4F7FB]/15 hover:border-[#F4F7FB]/40'
-                  }`}
+        {/* Spatial Stage */}
+        <div className="relative w-full h-[calc(100%-48px)] min-h-[320px]">
+          {/* Animated Connecting Lasers & SVG Vectors */}
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none z-10"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <defs>
+              <linearGradient id="laserPurple" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#c084fc" stopOpacity="0.9" />
+                <stop offset="50%" stopColor="#ec4899" stopOpacity="0.6" />
+                <stop offset="100%" stopColor="#fbbf24" stopOpacity="0.8" />
+              </linearGradient>
+            </defs>
+
+            {/* Central hub laser lines */}
+            <line x1="50%" y1="50%" x2="22%" y2="28%" stroke="url(#laserPurple)" strokeWidth="2.2" strokeDasharray="5 3" />
+            <line x1="50%" y1="50%" x2="74%" y2="22%" stroke="url(#laserPurple)" strokeWidth="2.2" strokeDasharray="5 3" />
+            <line x1="50%" y1="50%" x2="18%" y2="72%" stroke="url(#laserPurple)" strokeWidth="2.2" strokeDasharray="5 3" />
+            <line x1="50%" y1="50%" x2="78%" y2="74%" stroke="url(#laserPurple)" strokeWidth="2.2" strokeDasharray="5 3" />
+            <line x1="50%" y1="50%" x2="48%" y2="86%" stroke="url(#laserPurple)" strokeWidth="2.2" strokeDasharray="5 3" />
+
+            {/* Outer Perimeter Mesh */}
+            <polygon
+              points="22%,28% 74%,22% 78%,74% 48%,86% 18%,72%"
+              fill="rgba(168, 85, 247, 0.05)"
+              stroke="rgba(217, 70, 239, 0.35)"
+              strokeWidth="1.5"
+            />
+          </svg>
+
+          {/* Central Nexus 3D Power Core */}
+          <div
+            style={{ transform: 'translateZ(65px)' }}
+            className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center"
+          >
+            <div className="relative flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-[#9333ea] via-[#ec4899] to-[#fbbf24] p-1 shadow-[0_0_40px_rgba(217,70,239,0.7)] group">
+              <div className="w-full h-full rounded-xl bg-[#0b031d] flex items-center justify-center">
+                <Cpu className="w-8 h-8 sm:w-10 sm:h-10 text-[#fbbf24] animate-pulse" />
+              </div>
+            </div>
+            <div className="mt-2 text-center">
+              <span className="block text-xs font-black font-mono tracking-widest text-white drop-shadow">
+                NEXUS ENGINE
+              </span>
+              <span className="block text-[11px] font-mono font-bold text-[#fbbf24]">
+                DISPATCH SYNCHRONIZED
+              </span>
+            </div>
+          </div>
+
+          {/* 3D Floating Interactive Room Nodes */}
+          {NODES.map((node) => {
+            const isSelected = activeNode?.id === node.id;
+            return (
+              <motion.div
+                key={node.id}
+                style={{
+                  top: `${node.y}%`,
+                  left: `${node.x}%`,
+                  transform: 'translateZ(50px) translate(-50%, -50%)',
+                }}
+                className="absolute z-30 cursor-pointer"
+                onClick={() => setActiveNode(node)}
+                whileHover={{ scale: 1.15 }}
+                whileTap={{ scale: 0.95 }}
               >
                 <div
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: node.accent }}
-                />
-                <span className="text-[11px] font-mono font-semibold tracking-wide text-[#F4F7FB]">
-                  {node.code}
-                </span>
-
-                {/* Sub-label for status */}
-                <span
-                  className="hidden sm:inline-block text-[9px] font-mono px-1.5 py-0.2 rounded"
-                  style={{
-                    backgroundColor: `${node.accent}15`,
-                    color: node.accent,
-                  }}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 backdrop-blur-xl transition-all duration-300 ${
+                    isSelected
+                      ? 'bg-[#1e0a42] border-[#fbbf24] shadow-[0_0_30px_rgba(251,191,36,0.8)] scale-110'
+                      : 'bg-[#100424]/90 border-[#a855f7]/40 hover:border-white shadow-lg'
+                  }`}
                 >
-                  {node.status}
-                </span>
-              </div>
-            </motion.div>
-          );
-        })}
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0 shadow-[0_0_8px]"
+                    style={{ backgroundColor: node.accent, boxShadow: `0 0 10px ${node.glow}` }}
+                  />
+                  <span className="text-xs sm:text-sm font-black font-mono tracking-wide text-white whitespace-nowrap">
+                    {node.code}
+                  </span>
+                  <span
+                    className="hidden sm:inline-block text-[10px] font-mono font-bold px-1.5 py-0.5 rounded"
+                    style={{ backgroundColor: `${node.accent}25`, color: node.accent }}
+                  >
+                    {node.status}
+                  </span>
+                </div>
+              </motion.div>
+            );
+          })}
 
-        {/* Floating Active Node Telemetry Card */}
-        {activeNode && (
-          <motion.div
-            key={activeNode.id}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute bottom-2 left-2 right-2 sm:right-auto sm:left-3 z-40 max-w-xs p-3.5 rounded-2xl bg-[#0B1220]/95 border border-[#66E3F0]/30 backdrop-blur-xl shadow-xl shadow-black/60"
+          {/* Elevated Active Telemetry Popup Deck (Pop out in Z) */}
+          <div
+            style={{ transform: 'translateZ(75px)' }}
+            className="absolute bottom-2 left-2 right-2 sm:right-auto sm:left-3 z-40 max-w-sm p-4 sm:p-5 rounded-2xl bg-[#13062b]/95 border-2 border-[#fbbf24]/60 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
           >
-            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-[#F4F7FB]/10">
-              <div className="flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-[#66E3F0]" />
-                <span className="text-xs font-bold text-[#F4F7FB]">{activeNode.name}</span>
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/15">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-[#fbbf24]" />
+                <span className="text-sm font-black text-white">{activeNode.name}</span>
               </div>
-              <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-white/[0.05] text-[#98A6BB]">
+              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-white/10 text-[#fef08a] border border-[#fbbf24]/30">
                 {activeNode.capacity}
               </span>
             </div>
-            <div className="flex items-center justify-between text-[11px] font-mono text-[#98A6BB]">
-              <span className="flex items-center gap-1 text-[#F4F7FB]">
-                <Clock className="w-3 h-3 text-[#66E3F0]" />
-                {activeNode.detail}
-              </span>
+            
+            <div className="space-y-1.5 text-xs">
+              <div className="flex items-center gap-1.5 text-[#e2e8f0] font-semibold">
+                <Clock className="w-3.5 h-3.5 text-[#c084fc] shrink-0" />
+                <span>{activeNode.detail}</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[#34d399] font-mono font-bold text-[11px] pt-1">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>HARD CONSTRAINT VERIFIED • ZERO CONFLICTS</span>
+              </div>
             </div>
-            <div className="mt-2 flex items-center justify-between pt-1.5 border-t border-[#F4F7FB]/06 text-[10px] text-[#66E3F0]">
-              <span className="flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Rule-verified session
-              </span>
-              <span className="font-mono text-[9px] text-[#98A6BB]">CLICK TO INSPECT</span>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Small Bottom Right Floating Live Indicator */}
-        <div className="hidden sm:flex absolute bottom-2 right-3 z-20 items-center gap-2 px-3 py-1.5 rounded-xl bg-[#101A2B]/75 border border-[#F4F7FB]/10 backdrop-blur-md text-[10px] font-mono text-[#98A6BB]">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-ping" />
-          <span>SCHEDULE SYNCHRONIZED</span>
+          </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import React from 'react';
+import { CrazyBackground } from '@/components/landing/crazy-background';
 import { Navbar } from '@/components/landing/navbar';
 import { HeroSection } from '@/components/landing/hero';
 import { ProductPreview } from '@/components/landing/product-preview';
@@ -13,22 +14,25 @@ import { Footer } from '@/components/landing/footer';
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen flex flex-col bg-[#070A12] text-[#F4F7FB]">
+    <div className="relative min-h-screen flex flex-col bg-[#04010a] text-white selection:bg-[#c084fc]/30 selection:text-[#fbbf24]">
+      {/* Super Crazy Animated Background Experience */}
+      <CrazyBackground />
+
       {/* Navigation Header */}
       <Navbar />
 
       {/* Main Content Sections */}
-      <main className="flex-1">
-        {/* A & B: Hero Section with Campus Spatial Network Visual */}
+      <main className="flex-1 relative z-10">
+        {/* A & B: Hero Section with 3D Spatial Campus Visual */}
         <HeroSection />
 
-        {/* C: Interactive Product Preview */}
+        {/* C: Interactive Product Preview Console */}
         <ProductPreview />
 
-        {/* D: Campus Coordination Problem Narrative */}
+        {/* D: Campus Coordination Problem Narrative with 3D Cards */}
         <ProblemSection />
 
-        {/* E: Core Platform Modules */}
+        {/* E: Core Platform Modules with Interactive Switcher */}
         <PlatformModules />
 
         {/* F: "Intelligence proposes. Constraints decide." */}
@@ -37,10 +41,10 @@ export default function HomePage() {
         {/* G: Disruption Repair Interactive Demonstration */}
         <DisruptionDemo />
 
-        {/* H: Campus Resource Intelligence */}
+        {/* H: Campus Resource Intelligence with 3D Cards */}
         <ResourceGrid />
 
-        {/* I: Roles & Workflows */}
+        {/* I: Roles & Workflows with 3D Governance Cards */}
         <RolesSection />
 
         {/* J: Final Call to Action */}

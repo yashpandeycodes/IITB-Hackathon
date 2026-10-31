@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-// No script-src yet: next-themes injects an inline script before hydration.
+// No script-src yet: Next.js inlines its bootstrap scripts (nonces via proxy.ts later).
 const contentSecurityPolicy = [
   "frame-ancestors 'none'",
   "base-uri 'self'",

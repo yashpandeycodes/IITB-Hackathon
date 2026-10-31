@@ -25,7 +25,7 @@ export const ValidationPrinciple: React.FC = () => {
         'A faculty member, department coordinator, or club representative inputs a request—either through an everyday natural-language prompt or standard requisition form.',
       icon: MessageSquareQuote,
       badge: 'INPUT LAYER',
-      accent: '#66E3F0',
+      accent: '#38bdf8',
     },
     {
       step: '02',
@@ -36,7 +36,7 @@ export const ValidationPrinciple: React.FC = () => {
         'The natural-language assistant extracts requirements: intended headcounts, pedagogical category, time windows, and technical audiovisual provisions into an editable draft.',
       icon: FileCode2,
       badge: 'NON-AUTHORITATIVE',
-      accent: '#8279FF',
+      accent: '#c084fc',
     },
     {
       step: '03',
@@ -47,7 +47,7 @@ export const ValidationPrinciple: React.FC = () => {
         'The scheduling rules engine runs hard mathematical checks: zero double-booking overlaps, capacity thresholds, student cohort timetables, building access quotas, and fire codes.',
       icon: Cpu,
       badge: 'MATHEMATICAL TRUTH',
-      accent: '#10B981',
+      accent: '#34d399',
     },
     {
       step: '04',
@@ -58,7 +58,7 @@ export const ValidationPrinciple: React.FC = () => {
         'A designated faculty dean or venue administrator reviews the verified requisition. Requesters are strictly prohibited from approving their own bookings.',
       icon: UserCheck2,
       badge: 'GOVERNANCE CHECK',
-      accent: '#F59E0B',
+      accent: '#fbbf24',
     },
     {
       step: '05',
@@ -69,32 +69,32 @@ export const ValidationPrinciple: React.FC = () => {
         'Once sanctioned by both deterministic constraints and human signoff, the booking is broadcasted to institute master timetables, electronic door locks, and student portals.',
       icon: CalendarCheck2,
       badge: 'COMMITTED STATE',
-      accent: '#38BDF8',
+      accent: '#f43f5e',
     },
   ];
 
   return (
-    <section id="validation-principle" className="relative py-20 lg:py-32 scroll-mt-20 border-t border-[#F4F7FB]/08 bg-[#070A12]">
+    <section id="validation-principle" className="relative py-24 lg:py-36 scroll-mt-20 border-t border-[#a855f7]/25">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <div className="max-w-3xl mb-16">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#101A2B] border border-[#10B981]/25 mb-4 text-xs font-mono text-[#10B981]">
-            <CheckCircle className="w-3.5 h-3.5" />
+        <div className="max-w-4xl mb-20">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#190938] to-[#2c0b4d] border-2 border-[#34d399]/60 mb-5 text-sm font-mono font-bold text-[#6ee7b7] shadow-[0_0_20px_rgba(52,211,153,0.3)]">
+            <CheckCircle className="w-4 h-4 text-[#34d399]" />
             <span>FOUNDATIONAL ARCHITECTURE PRINCIPLE</span>
           </div>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#F4F7FB] tracking-tight leading-tight mb-4">
+          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.08] mb-6">
             Intelligence proposes.{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#66E3F0] to-[#8279FF]">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#c084fc] via-[#f43f5e] to-[#fbbf24]">
               Constraints decide.
             </span>
           </h2>
-          <p className="text-base sm:text-lg text-[#98A6BB] leading-relaxed">
-            In university administration, hallucinated room bookings or automated self-approvals cause campus-wide chaos. CIT Nexus decouples intelligent drafting from deterministic policy enforcement.
+          <p className="text-lg sm:text-xl text-[#f1f5f9] font-medium leading-relaxed">
+            In university administration, hallucinated room bookings or automated self-approvals cause campus-wide chaos. CIT Nexus strictly decouples intelligent natural-language drafting from deterministic mathematical policy enforcement.
           </p>
         </div>
 
-        {/* 5-Step Pipeline Horizontal / Vertical Flow */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-12">
+        {/* 5-Step Pipeline Flow */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-5 mb-16">
           {steps.map((st, idx) => {
             const Icon = st.icon;
             const isHighlighted = activeStep === idx;
@@ -102,42 +102,42 @@ export const ValidationPrinciple: React.FC = () => {
               <div
                 key={st.step}
                 onClick={() => setActiveStep(idx)}
-                className={`p-5 rounded-2xl border cursor-pointer transition-all duration-200 flex flex-col justify-between ${
+                className={`p-6 rounded-3xl border-2 cursor-pointer transition-all duration-300 flex flex-col justify-between ${
                   isHighlighted
-                    ? 'bg-[#101A2B] border-[#66E3F0] shadow-[0_0_20px_-3px_rgba(102,227,240,0.25)]'
-                    : 'bg-[#0B1220]/70 border-[#F4F7FB]/08 hover:border-[#F4F7FB]/20 hover:bg-[#101A2B]/40'
+                    ? 'bg-[#180838] border-[#fbbf24] shadow-[0_0_30px_rgba(251,191,36,0.5)] scale-105'
+                    : 'bg-[#0f0426]/80 border-[#a855f7]/30 hover:border-[#a855f7]/70 hover:bg-[#140633]'
                 }`}
               >
                 <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="font-mono text-xs font-bold text-[#98A6BB]">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="font-mono text-sm font-black text-white">
                       STEP {st.step}
                     </span>
                     <span
-                      className="text-[9px] font-mono px-2 py-0.5 rounded font-semibold border"
+                      className="text-[10px] font-mono font-black px-2.5 py-0.5 rounded-full border shadow-sm"
                       style={{
                         color: st.accent,
-                        backgroundColor: `${st.accent}15`,
-                        borderColor: `${st.accent}30`,
+                        backgroundColor: `${st.accent}20`,
+                        borderColor: `${st.accent}60`,
                       }}
                     >
                       {st.badge}
                     </span>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-[#070A12] border border-white/05 inline-block mb-3">
-                    <Icon className="w-5 h-5" style={{ color: st.accent }} />
+                  <div className="p-3.5 rounded-2xl bg-[#080214] border border-white/10 inline-block mb-4">
+                    <Icon className="w-6 h-6" style={{ color: st.accent }} />
                   </div>
 
-                  <h3 className="text-sm font-bold text-[#F4F7FB] mb-1">
+                  <h3 className="text-base font-black text-white mb-1.5 leading-snug">
                     {st.title}
                   </h3>
-                  <div className="text-[11px] font-mono text-[#66E3F0] mb-2">
+                  <div className="text-xs font-mono font-black text-[#fbbf24] mb-3">
                     {st.role}
                   </div>
                 </div>
 
-                <p className="text-xs text-[#98A6BB] leading-relaxed mt-2 pt-2 border-t border-[#F4F7FB]/06">
+                <p className="text-sm text-[#cbd5e1] font-medium leading-relaxed pt-3 border-t border-white/10">
                   {st.description}
                 </p>
               </div>
@@ -146,57 +146,57 @@ export const ValidationPrinciple: React.FC = () => {
         </div>
 
         {/* Strict Authority Boundary Callout Matrix */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 rounded-3xl bg-[#0B1220] border border-[#F4F7FB]/10 p-6 sm:p-8">
-          <div className="p-5 rounded-2xl bg-[#070A12]/80 border border-[#8279FF]/20 flex flex-col justify-between">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 rounded-3xl bg-[#0f0426]/90 border-2 border-[#a855f7]/40 p-8 sm:p-10 shadow-2xl backdrop-blur-2xl">
+          <div className="p-6 sm:p-8 rounded-2xl bg-[#080214] border-2 border-[#c084fc]/30 flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-2 text-xs font-mono text-[#8279FF] font-bold mb-2">
-                <span className="w-2 h-2 rounded-full bg-[#8279FF]" />
+              <div className="flex items-center gap-2.5 text-xs font-mono font-black text-[#c084fc] mb-3">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#c084fc] shadow-[0_0_8px_#c084fc]" />
                 WHAT AI DOES
               </div>
-              <h4 className="text-base font-bold text-[#F4F7FB] mb-2">
+              <h4 className="text-xl font-black text-white mb-3">
                 Synthesize, Draft & Explain
               </h4>
-              <p className="text-xs text-[#98A6BB] leading-relaxed">
+              <p className="text-sm text-[#cbd5e1] font-medium leading-relaxed">
                 Interprets natural-language emails into structured request schemas, suggests suitable venues matching capacity, and provides human-readable explanations of schedule conflicts.
               </p>
             </div>
-            <div className="mt-4 pt-3 border-t border-white/06 text-[11px] font-mono text-[#8279FF]">
+            <div className="mt-6 pt-4 border-t border-white/10 text-xs font-mono font-bold text-[#c084fc]">
               &bull; Advisory & drafting only
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl bg-[#070A12]/80 border border-[#EF4444]/25 flex flex-col justify-between">
+          <div className="p-6 sm:p-8 rounded-2xl bg-[#080214] border-2 border-[#ef4444]/40 flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-2 text-xs font-mono text-[#EF4444] font-bold mb-2">
-                <AlertOctagon className="w-3.5 h-3.5 text-[#EF4444]" />
+              <div className="flex items-center gap-2.5 text-xs font-mono font-black text-[#f87171] mb-3">
+                <AlertOctagon className="w-4 h-4 text-[#ef4444]" />
                 WHAT AI NEVER DOES
               </div>
-              <h4 className="text-base font-bold text-[#F4F7FB] mb-2">
+              <h4 className="text-xl font-black text-white mb-3">
                 No Final Grant & No Override
               </h4>
-              <p className="text-xs text-[#98A6BB] leading-relaxed">
+              <p className="text-sm text-[#cbd5e1] font-medium leading-relaxed">
                 The AI cannot approve bookings, cannot override campus hard constraints, cannot bypass department authority, and cannot alter scheduled examinations autonomously.
               </p>
             </div>
-            <div className="mt-4 pt-3 border-t border-white/06 text-[11px] font-mono text-[#EF4444]">
-              &bull; Zero unverified authority
+            <div className="mt-6 pt-4 border-t border-white/10 text-xs font-mono font-bold text-[#f87171]">
+              &bull; Zero unverified AI authority
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl bg-[#070A12]/80 border border-[#10B981]/25 flex flex-col justify-between">
+          <div className="p-6 sm:p-8 rounded-2xl bg-[#080214] border-2 border-[#34d399]/40 flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-2 text-xs font-mono text-[#10B981] font-bold mb-2">
-                <ShieldAlert className="w-3.5 h-3.5 text-[#10B981]" />
+              <div className="flex items-center gap-2.5 text-xs font-mono font-black text-[#34d399] mb-3">
+                <ShieldAlert className="w-4 h-4 text-[#34d399]" />
                 DETERMINISTIC GUARANTEE
               </div>
-              <h4 className="text-base font-bold text-[#F4F7FB] mb-2">
+              <h4 className="text-xl font-black text-white mb-3">
                 Strict Rules & Human Authorization
               </h4>
-              <p className="text-xs text-[#98A6BB] leading-relaxed">
+              <p className="text-sm text-[#cbd5e1] font-medium leading-relaxed">
                 Every calendar commit requires mathematical zero-overlap proof from the hard rules solver plus explicit cryptographic signoff from the responsible human department administrator.
               </p>
             </div>
-            <div className="mt-4 pt-3 border-t border-white/06 text-[11px] font-mono text-[#10B981]">
+            <div className="mt-6 pt-4 border-t border-white/10 text-xs font-mono font-bold text-[#34d399]">
               &bull; 100% human-in-the-loop audit trail
             </div>
           </div>
