@@ -54,7 +54,7 @@ Everything used goes into `THIRD_PARTY.md`.
 
 ### 3.2 Colour semantics (always paired with an icon or text, so colour-blind users are covered)
 
-| Meaning | Token | Light / Dark hue | Icon / label |
+| Meaning | Token | Hue (dark theme) | Icon / label |
 |---|---|---|---|
 | Lecture | `--kind-lecture` | indigo-500 / indigo-400 | `L` |
 | Tutorial | `--kind-tutorial` | teal-500 / teal-400 | `T` |
@@ -81,7 +81,7 @@ Everything used goes into `THIRD_PARTY.md`.
 
 ### 3.4 Accessibility
 
-- WCAG AA contrast in both themes. Lighthouse a11y ≥ 90.
+- WCAG AA contrast in the dark theme. Lighthouse a11y ≥ 90.
 - Full keyboard navigation. Grid cells are buttons with `aria-label="MA101 lecture, Monday 09:00, LH-1, Dr. Shalini Gupta"`.
 - Focus rings visible. Dialogs trap focus (Radix). Toasts are announced (`aria-live`).
 - Never colour-only: status chips always include text.
@@ -105,13 +105,14 @@ Everything used goes into `THIRD_PARTY.md`.
 | Exams | ✅ | ✅ | ✅ | ✅ (read) |
 | Admin | ✅ | — | — | — |
 
-Top bar: page title + breadcrumbs · week toggle (Regular / Spectra week / Exam week) on timetable pages · ⌘K search · role badge · user menu (theme, logout).
+Top bar: page title + breadcrumbs · week toggle (Regular / Spectra week / Exam week) on timetable pages · ⌘K search · role badge · user menu (logout).
 
 ### 4.2 Route map
 
 | Route | Roles | Purpose | Data (API) |
 |---|---|---|---|
-| `/login` | public | Demo-account cards + email form | `POST /api/auth/login` |
+| `/` · `/signup` | public | CIT Nexus landing page; access-request screen (never creates accounts) | — |
+| `/login` | public | Email form (+ one-click demo-account cards with real sign-in, Phase 2) | `POST /api/auth/login` |
 | `/dashboard` | all | Role-aware KPIs and to-dos | `GET /api/dashboard` |
 | `/timetable/[view]/[id]` | all | Grid by `group` / `faculty` / `room` | `GET /api/timetable?view&id&week` |
 | `/rooms` | all | Find a free room | `GET /api/rooms/available` |

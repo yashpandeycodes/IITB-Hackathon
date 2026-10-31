@@ -96,7 +96,7 @@ curl localhost:3000/api/health
 
 ## Demo accounts
 
-The login page has one-click cards for each role.
+One-click demo-account cards on `/login` arrive with real sign-in (Phase 2); until then use the credentials above.
 
 | Role                   | Email                | Password      | Linked to                                          |
 | ---------------------- | -------------------- | ------------- | -------------------------------------------------- |

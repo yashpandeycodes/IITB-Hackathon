@@ -78,7 +78,7 @@ Anything right of `Z` is our code. Gemini can never reach the database, change a
 .
 ├── src/
 │   ├── app/
-│   │   ├── (auth)/login/                 # demo-account login
+│   │   ├── page.tsx  login/  signup/     # CIT Nexus landing page, sign-in, access request
 │   │   ├── (app)/                        # authenticated shell (sidebar, topbar)
 │   │   │   ├── dashboard/
 │   │   │   ├── timetable/[view]/[id]/    # view = group | faculty | room
@@ -95,6 +95,7 @@ Anything right of `Z` is our code. Gemini can never reach the database, change a
 │   │   ├── ui/                           # shadcn/ui primitives
 │   │   ├── layout/ providers/ states/    # app shell, providers, empty/error/loading states
 │   │   ├── semantic/                     # StatusBadge, CategoryChip, RuleChip, KindChip
+│   │   ├── landing/ auth/ brand/         # CIT Nexus landing sections, auth forms, logo
 │   │   └── {timetable,booking,approvals,dashboard,assistant}/
 │   ├── config/                           # nav, roles, demo-account display data, semantic chip map
 │   ├── workers/                          # engine Web Worker (drag-and-drop checks)
@@ -108,6 +109,7 @@ Anything right of `Z` is our code. Gemini can never reach the database, change a
 │   │   ├── api/                          # route helpers: withHandler, parseJsonBody, ok/fail
 │   │   ├── errors.ts                     # ApiError (framework-free, thrown by services)
 │   │   ├── env.ts  dataset.ts  format.ts # server env, bundled dataset loader, display formatting
+│   │   ├── mock-data.ts  validation.ts   # landing-page illustrative data, client-side form checks
 │   │   └── api-client.ts                 # typed fetch wrapper used by the UI
 │   └── proxy.ts                          # auth gate (Next.js 16 replacement for middleware.ts)
 ├── prompts/                              # versioned prompt files (declared in AI_USAGE.md)
@@ -717,7 +719,7 @@ stateDiagram-v2
 ## 9. Auth and RBAC
 
 - **Session:** email + password (bcrypt) → `jose`-signed JWT in an httpOnly, `SameSite=Lax` cookie. `src/proxy.ts` (Next.js 16's replacement for `middleware.ts`) protects `(app)` routes, and every Route Handler re-checks with `requireRole(...)`.
-- **Demo login:** the login page shows 4 cards ("Login as Admin / Coordinator / Faculty / Club"), one click each. Credentials are also listed in the README.
+- **Demo login:** `/login` (CIT Nexus design) gets 4 one-click cards ("Log in as Admin / Coordinator / Faculty / Club") when real sign-in lands in Phase 2; until then use the README credentials. `/signup` must not create accounts (the hackathon uses fixed demo accounts).
 
 | Demo account         | Role                   | Linked to                                          | Password      |
 | -------------------- | ---------------------- | -------------------------------------------------- | ------------- |

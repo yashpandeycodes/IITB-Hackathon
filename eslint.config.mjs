@@ -4,6 +4,8 @@ import nextTs from "eslint-config-next/typescript";
 import prettier from "eslint-config-prettier/flat";
 
 // Dependency rule (docs/architecture.md §3): app → services → (engine | ai | db) → contracts.
+// In flat config a later block's `no-restricted-imports` replaces an earlier one for the same
+// files, so general blocks come first and each specific block lists everything it forbids.
 const SERVER_ONLY_MODULES = [
   "@/lib/db",
   "@/lib/db/*",
@@ -18,6 +20,9 @@ const SERVER_ONLY_MODULES = [
   "mongodb",
 ];
 
+// Illustrative landing-page content; it must never feed the app, the engine or exports.
+const LANDING_ONLY_MODULES = ["@/lib/mock-data"];
+
 const restrict = (group, message) => [
   "error",
   { patterns: [{ group, message }] },
@@ -27,6 +32,16 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   prettier,
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/lib/mock-data.ts"],
+    rules: {
+      "no-restricted-imports": restrict(
+        LANDING_ONLY_MODULES,
+        "mock-data.ts is illustrative landing-page content only.",
+      ),
+    },
+  },
   {
     files: ["src/lib/contracts/**/*.ts"],
     rules: {
@@ -49,6 +64,8 @@ const eslintConfig = defineConfig([
       "no-restricted-imports": restrict(
         [
           ...SERVER_ONLY_MODULES,
+          ...LANDING_ONLY_MODULES,
+          "@/lib/validation",
           "@/lib/api",
           "@/lib/api/*",
           "next",
@@ -63,6 +80,15 @@ const eslintConfig = defineConfig([
   },
   {
     files: ["src/components/**/*.{ts,tsx}", "src/config/**/*.ts"],
+    rules: {
+      "no-restricted-imports": restrict(
+        [...SERVER_ONLY_MODULES, ...LANDING_ONLY_MODULES],
+        "UI code must not import server-only modules or landing mock data; go through the API client or a server component.",
+      ),
+    },
+  },
+  {
+    files: ["src/components/landing/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": restrict(
         SERVER_ONLY_MODULES,
