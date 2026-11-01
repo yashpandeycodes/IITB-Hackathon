@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getSessionUser, SESSION_EXPIRED_PATH } from '@/lib/auth/server-session';
 import { AppShell } from '@/components/layout/app-shell';
-import { Calendar, Bot, Shuffle } from 'lucide-react';
+import { Calendar, Bot, CalendarOff, Shuffle, GitPullRequestArrow } from 'lucide-react';
 
 export const metadata = {
   title: 'Faculty Portal — CIT Nexus',
@@ -18,6 +18,10 @@ export default async function FacultyPage() {
     redirect('/unauthorized?role=' + user.role + '&attemptedSector=/faculty');
   }
 
+  const scheduleHref = user.faculty_id
+    ? `/timetable/faculty/${encodeURIComponent(user.faculty_id)}`
+    : '/timetable';
+
   return (
     <AppShell
       userRole={user.role}
@@ -30,19 +34,53 @@ export default async function FacultyPage() {
         <div className="p-6 rounded-3xl bg-[#0B1220] border border-sky-500/30 shadow-lg">
           <h1 className="text-2xl font-bold text-white">Academic Faculty Console</h1>
           <p className="text-xs font-mono text-[#98A6BB] mt-1">
-            Personal teaching schedule, constraint-checked lecture relocations, and automated room discovery.
+            Your teaching week, leave and change requests. Every change is checked against the hard rules and
+            approved by an admin before it goes live.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
             <Link
-              href="/timetable/group/Y1-A"
+              href={scheduleHref}
               className="p-4 rounded-2xl bg-[#101A2B] border border-white/5 hover:border-[#66E3F0]/40 transition-colors block"
             >
               <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#66E3F0] mb-1">
                 <Calendar className="w-4 h-4" />
                 <span>My Teaching Schedule</span>
               </div>
-              <div className="text-[11px] text-[#98A6BB]">12 hours/week · 0 clash guarantee</div>
+              <div className="text-[11px] text-[#98A6BB]">Your week in the active timetable</div>
+            </Link>
+
+            <Link
+              href="/changes/new?tab=unavailability"
+              className="p-4 rounded-2xl bg-[#101A2B] border border-white/5 hover:border-amber-500/40 transition-colors block"
+            >
+              <div className="flex items-center gap-2 text-xs font-mono font-bold text-amber-400 mb-1">
+                <CalendarOff className="w-4 h-4" />
+                <span>Mark Unavailability</span>
+              </div>
+              <div className="text-[11px] text-[#98A6BB]">Leave or days you can&apos;t teach; classes move with the fewest moves</div>
+            </Link>
+
+            <Link
+              href="/changes/new?tab=move"
+              className="p-4 rounded-2xl bg-[#101A2B] border border-white/5 hover:border-emerald-500/40 transition-colors block"
+            >
+              <div className="flex items-center gap-2 text-xs font-mono font-bold text-emerald-400 mb-1">
+                <Shuffle className="w-4 h-4" />
+                <span>Move or Add a Session</span>
+              </div>
+              <div className="text-[11px] text-[#98A6BB]">Request a moved or extra session, checked live against hard rules</div>
+            </Link>
+
+            <Link
+              href="/changes"
+              className="p-4 rounded-2xl bg-[#101A2B] border border-white/5 hover:border-[#66E3F0]/40 transition-colors block"
+            >
+              <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#66E3F0] mb-1">
+                <GitPullRequestArrow className="w-4 h-4" />
+                <span>My Change Requests</span>
+              </div>
+              <div className="text-[11px] text-[#98A6BB]">Status of what you filed; withdraw a pending one</div>
             </Link>
 
             <Link
@@ -54,17 +92,6 @@ export default async function FacultyPage() {
                 <span>AI Scheduling Assistant</span>
               </div>
               <div className="text-[11px] text-[#98A6BB]">Natural language rescheduling with verified options</div>
-            </Link>
-
-            <Link
-              href="/changes/new"
-              className="p-4 rounded-2xl bg-[#101A2B] border border-white/5 hover:border-amber-500/40 transition-colors block"
-            >
-              <div className="flex items-center gap-2 text-xs font-mono font-bold text-amber-400 mb-1">
-                <Shuffle className="w-4 h-4" />
-                <span>Request Lecture Change</span>
-              </div>
-              <div className="text-[11px] text-[#98A6BB]">Submit leave or time preference changes</div>
             </Link>
           </div>
         </div>

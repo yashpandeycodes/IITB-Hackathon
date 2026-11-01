@@ -28,7 +28,8 @@
   - It also exports `schedule.json`.
   - The organisers' own `validator.py` gives that file **0 hard violations**, a **soft penalty of 3** (the lowest possible for this data), a **booking score of 67/70** (the highest possible) and an **exam penalty of 0**.
   - **Phase 5:** after the sample disruption is applied, the app's `schedule_after.json` also gets 0 hard violations, soft 3, 67/70 and exam 0, with **9 sessions moved, all room-only** (the fewest possible).
-- **The frontend looks great but is mostly a mock-up.**
+- **Update, 1 Nov 2026: every screen is now on the live API.** PR #11 wired the dashboard, timetables, rooms, Spectra, exams and the Admin console; the integration pass after it wired the rest: bookings (describe in English/Hinglish → editable draft → submit, my requests, detail with the "why", cancel), booking approvals for admins and coordinators, change requests (leave, room closure, add/move/remove a session, change-file upload, manual placement with a live hard-rule check), the approvals page with a before/after diff and approve/reject, the assistant (options filed for approval), "why?" explanations, exam generation, and the `schedule_after.json` / `disruption.json` downloads. No preview banners or mock data remain in the app screens (the landing page's demo sections are still illustrative). The rest of this section and §5 describe the state at the end of Phase 3.
+- **The frontend looked great but was mostly a mock-up (end of Phase 3).**
   - Only sign-in, sign-up and sign-out talk to the backend. No screen uses the API client (`src/lib/api-client.ts`).
   - Instead they show hand-written sample data from `src/lib/dataset/cit-data.ts`, which doesn't match the real dataset:
     - 9 of its 27 room ids don't exist;

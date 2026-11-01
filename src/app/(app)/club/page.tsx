@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getSessionUser, SESSION_EXPIRED_PATH } from '@/lib/auth/server-session';
 import { AppShell } from '@/components/layout/app-shell';
-import { Ticket, Sparkles, Building2 } from 'lucide-react';
+import { Ticket, Sparkles, Building2, ListChecks } from 'lucide-react';
 
 export const metadata = {
   title: 'Club Representative Hub — CIT Nexus',
@@ -33,7 +33,7 @@ export default async function ClubPage() {
             Book event venues, check real-time availability, and coordinate Spectra Week 7 cultural events.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
             <Link
               href="/bookings/new"
               className="p-4 rounded-2xl bg-[#101A2B] border border-white/5 hover:border-pink-500/40 transition-colors block"
@@ -43,6 +43,17 @@ export default async function ClubPage() {
                 <span>Book a Venue (AI & Form)</span>
               </div>
               <div className="text-[11px] text-[#98A6BB]">Describe in Hinglish or select room</div>
+            </Link>
+
+            <Link
+              href="/bookings"
+              className="p-4 rounded-2xl bg-[#101A2B] border border-white/5 hover:border-emerald-500/40 transition-colors block"
+            >
+              <div className="flex items-center gap-2 text-xs font-mono font-bold text-emerald-400 mb-1">
+                <ListChecks className="w-4 h-4" />
+                <span>My Requests</span>
+              </div>
+              <div className="text-[11px] text-[#98A6BB]">Status, reason and cancel for each request</div>
             </Link>
 
             <Link

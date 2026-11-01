@@ -9,7 +9,9 @@
  * change requests (`listChanges`, `getChange`, `proposeChange`, `previewChange`,
  * `approveChange`, `rejectChange`, `placeManually`), the assistant (`askAssistant`) and
  * explanations (`explain`); and `EXPORT_SCHEDULE_URL` / `EXPORT_SCHEDULE_AFTER_URL` /
- * `EXPORT_DISRUPTION_URL` / `canExport` for the export downloads.
+ * `EXPORT_DISRUPTION_URL` / `canExport` for the export downloads; bookings (`parseBooking`,
+ * `createBooking`, `listBookings`, `getBooking`, `cancelBooking`, `decideBooking`);
+ * `generateExams` and the what-if `checkTimetable`.
  */
 import { z } from "zod";
 
@@ -42,13 +44,35 @@ import {
   type ExplainRequest,
   type ExplainResult,
 } from "@/lib/contracts/explain";
+import {
+  ParseBookingResultSchema,
+  type ParseBookingResult,
+} from "@/lib/contracts/ai";
+import {
+  BookingDetailSchema,
+  BookingViewSchema,
+  CreateBookingResultSchema,
+  type BookingDecideRequest,
+  type BookingDetail,
+  type BookingListQuery,
+  type BookingView,
+  type CreateBookingRequestSchema,
+  type CreateBookingResult,
+} from "@/lib/contracts/booking";
+import {
+  ExamScheduleSchema,
+  type ExamSchedule,
+} from "@/lib/contracts/exam-schedule";
 import type { ValidateQuery } from "@/lib/contracts/schedule";
 import {
   GenerateTimetableResultSchema,
   SolverProgressSchema,
+  TimetableCheckResultSchema,
   type GenerateTimetableRequestSchema,
   type GenerateTimetableResult,
   type SolverProgress,
+  type TimetableCheckRequest,
+  type TimetableCheckResult,
 } from "@/lib/contracts/timetable";
 import {
   ValidatorReportSchema,
@@ -691,6 +715,119 @@ export function placeManually(
   init?: ApiRequestInit,
 ): Promise<ChangeRequest> {
   return apiPost("/api/manual/place", body, ChangeRequestSchema, init);
+}
+
+// ---------------------------------------------------------------------------------- bookings
+
+/**
+ * Turns an English or Hinglish request into an editable draft plus the engine's live preview
+ * (`POST /api/bookings/parse`, any signed-in user). Works without AI: the rule parser answers
+ * with `source: "rules"`. Send `result.log_id` back with {@link createBooking} as
+ * `ai_log_id` so the request keeps its provenance.
+ */
+export function parseBooking(
+  text: string,
+  init?: ApiRequestInit,
+): Promise<ParseBookingResult> {
+  return apiPost(
+    "/api/bookings/parse",
+    { text },
+    ParseBookingResultSchema,
+    init,
+  );
+}
+
+/**
+ * Submits a booking (`POST /api/bookings`) → `{ bookings, bumped, spectra }`: one view per
+ * series day, the earlier bookings it moved and the new Spectra summary. The draft comes from
+ * {@link parseBooking} (`source: "nl"`) or the manual form (`source: "form"`, the default).
+ */
+export function createBooking(
+  body: z.input<typeof CreateBookingRequestSchema>,
+  init?: ApiRequestInit,
+): Promise<CreateBookingResult> {
+  return apiPost("/api/bookings", body, CreateBookingResultSchema, init);
+}
+
+/**
+ * Booking requests (`GET /api/bookings`): `scope` `mine` (default), `all` (admin) or
+ * `approvals` (waiting for this user's approval); optional `state` filter.
+ */
+export function listBookings(
+  query: Partial<BookingListQuery> = {},
+  init?: ApiRequestInit,
+): Promise<BookingView[]> {
+  const params = new URLSearchParams();
+  if (query.scope) params.set("scope", query.scope);
+  if (query.state) params.set("state", query.state);
+  const qs = params.toString();
+  return apiGet(
+    `/api/bookings${qs ? `?${qs}` : ""}`,
+    z.array(BookingViewSchema),
+    init,
+  );
+}
+
+/** One booking with its decision and plain-language explanation (`GET /api/bookings/:id`). */
+export function getBooking(
+  id: string,
+  init?: ApiRequestInit,
+): Promise<BookingDetail> {
+  return apiGet(`/api/bookings/${segment(id)}`, BookingDetailSchema, init);
+}
+
+/** The requester (or an admin) cancels a live booking (`POST /api/bookings/:id/cancel`). */
+export function cancelBooking(
+  id: string,
+  init?: ApiRequestInit,
+): Promise<BookingView> {
+  return apiPost(
+    `/api/bookings/${segment(id)}/cancel`,
+    {},
+    BookingViewSchema,
+    init,
+  );
+}
+
+/**
+ * An approver (admin, or the lab department's coordinator) approves or rejects a booking in
+ * `pending_approval` (`POST /api/bookings/:id/decide`). Never the requester (`403 SELF_APPROVAL`).
+ */
+export function decideBooking(
+  id: string,
+  body: BookingDecideRequest,
+  init?: ApiRequestInit,
+): Promise<BookingView> {
+  return apiPost(
+    `/api/bookings/${segment(id)}/decide`,
+    body,
+    BookingViewSchema,
+    init,
+  );
+}
+
+// ------------------------------------------------------------------ exams and what-if checks
+
+/** Admin: schedule the midsem exams and activate them (`POST /api/exams/generate`). */
+export function generateExams(init?: ApiRequestInit): Promise<ExamSchedule> {
+  return apiPost("/api/exams/generate", {}, ExamScheduleSchema, init);
+}
+
+/**
+ * What-if check (`POST /api/timetable/check`): the given placements replace those sessions'
+ * placements in the active timetable; returns the violations and soft penalty of the result.
+ * Nothing is saved.
+ */
+export function checkTimetable(
+  body: TimetableCheckRequest,
+  init?: ApiRequestInit,
+): Promise<TimetableCheckResult> {
+  return apiPost(
+    "/api/timetable/check",
+    body,
+    TimetableCheckResultSchema,
+    init,
+  );
 }
 
 // -------------------------------------------------------------- assistant and explanations

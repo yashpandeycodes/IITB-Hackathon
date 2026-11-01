@@ -21,6 +21,7 @@ import {
 } from '@/lib/contracts';
 import { CategoryChip, StatusBadge } from '@/components/semantic/badges';
 import { TimetableGrid } from '@/components/timetable/timetable-grid';
+import { ExplanationPanel } from '@/components/assistant/explanations';
 import { formatDay } from '@/lib/format';
 import {
   Sparkles,
@@ -35,6 +36,7 @@ import {
   Building,
   RefreshCw,
   SlidersHorizontal,
+  HelpCircle,
 } from 'lucide-react';
 
 function SpectraStatusBadge({ status }: { status: string }) {
@@ -73,6 +75,8 @@ export default function SpectraBoardPage() {
   const [activeTab, setActiveTab] = useState<'decisions' | 'timeline'>('decisions');
   const [statusFilter, setStatusFilter] = useState<'all' | 'approved' | 'alternative_offered' | 'rejected'>('all');
   const [selectedDecision, setSelectedDecision] = useState<SpectraDecisionView | null>(null);
+  // True when the drawer was opened from a row's "Why?" button: load the explanation at once.
+  const [explainOnOpen, setExplainOnOpen] = useState(false);
 
   // Reference data hook for room names and booking requests
   const { referenceData, roomName, facultyName, courseName } = useReferenceData();
@@ -209,6 +213,10 @@ export default function SpectraBoardPage() {
 
   // Selected decision matched booking request
   const selectedRequest = selectedDecision ? bookingMap.get(selectedDecision.request_id) : undefined;
+
+  // `POST /api/explain` for a booking follows `GET /api/bookings/:id`: dataset requests are
+  // explained to admins only; live requests to their requester and approvers (a 404 otherwise).
+  const canExplain = (requestId: string) => isAdmin || !bookingMap.has(requestId);
 
   return (
     <AppShell
@@ -422,7 +430,10 @@ export default function SpectraBoardPage() {
                       return (
                         <tr
                           key={decision.request_id}
-                          onClick={() => setSelectedDecision(decision)}
+                          onClick={() => {
+                            setExplainOnOpen(false);
+                            setSelectedDecision(decision);
+                          }}
                           className="hover:bg-white/[0.03] cursor-pointer transition-colors"
                         >
                           <td className="p-3.5 align-top">
@@ -480,6 +491,21 @@ export default function SpectraBoardPage() {
                               </span>
                             )}
                             <span>{decision.reason}</span>
+                            {canExplain(decision.request_id) && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExplainOnOpen(true);
+                                  setSelectedDecision(decision);
+                                }}
+                                className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-[#66E3F0]/10 hover:bg-[#66E3F0]/20 text-[#66E3F0] border border-[#66E3F0]/30 transition-colors"
+                                aria-label={`Why was ${decision.request_id} decided this way?`}
+                              >
+                                <HelpCircle className="w-3 h-3" />
+                                Why?
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
@@ -645,6 +671,16 @@ export default function SpectraBoardPage() {
                     {selectedDecision.reason}
                   </p>
                 </div>
+
+                {canExplain(selectedDecision.request_id) && (
+                  <ExplanationPanel
+                    key={selectedDecision.request_id}
+                    subject="booking"
+                    id={selectedDecision.request_id}
+                    label="Why this decision? (engine facts)"
+                    autoLoad={explainOnOpen}
+                  />
+                )}
 
                 {/* Slot Details */}
                 <div className="p-4 rounded-2xl bg-[#101A2B] border border-white/10 space-y-2.5 text-xs">

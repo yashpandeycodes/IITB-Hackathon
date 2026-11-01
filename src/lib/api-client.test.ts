@@ -21,14 +21,22 @@ import {
   apiPost,
   approveChange,
   askAssistant,
+  cancelBooking,
   canExport,
+  checkTimetable,
+  createBooking,
+  decideBooking,
   explain,
+  generateExams,
+  getBooking,
   EXPORT_DISRUPTION_URL,
   EXPORT_SCHEDULE_AFTER_URL,
   EXPORT_SCHEDULE_URL,
   getChange,
   isApiClientError,
+  listBookings,
   listChanges,
+  parseBooking,
   placeManually,
   postEventStream,
   previewChange,
@@ -1326,5 +1334,92 @@ describe("assistant and explanation helpers", () => {
     expect(
       await catchError(explain({ subject: "change", id: "CR-0001" })),
     ).toMatchObject({ code: "BAD_RESPONSE" });
+  });
+});
+
+describe("booking, exam and what-if helpers", () => {
+  const sentBody = (call: Parameters<typeof fetch>) =>
+    JSON.parse(String(call[1]?.body ?? "null")) as unknown;
+
+  it("builds the booking list query and encodes ids in paths", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ ok: true, data: [] }),
+    );
+    expect(await listBookings()).toEqual([]);
+    await listBookings({ scope: "approvals" });
+    await listBookings({ scope: "all", state: "pending_approval" });
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "/api/bookings",
+      "/api/bookings?scope=approvals",
+      "/api/bookings?scope=all&state=pending_approval",
+    ]);
+  });
+
+  it("POSTs parse, create, cancel, decide and exam generation to their routes", async () => {
+    // Malformed data on purpose: these assertions are about the request, not the parse.
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ ok: true, data: {} }),
+    );
+    await catchError(parseBooking("kal shaam SH-1 chahiye"));
+    await catchError(
+      createBooking({
+        title: "Improv night",
+        attendance: 80,
+        duration_periods: 2,
+        windows: [{ day: "TUE", from_period: 10, to_period: 11 }],
+        room_types: ["seminar_hall"],
+        needs: [],
+        requested_room: null,
+        mandatory_for_groups: [],
+        repeat_days: [],
+        assumptions: [],
+        follow_up: null,
+        source: "form",
+      }),
+    );
+    await catchError(cancelBooking("REQ-0001"));
+    await catchError(
+      decideBooking("REQ/0002", { decision: "reject", comment: "No" }),
+    );
+    await catchError(generateExams());
+    await catchError(getBooking("REQ-0003"));
+
+    const calls = fetchMock.mock.calls;
+    expect(calls.map(([url, init]) => [url, init?.method ?? "GET"])).toEqual([
+      ["/api/bookings/parse", "POST"],
+      ["/api/bookings", "POST"],
+      ["/api/bookings/REQ-0001/cancel", "POST"],
+      ["/api/bookings/REQ%2F0002/decide", "POST"],
+      ["/api/exams/generate", "POST"],
+      ["/api/bookings/REQ-0003", "GET"],
+    ]);
+    expect(sentBody(calls[0])).toEqual({ text: "kal shaam SH-1 chahiye" });
+    expect(sentBody(calls[1])).toMatchObject({
+      title: "Improv night",
+      source: "form",
+    });
+    expect(sentBody(calls[3])).toEqual({ decision: "reject", comment: "No" });
+  });
+
+  it("returns the what-if check result", async () => {
+    const result = {
+      violations: [],
+      soft_penalty: { S1: 0, S2: 0, S3: 0, S4: 3, S5: 0, S6: 0, total: 3 },
+      soft_delta: 0,
+    };
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ ok: true, data: result }),
+    );
+    const assignments = [
+      {
+        session_id: "CS202-L1",
+        day: "MON" as const,
+        start_period: 2,
+        room_id: "LH-1",
+      },
+    ];
+    expect(await checkTimetable({ assignments })).toEqual(result);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/timetable/check");
+    expect(sentBody(fetchMock.mock.calls[0])).toEqual({ assignments });
   });
 });
