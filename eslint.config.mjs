@@ -294,6 +294,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "coverage/**",
     ".data/**",
+    // Local tooling (git-ignored), e.g. extra worktrees with their own builds.
+    ".claude/**",
     "next-env.d.ts",
     "CrunchWeek_StarterPack/**",
   ]),
