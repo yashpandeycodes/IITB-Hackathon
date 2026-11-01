@@ -8,12 +8,7 @@ import {
   Calendar,
   Building2,
   Ticket,
-  Sparkles,
   CheckCircle2,
-  Shuffle,
-  Bot,
-  GraduationCap,
-  ShieldAlert,
   Search,
   LogOut,
   Menu,
@@ -22,6 +17,14 @@ import {
 } from 'lucide-react';
 import { CITLogo } from '@/components/brand/logo';
 import { CommandPalette } from './command-palette';
+import { useOptionalSessionUser } from '@/components/providers/session-provider';
+import { ROLE_META } from '@/config/roles';
+import { getNavForRole, isNavItemActive } from '@/config/nav';
+import type { Role } from '@/lib/contracts/enums';
+import { useQuery } from '@tanstack/react-query';
+import { apiGet } from '@/lib/api-client';
+import { DashboardSchema } from '@/lib/contracts/dashboard';
+import { formatNavCount } from '@/components/layout/nav-count';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -32,11 +35,29 @@ interface AppShellProps {
   breadcrumbs?: Array<{ label: string; href?: string }>;
 }
 
+function parseRole(val?: string | null): Role {
+  if (!val) return 'admin';
+  const v = val.toLowerCase().trim();
+  if (v === 'admin') return 'admin';
+  if (
+    v === 'department_coordinator' ||
+    v === 'department coordinator' ||
+    v === 'dept coordinator'
+  ) {
+    return 'department_coordinator';
+  }
+  if (v === 'faculty') return 'faculty';
+  if (v === 'club' || v === 'club representative' || v === 'club rep') {
+    return 'club';
+  }
+  return 'admin';
+}
+
 export const AppShell: React.FC<AppShellProps> = ({
   children,
-  userRole = 'Admin',
-  userName = 'Dr. Rajesh Verma',
-  userEmail = 'admin@citnexus.edu',
+  userRole,
+  userName,
+  userEmail,
   pageTitle,
   breadcrumbs = [],
 }) => {
@@ -44,6 +65,21 @@ export const AppShell: React.FC<AppShellProps> = ({
   const router = useRouter();
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const sessionUser = useOptionalSessionUser();
+  const currentRole: Role = sessionUser?.role ?? parseRole(userRole);
+  const currentName = sessionUser?.name ?? userName ?? 'Campus User';
+  const roleLabel = ROLE_META[currentRole]?.label ?? 'Admin';
+  const navItems = getNavForRole(currentRole);
+
+  const { data: dashboardData } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: () => apiGet('/api/dashboard', DashboardSchema),
+    enabled: !!sessionUser,
+    staleTime: 30_000,
+  });
+
+  const pendingApprovalsCount = dashboardData?.pending_approvals?.total ?? 0;
 
   const handleLogout = async () => {
     try {
@@ -54,22 +90,6 @@ export const AppShell: React.FC<AppShellProps> = ({
       router.push('/login');
     }
   };
-
-  const navItems = [
-    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'] },
-    { label: 'Timetables', href: '/timetable/group/Y1-A', icon: Calendar, roles: ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'] },
-    { label: 'Find a room', href: '/rooms', icon: Building2, roles: ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'] },
-    { label: 'Bookings', href: '/bookings', icon: Ticket, roles: ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'] },
-    { label: 'Spectra week', href: '/spectra', icon: Sparkles, roles: ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'] },
-    { label: 'Approvals', href: '/approvals', icon: CheckCircle2, roles: ['Admin', 'Department Coordinator'], badge: '3' },
-    { label: 'Changes', href: '/changes', icon: Shuffle, roles: ['Admin', 'Department Coordinator', 'Faculty'] },
-    { label: 'AI assistant', href: '/assistant', icon: Bot, roles: ['Admin', 'Department Coordinator', 'Faculty'] },
-    { label: 'Exams', href: '/exams', icon: GraduationCap, roles: ['Admin', 'Department Coordinator', 'Faculty', 'Club Representative'] },
-    { label: 'Admin', href: '/admin', icon: ShieldAlert, roles: ['Admin'] },
-  ];
-
-  // Filter allowed items for the role
-  const visibleNavItems = navItems.filter((item) => item.roles.includes(userRole));
 
   return (
     <div className="min-h-screen bg-[#070A12] text-white flex flex-col lg:flex-row relative">
@@ -90,10 +110,10 @@ export const AppShell: React.FC<AppShellProps> = ({
           <div className="my-4 px-3 py-2.5 rounded-xl bg-[#101A2B] border border-white/10 flex items-center justify-between">
             <div>
               <div className="text-xs font-bold text-white leading-tight truncate max-w-[140px]">
-                {userName}
+                {currentName}
               </div>
               <div className="text-[10px] font-mono font-bold text-[#66E3F0] uppercase tracking-wider">
-                {userRole}
+                {roleLabel}
               </div>
             </div>
             <span className="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981]" />
@@ -115,9 +135,12 @@ export const AppShell: React.FC<AppShellProps> = ({
 
           {/* Navigation Links */}
           <nav className="space-y-1">
-            {visibleNavItems.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+              const isActive = isNavItemActive(item.href, pathname);
+              const isApprovals = item.href === '/approvals';
+              const showBadge = isApprovals && pendingApprovalsCount > 0;
+
               return (
                 <Link
                   key={item.href}
@@ -132,9 +155,9 @@ export const AppShell: React.FC<AppShellProps> = ({
                     <Icon className={`w-4 h-4 ${isActive ? 'text-[#66E3F0]' : 'text-[#98A6BB]'}`} />
                     <span>{item.label}</span>
                   </span>
-                  {item.badge && (
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-[#8279FF] text-white">
-                      {item.badge}
+                  {showBadge && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#8279FF] text-white shadow-sm">
+                      {formatNavCount(pendingApprovalsCount)}
                     </span>
                   )}
                 </Link>
@@ -239,14 +262,17 @@ export const AppShell: React.FC<AppShellProps> = ({
               </div>
 
               <div className="p-3 rounded-xl bg-[#101A2B] border border-white/10 mb-4">
-                <div className="text-xs font-bold text-white">{userName}</div>
-                <div className="text-[10px] font-mono text-[#66E3F0] uppercase font-bold">{userRole}</div>
+                <div className="text-xs font-bold text-white">{currentName}</div>
+                <div className="text-[10px] font-mono text-[#66E3F0] uppercase font-bold">{roleLabel}</div>
               </div>
 
               <nav className="space-y-1">
-                {visibleNavItems.map((item) => {
+                {navItems.map((item) => {
                   const Icon = item.icon;
-                  const isActive = pathname === item.href;
+                  const isActive = isNavItemActive(item.href, pathname);
+                  const isApprovals = item.href === '/approvals';
+                  const showBadge = isApprovals && pendingApprovalsCount > 0;
+
                   return (
                     <Link
                       key={item.href}
@@ -262,9 +288,9 @@ export const AppShell: React.FC<AppShellProps> = ({
                         <Icon className="w-4 h-4" />
                         <span>{item.label}</span>
                       </span>
-                      {item.badge && (
-                        <span className="px-1.5 py-0.2 rounded bg-[#8279FF] text-white text-[10px] font-mono font-bold">
-                          {item.badge}
+                      {showBadge && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#8279FF] text-white">
+                          {formatNavCount(pendingApprovalsCount)}
                         </span>
                       )}
                     </Link>
@@ -297,7 +323,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         </Link>
 
         <Link
-          href="/timetable/group/Y1-A"
+          href="/timetable"
           className={`flex flex-col items-center gap-1 text-[10px] font-mono ${
             pathname.startsWith('/timetable') ? 'text-[#66E3F0] font-bold' : 'text-[#98A6BB]'
           }`}
@@ -316,7 +342,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           <span>Rooms</span>
         </Link>
 
-        {userRole === 'Admin' || userRole === 'Department Coordinator' ? (
+        {currentRole === 'admin' || currentRole === 'department_coordinator' ? (
           <Link
             href="/approvals"
             className={`flex flex-col items-center gap-1 text-[10px] font-mono relative ${
@@ -325,7 +351,11 @@ export const AppShell: React.FC<AppShellProps> = ({
           >
             <CheckCircle2 className="w-4 h-4" />
             <span>Approvals</span>
-            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#8279FF]" />
+            {pendingApprovalsCount > 0 && (
+              <span className="absolute -top-1 -right-1 px-1 min-w-[16px] h-4 rounded-full bg-[#8279FF] text-white text-[9px] font-mono font-bold flex items-center justify-center">
+                {formatNavCount(pendingApprovalsCount)}
+              </span>
+            )}
           </Link>
         ) : (
           <Link
@@ -350,4 +380,3 @@ export const AppShell: React.FC<AppShellProps> = ({
     </div>
   );
 };
-

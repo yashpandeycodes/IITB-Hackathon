@@ -8,12 +8,13 @@ import {
   User,
   Users,
   Clock,
-  Sparkles,
-  Zap,
+
+
   CheckCircle2,
-  ArrowRight,
+
   HelpCircle,
   Shuffle,
+  AlertCircle,
 } from 'lucide-react';
 import { SessionItem, TimetableAssignment } from '@/lib/contracts';
 import { KindChip, Week7OverrideBadge } from '@/components/semantic/badges';
@@ -146,9 +147,13 @@ export const SessionDrawer: React.FC<SessionDrawerProps> = ({
 
             {showExplanation && (
               <div className="mt-3 p-3.5 rounded-xl bg-[#070A12] border border-white/10 space-y-2 text-xs text-[#cbd5e1] animate-in fade-in">
+                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-mono">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Preview — not connected yet (Phase 5: POST /api/explain). Illustrative solver rationale.</span>
+                </div>
                 <div className="flex items-center gap-2 font-bold text-[#34d399]">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  Optimal Multi-Objective Assignment:
+                  Illustrative Multi-Objective Assignment:
                 </div>
                 <ul className="list-disc pl-5 space-y-1 text-[11px] text-[#98A6BB]">
                   <li>H1/H2: Room {assignment.roomName} and {session.facultyName} strictly clash-free at {assignment.period}.</li>
