@@ -47,7 +47,7 @@ import {
 import { getActiveTimetableVersion } from "@/lib/db/repos/timetable-versions";
 import { findUserById } from "@/lib/db/repos/users";
 import {
-  ApiError,
+  conflict,
   forbidden,
   isApiError,
   notFound,
@@ -121,9 +121,6 @@ const LOCK: LockWaitOptions = {
   busyMessage:
     "Another change is being saved right now; try again in a moment.",
 };
-
-const conflict = (message: string, details?: unknown) =>
-  new ApiError("CONFLICT", message, details);
 
 const requestNotFound = () => notFound("No booking request with that id.");
 

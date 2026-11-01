@@ -266,34 +266,14 @@ const eslintConfig = defineConfig([
       "react-hooks/purity": "warn",
     },
   },
-  {
-    // These two read the hard-coded fixture data in src/lib/dataset/cit-data.ts; they should go
-    // through the API client instead (frontend team, docs/project-status.md).
-    files: [
-      "src/components/auth/login-form.tsx",
-      "src/components/layout/command-palette.tsx",
-    ],
-    rules: {
-      "no-restricted-imports": [
-        "warn",
-        {
-          patterns: [
-            {
-              group: [...SERVER_ONLY_MODULES, ...LANDING_ONLY_MODULES],
-              message:
-                "UI code must not import server-only modules or fixture data; go through the API client or a server component.",
-            },
-          ],
-        },
-      ],
-    },
-  },
   globalIgnores([
     ".next/**",
     "out/**",
     "build/**",
     "coverage/**",
     ".data/**",
+    // Local tooling (git-ignored), e.g. extra worktrees with their own builds.
+    ".claude/**",
     "next-env.d.ts",
     "CrunchWeek_StarterPack/**",
   ]),

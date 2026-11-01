@@ -22,6 +22,8 @@ export const COLLECTIONS = {
   booking_decisions: "booking_decisions",
   session_overrides: "session_overrides",
   change_requests: "change_requests",
+  /** `schedule.json` as it was just before the first applied change (singleton `_id: "schedule"`). */
+  baselines: "baselines",
   users: "users",
   revoked_sessions: "revoked_sessions",
   settings: "settings",

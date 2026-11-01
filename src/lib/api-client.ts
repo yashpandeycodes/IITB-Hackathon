@@ -5,8 +5,11 @@
  * (parsed with the caller's schema) or throws an `ApiClientError`.
  *
  * Also here: `postEventStream` / `streamTimetableGeneration` for the live solver progress
- * stream (`POST /api/timetable/generate` with `Accept: text/event-stream`), and
- * `EXPORT_SCHEDULE_URL` / `canExport` for the `schedule.json` download.
+ * stream (`POST /api/timetable/generate` with `Accept: text/event-stream`); typed helpers for
+ * change requests (`listChanges`, `getChange`, `proposeChange`, `previewChange`,
+ * `approveChange`, `rejectChange`, `placeManually`), the assistant (`askAssistant`) and
+ * explanations (`explain`); and `EXPORT_SCHEDULE_URL` / `EXPORT_SCHEDULE_AFTER_URL` /
+ * `EXPORT_DISRUPTION_URL` / `canExport` for the export downloads.
  */
 import { z } from "zod";
 
@@ -17,6 +20,29 @@ import {
   type ApiResponse,
   type ErrorCode,
 } from "@/lib/contracts/api";
+import {
+  AssistantReplySchema,
+  type AssistantReply,
+  type AssistantRequest,
+} from "@/lib/contracts/assistant";
+import {
+  ChangeApplyResultSchema,
+  ChangePreviewSchema,
+  ChangeRequestSchema,
+  type ChangeApplyResult,
+  type ChangeDecisionRequest,
+  type ChangeListQuery,
+  type ChangePreview,
+  type ChangeProposalRequestInput,
+  type ChangeRequest,
+  type ManualPlacementRequestSchema,
+} from "@/lib/contracts/change";
+import {
+  ExplainResultSchema,
+  type ExplainRequest,
+  type ExplainResult,
+} from "@/lib/contracts/explain";
+import type { ValidateQuery } from "@/lib/contracts/schedule";
 import {
   GenerateTimetableResultSchema,
   SolverProgressSchema,
@@ -240,9 +266,15 @@ const MAX_SSE_FRAME_CHARS = 8 * 1024 * 1024;
  * unfinished frame when the stream ends.
  */
 function createSseParser(onFrame: (frame: SseFrame) => void) {
-  let buffer = "";
-  /** How much of `buffer` is known to hold no line end, so a long line isn't rescanned per chunk. */
-  let scanned = 0;
+  /**
+   * The unfinished line, as the chunk pieces it arrived in: joined once when its line end comes,
+   * so a long line costs linear time (appending to one string and reading it back would make the
+   * engine copy the whole buffer for every chunk).
+   */
+  let pending: string[] = [];
+  let pendingChars = 0;
+  /** The previous chunk ended in CR: an LF starting the next one is the rest of that CRLF. */
+  let skipLF = false;
   let event = "";
   let data: string[] = [];
   let dataChars = 0;
@@ -271,21 +303,40 @@ function createSseParser(onFrame: (frame: SseFrame) => void) {
 
   return {
     push(text: string): void {
-      buffer += text;
+      if (text.length === 0) return;
       let start = 0;
-      for (let i = scanned; i < buffer.length; i++) {
-        const char = buffer.charCodeAt(i);
+      let i = 0;
+      if (skipLF) {
+        skipLF = false;
+        if (text.charCodeAt(0) === LF) start = i = 1;
+      }
+      for (; i < text.length; i++) {
+        const char = text.charCodeAt(i);
         if (char !== LF && char !== CR) continue;
-        // A CR at the very end may be the first half of a CRLF: wait for the next chunk.
-        if (char === CR && i === buffer.length - 1) break;
-        line(buffer.slice(start, i));
-        if (char === CR && buffer.charCodeAt(i + 1) === LF) i++;
+        const piece = text.slice(start, i);
+        let full = piece;
+        if (pending.length > 0) {
+          pending.push(piece);
+          full = pending.join("");
+          pending = [];
+          pendingChars = 0;
+        }
+        line(full);
+        if (char === CR) {
+          // A CR ends the line; a following LF belongs to it, even in the next chunk.
+          if (i + 1 < text.length) {
+            if (text.charCodeAt(i + 1) === LF) i++;
+          } else {
+            skipLF = true;
+          }
+        }
         start = i + 1;
       }
-      buffer = buffer.slice(start);
-      // A trailing CR is re-examined next time (it may be the first half of a CRLF).
-      scanned = buffer.endsWith("\r") ? buffer.length - 1 : buffer.length;
-      if (buffer.length + dataChars > MAX_SSE_FRAME_CHARS) {
+      if (start < text.length) {
+        pending.push(text.slice(start));
+        pendingChars += text.length - start;
+      }
+      if (pendingChars + dataChars > MAX_SSE_FRAME_CHARS) {
         throw new ApiClientError({
           code: "BAD_RESPONSE",
           message: "The server sent an event larger than the client accepts.",
@@ -294,9 +345,10 @@ function createSseParser(onFrame: (frame: SseFrame) => void) {
       }
     },
     end(): void {
-      if (buffer.endsWith("\r")) line(buffer.slice(0, -1));
-      buffer = "";
-      scanned = 0;
+      // An unfinished line (no line end) is dropped, like an unfinished frame.
+      pending = [];
+      pendingChars = 0;
+      skipLF = false;
     },
   };
 }
@@ -524,11 +576,155 @@ export async function streamTimetableGeneration(
   return result;
 }
 
+// --------------------------------------------------------------------------- change requests
+
+/** `encodeURIComponent` for one path segment (ids never contain a slash, but stay safe). */
+const segment = (id: string) => encodeURIComponent(id);
+
+/**
+ * Change requests the user may see, newest first (`GET /api/changes`; admin, coordinator,
+ * faculty; a club gets `403`). `scope`: `all` (default), `mine` or `pending`; `status` narrows it
+ * (`pending`, `infeasible`, `applied` or `rejected`, the statuses a stored request can have).
+ */
+export function listChanges(
+  query: Partial<ChangeListQuery> = {},
+  init?: ApiRequestInit,
+): Promise<ChangeRequest[]> {
+  const params = new URLSearchParams();
+  if (query.scope) params.set("scope", query.scope);
+  if (query.status) params.set("status", query.status);
+  const qs = params.toString();
+  return apiGet(
+    `/api/changes${qs ? `?${qs}` : ""}`,
+    z.array(ChangeRequestSchema),
+    init,
+  );
+}
+
+/** One change request (`GET /api/changes/:id`); `404` when unknown or not visible to the user. */
+export function getChange(
+  id: string,
+  init?: ApiRequestInit,
+): Promise<ChangeRequest> {
+  return apiGet(`/api/changes/${segment(id)}`, ChangeRequestSchema, init);
+}
+
+/**
+ * Files a change (`POST /api/changes`) → the stored `ChangeRequest`: `pending` (with `diff`,
+ * stability counts and a draft version) or `infeasible` (with `conflicts`). A starter-pack change
+ * file (`{id?, dataset?, description?, changes}`) can be sent exactly as it is: `kind` defaults to
+ * `disruption`. Forms and the assistant send `kind` (and `placements`) explicitly, e.g.
+ * `{ kind: "unavailability", changes: [...] }` or an option's `proposal`. Errors: `400
+ * VALIDATION_ERROR` (`details` = `PathIssue[]` (`{path, message}`) for a size limit broken
+ * inside `changes` / `placements`, unknown ids or changes that don't fit the kind; Zod's
+ * `{formErrors, fieldErrors}` for a malformed body), `403` (outside the user's scope,
+ * `details.issues`), `409 CONFLICT` (no dataset or timetable yet, too many pending, busy), `429`.
+ *
+ * @example
+ * const file = JSON.parse(await upload.text()); // a starter-pack change file
+ * const cr = await proposeChange(file);
+ * if (cr.status === "infeasible") showConflicts(cr.conflicts);
+ */
+export function proposeChange(
+  body: ChangeProposalRequestInput,
+  init?: ApiRequestInit,
+): Promise<ChangeRequest> {
+  return apiPost("/api/changes", body, ChangeRequestSchema, init);
+}
+
+/** The proposal for `body` without storing anything (`POST /api/changes/preview`). */
+export function previewChange(
+  body: ChangeProposalRequestInput,
+  init?: ApiRequestInit,
+): Promise<ChangePreview> {
+  return apiPost("/api/changes/preview", body, ChangePreviewSchema, init);
+}
+
+/**
+ * Admin: approve and apply a pending change (`POST /api/changes/:id/approve`) → the applied
+ * request, the version now active and the proposals it superseded. Errors: `403` /
+ * `403 SELF_APPROVAL` (the admin's own request, unless a `disruption` or `manual_edit` they
+ * filed as an admin), `409 STALE_VERSION` (another timetable became active; the request is now
+ * rejected), `409 HARD_CONSTRAINT` (no longer valid; still pending), `409 CONFLICT`, `429`.
+ */
+export function approveChange(
+  id: string,
+  body: ChangeDecisionRequest = {},
+  init?: ApiRequestInit,
+): Promise<ChangeApplyResult> {
+  return apiPost(
+    `/api/changes/${segment(id)}/approve`,
+    body,
+    ChangeApplyResultSchema,
+    init,
+  );
+}
+
+/**
+ * An admin rejects, or the requester withdraws, a pending or infeasible change (a club gets
+ * `403` before any rate limit is counted).
+ */
+export function rejectChange(
+  id: string,
+  body: ChangeDecisionRequest = {},
+  init?: ApiRequestInit,
+): Promise<ChangeRequest> {
+  return apiPost(
+    `/api/changes/${segment(id)}/reject`,
+    body,
+    ChangeRequestSchema,
+    init,
+  );
+}
+
+/** Body of `POST /api/manual/place` as the caller writes it (`repair` may be omitted). */
+export type ManualPlacementInput = z.input<typeof ManualPlacementRequestSchema>;
+
+/**
+ * Admin or coordinator (own department): pin one session at a slot (`POST /api/manual/place`)
+ * → a `manual_edit` `ChangeRequest` waiting for approval. Without `repair` the slot must be free:
+ * `409 HARD_CONSTRAINT` (`details` = the violations) otherwise; with `repair: true` whatever is
+ * in the way moves.
+ */
+export function placeManually(
+  body: ManualPlacementInput,
+  init?: ApiRequestInit,
+): Promise<ChangeRequest> {
+  return apiPost("/api/manual/place", body, ChangeRequestSchema, init);
+}
+
+// -------------------------------------------------------------- assistant and explanations
+
+/**
+ * One assistant turn (`POST /api/assistant`; faculty, coordinator, admin) → `AssistantReply`:
+ * text, engine-verified `options` (submit one with `proposeChange(option.proposal)`),
+ * `candidates` to pick from (re-send with `session_id`), or `conflicts`.
+ */
+export function askAssistant(
+  body: AssistantRequest,
+  init?: ApiRequestInit,
+): Promise<AssistantReply> {
+  return apiPost("/api/assistant", body, AssistantReplySchema, init);
+}
+
+/**
+ * Why a session is where it is, why a booking got its decision, or why a change moved what it
+ * did. `facts` is typed by `subject`: `SessionFacts`, the booking's `DecisionFacts` (or `{}`
+ * before a decision), or `ChangeFacts`; narrow on `result.subject` to read them.
+ */
+export function explain(
+  body: ExplainRequest,
+  init?: ApiRequestInit,
+): Promise<ExplainResult> {
+  return apiPost("/api/explain", body, ExplainResultSchema, init);
+}
+
 // ----------------------------------------------------------------------------------- export
 
 /**
  * Download link for the official `schedule.json` (`GET /api/export?file=schedule`, admin only).
- * The response is the file itself, not an envelope.
+ * The response is the file itself, not an envelope. Once a change request has been applied it
+ * is the timetable as it was just before the first one (the validator's `--baseline`).
  *
  * Use it as a plain `<a href download>`, and enable it only when `canExport()` says `ok`: a
  * download link can't see the `409` the server sends instead of a file (`HARD_CONSTRAINT` for
@@ -542,27 +738,92 @@ export async function streamTimetableGeneration(
  */
 export const EXPORT_SCHEDULE_URL = "/api/export?file=schedule";
 
+/**
+ * Download link for `schedule_after.json`: the timetable after the applied changes (admin
+ * only). Enable it when `canExport("schedule_after")` says `ok`; before any change is applied
+ * that call rejects with `409 CONFLICT`, like the download.
+ */
+export const EXPORT_SCHEDULE_AFTER_URL = "/api/export?file=schedule_after";
+
+/**
+ * Download link for `disruption.json`: every applied change, in apply order, as one change file
+ * (admin only). Enable it when `canExport("disruption")` says `ok`.
+ */
+export const EXPORT_DISRUPTION_URL = "/api/export?file=disruption";
+
 /** The validator's warning for a request with no stored decision (`validator.py` wording). */
 const MISSING_DECISION_WARNING = "No decision for ";
 
+/** {@link canExport} for a schedule file. */
+export type ScheduleExportCheck = {
+  ok: boolean;
+  missing_decisions: string[];
+  report: ValidatorReport;
+};
+
+/** {@link canExport} for `disruption.json`: ok once a change request has been applied. */
+export type DisruptionExportCheck = {
+  ok: boolean;
+  /**
+   * The applied change requests, oldest decision first (by `decided_at`, then id). That is
+   * usually, not necessarily, the order they were applied in; `disruption.json` itself lists
+   * the changes in apply order.
+   */
+  change_ids: string[];
+};
+
 /**
- * Asks the validator (`GET /api/validate`, admin only) whether the current schedule can be
- * exported, with the same rules as the export itself: no hard violation and a decision for
- * every Spectra request. `missing_decisions` lists the request ids without one (the same ids the
- * export's `409 CONFLICT` reports in `details.missing`);
- * `report` is the full `ValidatorReport` (`hard_violations`, `soft_total`, `bookings`,
- * `warnings`, …) to show why not. Errors are thrown as `ApiClientError`, as with `apiGet`.
+ * Asks the server whether an export file can be downloaded right now, with the same rules as
+ * the export itself (admin only). Errors are thrown as `ApiClientError`, as with `apiGet`.
+ *
+ * - `"schedule"` (default) and `"schedule_after"`: the validator report (`GET /api/validate`)
+ *   on what the export would serve; `ok` with no hard violation and a decision for every
+ *   Spectra request. `missing_decisions` lists the request ids without one (the export's
+ *   `409 CONFLICT` reports the same in `details.missing`); `report` is the full
+ *   `ValidatorReport` (`hard_violations`, `soft_total`, `bookings`, `stability` for
+ *   `schedule_after`, …). For `"schedule_after"` before any change is applied, the call rejects
+ *   with `409 CONFLICT`.
+ * - `"disruption"`: `ok` once at least one change request has been applied (`change_ids`, the
+ *   applied requests by decision time; the file itself is in apply order).
  *
  * @example
  * const { ok, report } = await canExport();
  * if (!ok) toast.error(`${report.hard_violation_count} hard violations block the export`);
+ * const after = await canExport("schedule_after");
+ * console.log(after.report.stability?.sessions_moved);
  */
-export async function canExport(init?: ApiRequestInit): Promise<{
-  ok: boolean;
-  missing_decisions: string[];
-  report: ValidatorReport;
-}> {
-  const report = await apiGet("/api/validate", ValidatorReportSchema, init);
+export function canExport(init?: ApiRequestInit): Promise<ScheduleExportCheck>;
+export function canExport(
+  file: ValidateQuery["file"],
+  init?: ApiRequestInit,
+): Promise<ScheduleExportCheck>;
+export function canExport(
+  file: "disruption",
+  init?: ApiRequestInit,
+): Promise<DisruptionExportCheck>;
+export async function canExport(
+  fileOrInit?: ValidateQuery["file"] | "disruption" | ApiRequestInit,
+  maybeInit?: ApiRequestInit,
+): Promise<ScheduleExportCheck | DisruptionExportCheck> {
+  const file = typeof fileOrInit === "string" ? fileOrInit : "schedule";
+  const init = typeof fileOrInit === "string" ? maybeInit : fileOrInit;
+  if (file === "disruption") {
+    const applied = await listChanges({ status: "applied" }, init);
+    // The list is newest first; sort by decision time. (The API doesn't expose the apply order,
+    // which only the export itself uses.)
+    const ids = applied
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.decided_at ?? "").localeCompare(b.decided_at ?? "") ||
+          a.id.localeCompare(b.id),
+      )
+      .map((cr) => cr.id);
+    return { ok: ids.length > 0, change_ids: ids };
+  }
+  const path =
+    file === "schedule" ? "/api/validate" : `/api/validate?file=${file}`;
+  const report = await apiGet(path, ValidatorReportSchema, init);
   const missing = report.warnings
     .filter((w) => w.startsWith(MISSING_DECISION_WARNING))
     .map((w) => w.slice(MISSING_DECISION_WARNING.length));

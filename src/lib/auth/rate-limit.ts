@@ -136,4 +136,15 @@ export const limits = {
    * limit the engine's own text is shown instead: the read never fails.
    */
   aiExplainUser: limiter("ai-explain-user", 30),
+  /**
+   * Change proposals, previews, manual placements, approvals and rejections per user and per IP.
+   * Each runs the rescheduler (CPU) and most store data.
+   */
+  changeRunUser: limiter("change-run-user", 30),
+  changeRunIp: limiter("change-run-ip", 120),
+  /** Assistant turns per user and per IP (each may cost up to two LLM calls). */
+  assistantUser: limiter("assistant-user", 30),
+  assistantIp: limiter("assistant-ip", 120),
+  /** `POST /api/explain` calls per user (the read itself; model phrasing also counts `aiExplainUser`). */
+  explainUser: limiter("explain-user", 60),
 } as const;

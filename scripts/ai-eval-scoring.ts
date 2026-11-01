@@ -263,3 +263,154 @@ export function exactAccuracyOf(
 export function percent(fraction: number): string {
   return `${(fraction * 100).toFixed(1)}%`;
 }
+
+// ------------------------------------------------------------------- assistant intents
+
+/** What an assistant intent extraction produced, as the eval reads it. */
+export type IntentLike = {
+  intent: string;
+  session: {
+    course_id: string | null;
+    kind: string | null;
+    day: string | null;
+    start_period: number | null;
+    session_id: string | null;
+  };
+  target: {
+    days: readonly string[];
+    periods: readonly number[];
+    room_id: string | null;
+  };
+  new_session: { course_id: string | null; kind: string | null };
+  faculty_hint: string | null;
+};
+
+/** The code-read signals the eval scores (rule-bypass asks, a time outside teaching hours). */
+export type SignalsLike = { bypass: boolean; outsideHours: string | null };
+
+/**
+ * What an assistant case expects. `intent` is always scored; every other field only when given
+ * (days and periods as sets, `outside_hours` as "some outside-hours reading").
+ */
+export type IntentExpectation = {
+  intent: string;
+  course_id?: string | null;
+  kind?: string | null;
+  day?: string | null;
+  start_period?: number | null;
+  session_id?: string | null;
+  days?: readonly string[];
+  periods?: readonly number[];
+  room_id?: string | null;
+  new_course?: string | null;
+  new_kind?: string | null;
+  faculty_hint?: string | null;
+  bypass?: boolean;
+  outside_hours?: boolean;
+};
+
+export type IntentCheck = {
+  field: string;
+  pass: boolean;
+  expected: string;
+  got: string;
+};
+
+const show = (value: unknown) =>
+  Array.isArray(value)
+    ? value.length > 0
+      ? value.join(", ")
+      : "(none)"
+    : value === null || value === undefined
+      ? "null"
+      : String(value);
+
+/** One check per expected field: intent kind first, then the fields the case names. */
+export function scoreIntent(
+  expected: IntentExpectation,
+  got: { intent: IntentLike; signals: SignalsLike },
+): IntentCheck[] {
+  const { intent, signals } = got;
+  const checks: IntentCheck[] = [];
+  const exact = (field: string, want: unknown, have: unknown) =>
+    checks.push({
+      field,
+      pass: want === have,
+      expected: show(want),
+      got: show(have),
+    });
+  const set = (
+    field: string,
+    want: readonly (string | number)[],
+    have: readonly (string | number)[],
+  ) =>
+    checks.push({
+      field,
+      pass: sameSet(want.map(String), have.map(String)),
+      expected: show(want),
+      got: show(have),
+    });
+
+  exact("intent", expected.intent, intent.intent);
+  if (expected.course_id !== undefined)
+    exact("course_id", expected.course_id, intent.session.course_id);
+  if (expected.kind !== undefined)
+    exact("kind", expected.kind, intent.session.kind);
+  if (expected.day !== undefined)
+    exact("day", expected.day, intent.session.day);
+  if (expected.start_period !== undefined)
+    exact("start_period", expected.start_period, intent.session.start_period);
+  if (expected.session_id !== undefined)
+    exact("session_id", expected.session_id, intent.session.session_id);
+  if (expected.days !== undefined)
+    set("target.days", expected.days, intent.target.days);
+  if (expected.periods !== undefined)
+    set("target.periods", expected.periods, intent.target.periods);
+  if (expected.room_id !== undefined)
+    exact("target.room_id", expected.room_id, intent.target.room_id);
+  if (expected.new_course !== undefined)
+    exact(
+      "new_session.course_id",
+      expected.new_course,
+      intent.new_session.course_id,
+    );
+  if (expected.new_kind !== undefined)
+    exact("new_session.kind", expected.new_kind, intent.new_session.kind);
+  if (expected.faculty_hint !== undefined)
+    exact("faculty_hint", expected.faculty_hint, intent.faculty_hint);
+  if (expected.bypass !== undefined)
+    exact("bypass", expected.bypass, signals.bypass);
+  if (expected.outside_hours !== undefined)
+    exact(
+      "outside_hours",
+      expected.outside_hours,
+      signals.outsideHours !== null,
+    );
+  return checks;
+}
+
+export type IntentAccuracy = {
+  /** Correct field checks over all field checks (what the gate reads). */
+  checks: FieldTally;
+  /** Cases whose intent kind is right. */
+  intent: FieldTally;
+  /** Cases whose every check passes. */
+  cases: FieldTally;
+};
+
+export function intentAccuracyOf(
+  results: readonly (readonly IntentCheck[])[],
+): IntentAccuracy {
+  const all = results.flat();
+  return {
+    checks: tally(all.filter((c) => c.pass).length, all.length),
+    intent: tally(
+      results.filter((r) => r.find((c) => c.field === "intent")?.pass).length,
+      results.length,
+    ),
+    cases: tally(
+      results.filter((r) => r.length > 0 && r.every((c) => c.pass)).length,
+      results.length,
+    ),
+  };
+}

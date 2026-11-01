@@ -1,11 +1,18 @@
 /**
  * Gemini through `@google/genai`: structured JSON output (`responseMimeType` +
- * `responseJsonSchema`) and plain text, temperature 0, bounded by a timeout. The API key stays
- * inside the SDK client; nothing here logs it.
+ * `responseJsonSchema`) and plain text, temperature 0, bounded by a timeout and an output-token
+ * cap. The API key stays inside the SDK client; nothing here logs it.
  */
 import { GoogleGenAI } from "@google/genai";
 
 import type { LlmClient } from "./types";
+
+/**
+ * Most tokens one call may generate. Every answer we ask for is short (a JSON draft or intent, a
+ * few sentences of text), but on thinking models the thinking can count toward this cap too, so
+ * it leaves plenty of room; it only stops a runaway answer. A reply cut off by it is an error.
+ */
+export const MAX_OUTPUT_TOKENS = 8192;
 
 type Request = {
   model: string;
@@ -99,6 +106,7 @@ export function geminiClient(apiKey: string): LlmClient {
       config: {
         systemInstruction: request.system,
         temperature: 0,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
         abortSignal: abortSignalFor(request),
         httpOptions: { timeout: request.timeoutMs },
         ...(json && {
@@ -107,6 +115,9 @@ export function geminiClient(apiKey: string): LlmClient {
         }),
       },
     });
+    // Compared as a string, so the SDK's enum isn't needed here.
+    if (String(response.candidates?.[0]?.finishReason) === "MAX_TOKENS")
+      throw new Error("Gemini stopped at the output-token limit");
     const text = response.text;
     if (!text?.trim()) throw new Error("Gemini returned an empty response");
     return text;

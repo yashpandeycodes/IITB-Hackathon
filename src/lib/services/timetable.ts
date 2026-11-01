@@ -4,6 +4,9 @@ import type {
   ActivateTimetableResult,
   GenerateTimetableResult,
   SolverProgress,
+  StoredBookingDecision,
+  StoredSessionOverride,
+  TimetableVersion,
   TimetableVersionSummary,
 } from "@/lib/contracts";
 import {
@@ -21,8 +24,22 @@ import {
   withDatasetLock,
 } from "@/lib/db/locks";
 import { appendAuditLog } from "@/lib/db/repos/audit-log";
-import { isDuplicateKeyError } from "@/lib/db/repos/meta";
 import {
+  listBookingDecisions,
+  replaceBookingDecisions,
+} from "@/lib/db/repos/booking-decisions";
+import {
+  restoreRequest,
+  type RequestSnapshot,
+} from "@/lib/db/repos/booking-requests";
+import { isDuplicateKeyError } from "@/lib/db/repos/meta";
+import { listBookingRequests } from "@/lib/db/repos/reference";
+import {
+  listSessionOverrides,
+  replaceSessionOverrides,
+} from "@/lib/db/repos/session-overrides";
+import {
+  KEEP_INACTIVE_VERSIONS,
   activateTimetableVersion,
   getActiveTimetableVersion,
   getTimetableVersion,
@@ -32,14 +49,21 @@ import {
 } from "@/lib/db/repos/timetable-versions";
 import { getServerEnv } from "@/lib/env";
 import {
+  ApiError,
   hardConstraint,
   infeasible,
   notFound,
   staleVersion,
 } from "@/lib/errors";
+import { staleComment, supersedePendingChanges } from "./change-supersede";
 import { getActiveDataset } from "./dataset";
 import { getSettings } from "./settings";
-import { planSpectra, saveSpectraUnlocked, spectraSummary } from "./spectra";
+import {
+  planSpectra,
+  saveSpectraUnlocked,
+  spectraSummary,
+  type SpectraPlan,
+} from "./spectra";
 
 /**
  * Timetable generation and activation. Each public function takes the dataset lock; the
@@ -62,9 +86,6 @@ export type GenerateTimetableOptions = {
 
 /** How many hard violations an `INFEASIBLE` error lists. */
 const MAX_REPORTED_VIOLATIONS = 50;
-
-/** Drafts and superseded versions kept for history; older ones are deleted after each run. */
-const KEEP_INACTIVE_VERSIONS = 20;
 
 /** Minimum solver time between two forwarded progress snapshots (phase changes always pass). */
 const PROGRESS_INTERVAL_MS = 100;
@@ -242,19 +263,98 @@ export async function beginTimetableGeneration(
   };
 }
 
+export type ActivateTimetableOptions = {
+  /**
+   * Set only by the approval flow of this change request (`change-apply.ts`): a version proposed
+   * by a change request (`change_request_id`) is activated by approving that request, never
+   * directly, because approval also writes the request's changes into the dataset. The approval
+   * then supersedes the other pending proposals itself.
+   */
+  changeRequestId?: string;
+};
+
+/** The stored Spectra state an activation replaces, so a failed save can put it back exactly. */
+type SpectraSnapshot = {
+  decisions: StoredBookingDecision[];
+  overrides: StoredSessionOverride[];
+  /** The requests whose state the plan changes, as they are now. */
+  requests: { id: string; before: RequestSnapshot }[];
+};
+
+async function snapshotSpectra(
+  db: Db,
+  plan: SpectraPlan,
+): Promise<SpectraSnapshot> {
+  const changed = new Set(plan.request_states.map((u) => u.id));
+  const [decisions, overrides, records] = await Promise.all([
+    listBookingDecisions(db),
+    listSessionOverrides(db),
+    changed.size > 0
+      ? listBookingRequests(db, {}, ["id", "state", "approval", "rejection"])
+      : Promise.resolve([]),
+  ]);
+  return {
+    decisions,
+    overrides,
+    requests: records
+      .filter((r) => changed.has(r.id))
+      .map((r) => ({
+        id: r.id,
+        before: {
+          state: r.state,
+          approval: r.approval,
+          rejection: r.rejection,
+        },
+      })),
+  };
+}
+
+/** Puts back what {@link snapshotSpectra} saw: decisions, overrides and request states. */
+async function restoreSpectra(
+  db: Db,
+  snapshot: SpectraSnapshot,
+): Promise<void> {
+  await replaceBookingDecisions(db, snapshot.decisions);
+  await replaceSessionOverrides(db, snapshot.overrides);
+  for (const { id, before } of snapshot.requests) {
+    await restoreRequest(db, id, before);
+  }
+}
+
 /**
  * Makes version `id` the active timetable. It must belong to the loaded dataset
  * (`STALE_VERSION` otherwise) and pass a fresh hard-rule check against the current data
- * (`HARD_CONSTRAINT`, with the violations). Spectra decisions are re-computed for it first and
- * stored once it is active, so an engine failure leaves the previous version active.
+ * (`HARD_CONSTRAINT`, with the violations). A version proposed by a change request is refused
+ * (`CONFLICT`) unless `options.changeRequestId` names that request.
+ *
+ * Spectra decisions are planned for it first, so an engine failure changes nothing. The stored
+ * Spectra state is snapshotted next; if switching the active version or saving the new decisions
+ * then fails, the snapshot and the previous active version are put back (each best-effort and
+ * logged) and the error is rethrown. (With no previous version, as on a first activation, the new
+ * one may stay active without its decisions; the export refuses it until Spectra is re-run.)
+ * Once the new version is active with its decisions, nothing
+ * after that throws: the `activate` audit entry and the rejection of pending change requests
+ * built on another version (outside an approval: "The timetable changed (…)", `decided_by:
+ * "system"`) are best-effort.
  */
 export async function activateTimetableUnlocked(
   db: Db,
   id: string,
   actor: string,
+  options: ActivateTimetableOptions = {},
 ): Promise<ActivateTimetableResult> {
   const version = await getTimetableVersion(db, id);
   if (!version) throw notFound(`Timetable version ${id} not found.`);
+  if (
+    version.change_request_id !== null &&
+    version.change_request_id !== options.changeRequestId
+  ) {
+    throw new ApiError(
+      "CONFLICT",
+      `Timetable ${id} was proposed by ${version.change_request_id}. Approve ${version.change_request_id} to apply this version.`,
+      { change_request_id: version.change_request_id },
+    );
+  }
   const dataset = await getActiveDataset(db);
   if (version.dataset_id !== dataset.dataset_id) {
     throw staleVersion(
@@ -276,18 +376,27 @@ export async function activateTimetableUnlocked(
   // Plan first: a booking-engine failure leaves the previous version active and nothing written.
   // The dataset was just read under the same lock, so the plan reuses it.
   const plan = await planSpectra(db, version, actor, { dataset });
-  const activated = await activateTimetableVersion(db, id);
+  const snapshot = await snapshotSpectra(db, plan);
+  let activated: TimetableVersion;
   try {
+    activated = await activateTimetableVersion(db, id);
     await saveSpectraUnlocked(db, plan, actor);
   } catch (err) {
-    // Don't leave a new active version without its decisions: put the previous one back (the
-    // export refuses a version whose decisions are incomplete until Spectra is re-run).
+    // Don't leave a new active version without its decisions, or no active version at all: put
+    // the previous decisions and the previous version back.
+    await restoreSpectra(db, snapshot).catch((restoreErr: unknown) =>
+      console.error(
+        "[timetable] could not restore the previous Spectra decisions; re-run Spectra",
+        restoreErr,
+      ),
+    );
     if (previous && previous.id !== id) {
-      await activateTimetableVersion(db, previous.id).catch((restoreErr) =>
-        console.error(
-          "[timetable] could not restore the previous version",
-          restoreErr,
-        ),
+      await activateTimetableVersion(db, previous.id).catch(
+        (restoreErr: unknown) =>
+          console.error(
+            "[timetable] could not restore the previous version",
+            restoreErr,
+          ),
       );
     }
     throw err;
@@ -300,7 +409,16 @@ export async function activateTimetableUnlocked(
     entity_id: id,
     before: { active_version: previous?.id ?? null },
     after: { active_version: id, spectra },
-  });
+  }).catch((err: unknown) =>
+    console.warn(`[timetable] could not audit the activation of ${id}`, err),
+  );
+  if (options.changeRequestId === undefined) {
+    await supersedePendingChanges(db, {
+      activeVersion: id,
+      actor,
+      comment: staleComment(id),
+    });
+  }
   return { version: activated, spectra };
 }
 

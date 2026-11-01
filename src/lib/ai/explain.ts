@@ -23,7 +23,7 @@ export const TEMPLATE_ONLY_CODES: ReadonlySet<ReasonCode> = new Set([
 ]);
 
 /** Numbers in `text`, normalised ("08" and "8" are the same number). */
-function numbersIn(text: string): Set<string> {
+export function numbersIn(text: string): Set<string> {
   return new Set(
     (text.match(/\d+(?:\.\d+)?/g) ?? []).map((n) => String(Number(n))),
   );
@@ -35,7 +35,7 @@ const VERB = String.raw`(?:is|was|has\s+been|have\s+been|had\s+been|are|were|got
 const ADVERB = String.raw`(?:\s+(?:now|successfully|fully|already|been))*`;
 
 /** A negation shortly before a word ("could not be approved", "wasn't rejected"). */
-const NEGATION =
+export const NEGATION =
   /\b(?:not|never|cannot|no longer|unable to|without)\b|n't\b|\bnot\s+been\b/i;
 
 /** The request stated as `words` ("your request has been approved", "you're booked"). */
@@ -47,7 +47,7 @@ function claim(words: string): RegExp {
 }
 
 /** A word used without a negation in the same clause. */
-function plainUse(text: string, word: RegExp): string | null {
+export function plainUse(text: string, word: RegExp): string | null {
   for (const m of text.matchAll(word)) {
     const clause = text.slice(Math.max(0, m.index - 40), m.index);
     const tail = clause.split(/[.;:!?,]/).pop() ?? "";

@@ -14,7 +14,7 @@ import {
   Period,
   TeachingPeriod,
 } from "./enums";
-import { Id } from "./util";
+import { Id, Timestamp } from "./util";
 
 /** One session placed in the regular weekly timetable. */
 export const AssignmentSchema = z.object({
@@ -111,6 +111,25 @@ export const ScheduleExportSchema = z.object({
 export type ScheduleExport = z.infer<typeof ScheduleExportSchema>;
 
 /**
+ * The baseline `schedule.json`: the export as it was just before the first change request was
+ * applied. `GET /api/export?file=schedule` keeps serving it once a change is live (what the
+ * validator's `--baseline` compares with) while `schedule_after.json` follows the live
+ * timetable. Stored once (the `baselines` singleton) and cleared by a reset or an import.
+ */
+export const BaselineSchema = z.object({
+  schedule: ScheduleExportSchema,
+  /** The active timetable version the snapshot was taken from. */
+  version_id: Id,
+  dataset_id: Id,
+  /** The change request whose approval captured it (the first one applied). */
+  change_request_id: Id,
+  captured_at: Timestamp,
+  /** The admin whose approval captured it. */
+  captured_by: Id,
+});
+export type Baseline = z.infer<typeof BaselineSchema>;
+
+/**
  * `exports/schedule_after.json` (after a disruption). The validator checks `fest_week` and
  * `exams` only when present, so both are optional here.
  */
@@ -120,8 +139,24 @@ export const ScheduleAfterExportSchema = ScheduleExportSchema.extend({
 });
 export type ScheduleAfterExport = z.infer<typeof ScheduleAfterExportSchema>;
 
-/** `GET /api/export?file=…`. `schedule_after` arrives with rescheduling (Phase 5). */
+/**
+ * `GET /api/export?file=…`:
+ * - `schedule`: `schedule.json`. Before any change is applied, the live projection; afterwards,
+ *   the baseline captured just before the first applied change (what `--baseline` compares with).
+ * - `schedule_after`: the live projection after the applied changes (`409 CONFLICT` before any).
+ * - `disruption`: every applied change, in apply order, as one starter-pack change file (what
+ *   `--disruption` applies); `409 CONFLICT` before any.
+ */
+export const ExportFile = z.enum(["schedule", "schedule_after", "disruption"]);
+export type ExportFile = z.infer<typeof ExportFile>;
+
 export const ExportQuerySchema = z.object({
-  file: z.enum(["schedule"]).default("schedule"),
+  file: ExportFile.default("schedule"),
 });
 export type ExportQuery = z.infer<typeof ExportQuerySchema>;
+
+/** `GET /api/validate?file=…`: which export the validator port checks (`schedule_after` adds stability). */
+export const ValidateQuerySchema = z.object({
+  file: z.enum(["schedule", "schedule_after"]).default("schedule"),
+});
+export type ValidateQuery = z.infer<typeof ValidateQuerySchema>;

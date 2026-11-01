@@ -200,46 +200,83 @@ decideAll(dataset, week7Timetable):
 
 ### 3.5 Rescheduler (M8): fewest moves wins 5 marks
 
+> **Status (Phase 5):** built. `src/lib/engine/reschedule.ts` (`reschedule`, `suggestMoves`, `validateChanges`, `describeChanges`), `repair.ts` (the search), `conflicts.ts` (rule tallies shared with suggestions and explanations), `format.ts` (wording). Pure and deterministic: the clock is injectable (`RescheduleOptions.now`, default `performance.now`) and only the wall-clock safety cap reads it, so whenever the node budget rather than the clock ends the search (`stopped_by` is `complete` or `nodes`), the same input gives the same result; with a frozen clock (`() => 0`) even `meta.ms` repeats.
+
 ```
-repair(activeTT, dataset, changes):
+reschedule(dataset, baseline, changes, placements):
   data' = applyDisruption(dataset, changes)        // identical semantics to validator.apply_disruption
                                                    // faculty_unavailable · room_unavailable · add_faculty · add_session · remove_session
-  A = activeTT minus removed sessions
-  broken = { s ∈ A : any hard rule fails for s under data' } ∪ newly added sessions
-  pinned = A \ broken
-  for k = 0, 1, 2, 3:                               // iterative deepening on extra moves
-    try place every broken session using ≤ k evictions of pinned sessions:
-      1. same (day,start), another room            → "room only" move
-      2. another (day,start,room) with no conflict
-      3. ejection chain: take slot X, evict blocker b (never fixed_slot), re-place b (depth ≤ 3)
-    if success: return best by (moved_count, Δsoft)
-  return INFEASIBLE(conflictReport(broken))
+  units = sessions of data' (a basket slot is one unit: its members share day and start)
+  1. fixed units (fixed_slot) keep their baseline slot first, so nothing can displace them
+  2. pinned units (placements: manual edit, assistant option) go exactly where asked;
+     a pin that contradicts the data, a fixed session or another pin is reported, never forced
+  3. every other unit whose baseline slot still holds under data' stays exactly where it is
+  4. the rest ("broken" by the change, plus added sessions), most constrained first
+     (units with a baseline before new ones, fixed first, then fewest options):
+       a. same (day, start), another free room                     → room-only move
+       b. another (day, start, rooms) that is free                 → time move (cheapest first)
+       c. ejection chain: take a slot, move its blockers (never fixed or pinned units,
+          never a unit this chain already placed), up to depth 3; a basket tries two room
+          choices: each member keeps its baseline room where possible, or each member takes
+          the room with the fewest occupants (the cheaper plan wins)
+     each unit takes the plan with the fewest moves, then fewest time changes, then lowest
+     soft + fest cost (fest-aware, like generation); ties keep the fixed enumeration order
+  check = checkTimetable(data', result)            // independent re-check with the validator port
+  stability = computeStability(baseline, result)   // the validator's moved / time / room-only counts
+  feasible ⇔ every session placed ∧ check = 0 ∧ every placement honoured
+  else conflicts = per unplaced session: rule tallies + contradictions + one-line summary
 ```
 
-- **Moved count** follows the validator: any session whose `(day, start_period, room_id)` differs from the baseline. Added sessions don't count, broken sessions must move, so `moved = |broken| + evictions`. Never run SA on the repaired timetable, because it would increase moves.
-- **Diff object:** `{session_id, from, to, reason}` per moved session, plus `time_changed` and `room_only_changed` counts (same split as the validator's stability report).
-- **Conflict report (infeasible):** for each unplaceable session, a per-slot histogram of which rule blocks it, reduced to a minimal statement:
-  > "CS202-T2 can't be placed. Across 45 slots: F06 unavailable in 4, CSE-2 already in class in 21, F06 at the 4 h daily limit on FRI, and no free classroom ≥ 80 seats in the remaining 3."
-  Plus direct contradictions such as "`fixed_slot` THU P6 vs F06 unavailable THU P6–P9".
-- **Sample disruption** (`examples/sample_disruption.json`): F07 unavailable every Monday (affects CS203-L1..L3 and CS292-P1 if placed on MON), CR-102 closed all week (every session in CR-102 needs a room-only move where possible), add `CS202-T2` (F06, CSE-2, 80 students, needs a 1 h classroom/LH slot). Expect a small single-digit move count, mostly room-only.
+- **Budgets:** 200,000 search nodes per run (deterministic; one repaired unit may use at most a quarter of them), a 4,000 ms wall-clock safety cap, ejection depth 3 (`meta.stopped_by` = `complete`, `nodes` or `time`; the best result found is kept). A manual placement without `repair` runs with depth 0, so nothing else may move.
+- **Moved count** follows the validator: a session in both timetables whose `(day, start_period, room_id)` differs. Added sessions don't count, every broken session must move, so `moved = |broken baseline sessions| + evictions`, and a basket slot that changes time moves every member. No annealing runs afterwards, because it would add moves.
+- **Diff** (`MoveDiff`): `{session_id, from, to, move, cause, rules, displaced_by, reason}` per moved, added or removed session; `cause` is `broken` (with the hard rules its old slot now breaks), `evicted` (with the session it made room for; the reason names the cell that was needed: "Moved to free CSE-2 at WED P2 for CS202-L1", "… WED P2 in CR-201 …" or "… F06 at …"), `requested`, `added` or `removed`. `RescheduleMeta` records `broken`, `evictions`, the deepest chain used, nodes and ms.
+- **Basket rooms.** A basket unit that must move (or evict) tries two room choices: keep every member's baseline room where that room is open and its occupants can move, or give each member the room with the fewest occupants. The first stops a broken member from taking a sibling's room (which moved the sibling too). QA's three reproductions now hit their lower bounds: 2, 4 and 6 moves instead of 3, 6 and 7 (`reschedule.test.ts`), and a basket fuzz (30 seeded cases) checks the move count against a small exhaustive search that moves only the broken sessions.
+- **Conflict report** (infeasible): for each session that can't be placed, every candidate start is put under exactly one blocking rule (the first that applies), so the tallies add up to the starts considered, plus direct contradictions no move can fix (a fixed slot lists every reason it can't hold: outside P1–P9, across lunch, a lab off its start periods), plus one sentence. Example (AUD closed all week): "ID101-ALL-L1 can't be placed: every suitable room is closed whenever F37 can teach ID101-ALL-L1." with `H7 × 36 (F37 unavailable)`, `H8 × 9 (AUD closed)`.
+- **Validation before the search** (`validateChanges`): unknown faculty, rooms, courses, groups and sessions, duplicate added ids (against the dataset and within the list), removing an unknown or already removed session, bad placements → errors with `{path, message}` (a `400` at the API, whose message names the first and ends "(more problems in details)" when there are several); days outside the calendar, non-teaching periods and empty windows → one aggregated warning per change. At most 20 errors and 20 warnings are listed, each list closed by "… and N more … like these.". The changed data must also load like an imported file. Before any of this, the API checks the raw body against `REQUEST_LIMITS` (sizes, nesting, field names; [api.md](./api.md#request-limits)).
+- **Sample disruption** (`data/sample_disruption.json`: F07 unavailable every Monday, CR-102 closed all week, add `CS202-T2`): **9 moved, 0 time changes, 9 room only**, CS202-T2 placed at MON P7 in CR-103, soft 3 → 3 (delta 0), `broken: 10` (the 9 plus the added session), 0 evictions, 148 nodes, about 20–80 ms (38 ms in the live smoke). 9 is the lower bound: all 9 sessions held in CR-102 must leave it, and F07 teaches nothing on Mondays in this timetable. The official validator on the app's `schedule_after.json` (`--disruption data/sample_disruption.json --baseline exports/schedule.json`): 0 hard, soft 3, booking score 67 / 70, exam penalty 0, "Stability: 9 sessions moved (0 changed time, 9 room only)".
+- **Fuzz** (`reschedule-fuzz.test.ts`, frozen clock): 150 seeded change lists over the public data mixing every change type, pins and fixed sessions: 148 feasible (0 hard, pins honoured, fixed sessions in place, the validator's stability, at least one move per broken session), 2 infeasible, each with a conflict report; each run under 100 ms. The basket fuzz above runs in the same file. Separately, a parity script from the backend audit ran `reschedule()` and the official `validator.py` on 70 random change lists: 0 mismatches in the moved, time-changed and room-only counts.
+- **Move suggestions** (`suggestMoves`, used by the assistant): each option is a full `reschedule` with the session pinned at a slot inside the target window (never its current slot). The changed model is built once; starts the session fits without moving anything are verified first (cheapest first), and starts that need evictions are tried only when fewer than the requested number hold. Default 3 options, at most 5; 40,000 nodes per candidate repair and a 1.5 s cap for the whole search. A full-week search takes 30–110 ms on the public data.
 
 ### 3.6 Manual placement (M13) and faculty requests (M14)
 
-Both produce a `change_request` with starter-pack-shaped `changes[]` (or a direct `Assignment` for manual placement) → the engine checks (`/api/timetable/check`) → if hard violations exist, show them with rule codes and block submission; if clean, the request goes pending for Admin approval. Faculty unavailability goes through the rescheduler, so the faculty member sees which of their sessions will move.
+> **Status (Phase 5):** built: `POST /api/manual/place`, `POST /api/changes`, `src/lib/engine/manual.ts` (`checkPlacement`), `extra-session.ts` (`deriveExtraSession`).
+
+Every timetable edit becomes a change request (`kind`: `disruption`, `unavailability`, `faculty_request`, `manual_edit`) that an admin approves; nothing is ever written straight into the active timetable.
+
+- **Manual placement** (admin anywhere, coordinator for their department's sessions): one `Assignment`. With `repair: false` (default) `checkPlacement` merges it into the active timetable and runs the validator port: any new hard violation is a `409 HARD_CONSTRAINT` listing the violations and the sessions in the way, worded like `validator.py`, and nothing is stored; a clean slot is filed with no other session allowed to move. With `repair: true` the placement is a pin for the rescheduler, which moves whatever is in the way (e.g. CS202-L1 to WED P2 in CR-201: 3 moved, two of them evicted).
+- **Faculty unavailability** (self; a coordinator for their department's faculty): a `faculty_unavailable` change through the rescheduler, so the requester sees exactly which of their sessions would move (F06 unavailable FRI P4 → CS202-L2 moves to MON P7, same room). Unavailability at times with no class is a valid request with 0 moves; once approved it is part of the data.
+- **Faculty requests**: move one of my sessions (a placement), or an extra session of a course I teach (`deriveExtraSession`: modelled on an existing session of the same course and kind, with the next free id in its pattern, e.g. `CS202-T2`, never its basket or fixed slot) plus where to put it. The assistant builds these; `POST /api/changes` accepts them directly.
+- **Who may add a session** (`change-scope.ts`): a faculty member only for a course they already teach, taught by them, with groups that already attend it. A coordinator only for a course of their department, taught by their department's faculty (counting faculty added earlier in the same request) or someone who already teaches it, with groups of their department or groups that already attend it. The assistant checks this up front and refuses an out-of-scope extra session ("You can't request this extra session: …") before computing options.
+- **Live checks while dragging** stay on `POST /api/timetable/check` (nothing stored).
 
 ### 3.7 Explanations (M12)
 
+> **Status (Phase 5):** built: `POST /api/explain`, `src/lib/engine/explain.ts` (`explainSession`), change facts in `src/lib/services/explain.ts`; booking explanations since Phase 4 (`GET /api/bookings/:id`).
+
 ```
-explainSession(sid): facts = {
-  placed: {day, start, room},
-  hard_blocked_alternatives: [{day,start, rules:["H3 Y1-A has MA101", "H7 F19 unavailable"]}, …],
-  soft_tradeoffs: [{day,start, delta:{S2:+1}}, …],
-  room_reason: "smallest room that fits 180 seats: LH-1"
+explainSession(sid) → SessionFacts = {
+  placed: {day, start_period, end_period, room_id, time} | null,                // time = clock range
+  room: {capacity, fill_percent, suitable_rooms, smaller_suitable_busy[], note},   // why this room
+  soft_costs: [{rule: "S2", points, detail}, …],                                // what it costs here
+                                                     // (S1: "F06 asked to avoid FRI P9"; the preference's own note is never quoted)
+  alternatives: {                                    // every other start, everything else held still
+    considered, free, better,
+    blocked: [{rule: "H3", count: 20, detail: "CSE-2 already in class"}, …],    // largest first
+    best: up to 3 free slots with their soft delta
+  },
+  fixed_slot, basket_slot, summary                                              // template text
 }
-explainBooking(rid): decision + reason_code + competing requests + candidate rooms and why each failed
-→ Gemini (prompt explain_booking.v1): "Write 2–4 plain sentences using ONLY these facts."
-→ fallback: template string built from the same facts
+changeFacts(cr) = {change_id, status, title, moved_count, time_changed, room_only_changed, soft_delta, diff, conflicts, summary}
+bookingFacts = the decision's BookingFacts (candidate rooms, what blocked the window, moved sessions, …)
+→ sessions: Gemini (explain_schedule.v1): "2–4 plain sentences using ONLY these facts"; accepted only
+  if every id, number and day is in the template or the facts and nothing contradicts them (fixed
+  slot, options) → else the template from the same facts
+→ bookings: Gemini (explain_booking.v1), Phase 4 checks (every number in the facts, status kept)
+→ changes: always the template (no model call, no quota, no ai_logs entry): the facts carry the
+  requester's own words and the reader may be the admin deciding the request
 ```
+
+Example template: "CS202-L1 (Discrete Mathematics lecture) is on THU 08:00–09:00 (P1) in CR-103. CR-103 is one of the smallest of the 14 suitable rooms for 80 students. It costs no soft points here. Of the 44 other start slots, 23 would fit without moving anything, none with a lower soft penalty; of the rest, CSE-2 is already in class in 20 and F06 is already teaching in 1. That is why it stays at 08:00–09:00: no free slot costs less." The blocked-start tallies come from the same `conflicts.ts` code as the rescheduler's conflict report, so both give the same reasons in the same words.
 
 ---
 
@@ -275,7 +312,7 @@ These are already in `cit_public.json`. Judges' tricky set will probe the same p
 
 ## 5. AI layer (Gemini)
 
-> **Status (Phase 4):** built. `src/lib/ai/` holds the Gemini adapter (`@google/genai`, structured JSON output, one repair retry, timeout, per-instance cache), the offline English/Hinglish rule parser and the shared deterministic post-processing; `prompts/parse_booking.v1.md` and `prompts/explain_booking.v1.md`. `POST /api/bookings/parse` works with AI off (the rule parser is the default without a key) and logs every parse to `ai_logs`.
+> **Status (Phase 5):** built. `src/lib/ai/` holds the Gemini adapter (`@google/genai`, structured JSON output with one repair retry in `structured.ts`, timeout, per-instance cache), the offline English/Hinglish rule parsers (bookings; assistant intents in `assistant-rules.ts`), the shared deterministic post-processing and the fact-checked phrasing (`explain.ts` for bookings, `phrase.ts` for assistant replies and timetable explanations). Prompts: `prompts/parse_booking.v1.md`, `explain_booking.v1.md` (Phase 4), `assistant_intent.v1.md`, `assistant_reply.v1.md`, `explain_schedule.v1.md` (Phase 5). `POST /api/bookings/parse`, `POST /api/assistant` and `POST /api/explain` all work with AI off (the rule parsers and templates are the default without a key) and log to `ai_logs`.
 
 ### 5.1 What the LLM may and may not do (copy into `AI_USAGE.md`)
 
@@ -293,11 +330,15 @@ These are already in `cit_public.json`. Judges' tricky set will probe the same p
 |---|---|---|---|---|
 | Booking parser | `/api/bookings/parse` | `GEMINI_MODEL_FAST` | `prompts/parse_booking.v1.md` | `BookingDraftLLM` |
 | Booking explanation | `GET /api/bookings/:id` | `GEMINI_MODEL_SMART` | `prompts/explain_booking.v1.md` | plain text, 2–4 sentences; every number must appear in the facts and the status must match, else the engine's text |
-| Assistant intent (Phase 5) | `/api/assistant` | `GEMINI_MODEL_FAST` | `prompts/assistant_intent.v1.md` | `ChangeIntent` |
-| Assistant reply / timetable explanations (Phase 5) | `/api/assistant`, `/api/explain` | `GEMINI_MODEL_SMART` | `prompts/explain.v1.md` | plain text (≤ 80 words) |
+| Assistant intent | `/api/assistant` | `GEMINI_MODEL_FAST` | `prompts/assistant_intent.v1.md` | `AssistantIntentLLM` (strict; every field nullable or a list, so the model never has to invent a value) |
+| Assistant reply | `/api/assistant` | `GEMINI_MODEL_SMART` | `prompts/assistant_reply.v1.md` | plain text, 1–4 sentences (≤ 90 words), phrased from the reply template and its facts |
+| Session explanations | `/api/explain` (`subject: "session"`); the assistant's "why?" | `GEMINI_MODEL_SMART` | `prompts/explain_schedule.v1.md` | plain text, 2–4 sentences (≤ 90 words), phrased from `SessionFacts`. Change requests are never phrased by the model (template only). |
 
-- SDK: `@google/genai`. Structured output with `responseMimeType: "application/json"` and the JSON schema generated by `z.toJSONSchema()` from the contract. Then `.parse()` with Zod. On failure, one "repair" retry, then the rule parser.
-- Timeout `LLM_TIMEOUT_MS` (8 s) for the whole parse (first call + repair; the repair is skipped when too little time is left). Parse cache by `sha256(text + reference_date + dataset_id + model + prompt_id)`; explanations are cached by a hash of the decision's content and limited to 30 model calls per user per 10 minutes (the engine's text is shown beyond that). Every parse (Gemini or rule parser, cache hits flagged `cached`) and every model-phrased explanation is logged to `ai_logs` (kept 30 days). Explanations of approver rejections and cancellations never call the model (the approver's comment stays out of prompts).
+- SDK: `@google/genai`. Structured output with `responseMimeType: "application/json"` and the JSON schema generated by `z.toJSONSchema()` from the contract. Then `.parse()` with Zod. On failure, one "repair" retry, then the rule parser. Every call has temperature 0 and `maxOutputTokens: 8192` (on thinking models the thinking can count too, so it only stops a runaway answer); a reply cut off at that limit (`finishReason: MAX_TOKENS`) is treated as an error, never used.
+- Timeout `LLM_TIMEOUT_MS` (8 s) for the whole parse or assistant intent extraction (first call + repair; the repair is skipped when too little time is left). Parse cache by `sha256(text + reference_date + dataset_id + model + prompt_id)`; explanations are cached by a hash of the decision's content and limited to 30 model calls per user per 10 minutes (the engine's text is shown beyond that). Every parse (Gemini or rule parser, cache hits flagged `cached`), every assistant turn and every model-phrased explanation or reply is logged to `ai_logs` (kept 30 days). Explanations of approver rejections and cancellations never call the model (the approver's comment stays out of prompts).
+- **Phrasing checks** (`phrase.ts`, for session explanations and assistant replies; the same idea as Phase 4's booking explanations): a prompt (template plus facts) over 16,000 characters is never sent. The model's text is used only when it is a sensible length (20–700 characters), every id in it (`LH-3`, `CS202-L2`, `F06`, …) appears in the template or the facts (checked first, since "LH-2" for "LH-3" would pass the number check), every number and weekday does too, and it contradicts nothing: no option claimed when there is none (or none when there are some), nothing claimed as already moved, approved or applied, no invented fixed slot. Free text inside the facts (the user's own words) goes to the model fenced as data. Otherwise the template is shown. Booking explanations (`explain.ts`) keep their Phase 4 checks (length, numbers, status). Model-phrased explanations (bookings, `/api/explain` sessions, assistant replies) share one quota of 30 per user per 10 minutes; past it the template is shown. `/api/explain` caches phrased texts per server instance by their facts.
+- **Assistant flow** (`services/assistant.ts`): intent (model or rule parser) → code resolves the session, course or faculty member against the asker's own scope (`sessionsInScope`; ambiguity returns candidates and a question, never a guess) → the engine finds candidate placements (`suggestMoves`) or the conflicts → each option is built by the same `computeProposal` as `POST /api/changes` (`services/change-proposal.ts`: the same checks, scope, rescheduler run, `validateDataset` and self-check), so its counts are exactly what filing it stores, and an option that filing would refuse or find infeasible is never offered → template reply, optionally rephrased. Code also reads "signals" from the message itself whichever extractor answered: rule-bypass asks ("approve it yourself", "ignore the rules") add a fixed refusal sentence, evening times are flagged as outside teaching hours, "otherwise …" becomes the fallback window. An extra session outside the asker's scope is refused before any option is computed. Options carry the exact `ChangeProposalRequest` that `POST /api/changes` recomputes; nothing changes until an admin approves.
+- **Assistant rule parser** (`assistant-rules.ts`, offline): English, Hinglish and Devanagari. Open-ended times ("2 baje ke baad" → P6–P9, "before 11" → P1–P3, "12 baje tak" → P1–P4, "shaam tak" → the whole day); short Hindi day names (som, mangal, budh, guru, shukra, also in Devanagari) only next to a day-like word ("mangal ko", "guru subah"), so "Guru Nanak" is not Thursday; "le jao" / "le chalo" as a move; someone else's absence ("F07 kal nahi aayenge") and "free nahi hoon" / "not free"; period lists ("P5 and P6", "P3, P4"); a bare hour after a day ("next Monday 9", "kal 11") read as 8–12 morning or 1–5 afternoon with a chip, while 6, 7 and 13–23 are ambiguous and dropped with a chip asking for am/pm or a period. One faculty member per request: when several are named, a chip says who was read and who needs a separate request.
 
 ```ts
 // contracts/ai.ts
@@ -310,13 +351,14 @@ BookingDraftLLM = {
   conditions: string[],                                         // "if SH-1 is busy, any hall with projector"
   assumptions: string[], follow_up: string | null, confidence: number
 }
-ChangeIntent = {
-  action: "move_session" | "add_session" | "mark_unavailable" | "find_free_slots" | "explain" | "out_of_scope",
-  session_hint: { course_id?: string, day?: Day, start_period?: number, kind?: SessionKind } | null,
-  target_windows: { day: Day, from_period: number, to_period: number }[],
-  reason: string | null, follow_up: string | null
-}
-```
+AssistantIntentLLM = {                                         // contracts/assistant.ts
+  intent: "move_session" | "mark_unavailable" | "add_session" | "explain_session" | "unsupported",
+  session: { course_id, kind, day, start_period, session_id },  // which session (hints; all nullable)
+  target: { days: Day[], periods: TeachingPeriod[], room_id },   // where it should go / when unavailable
+  new_session: { course_id, kind },                             // add_session
+  faculty_hint: string | null,                                   // a coordinator/admin naming a faculty member
+  reason: string | null
+}```
 
 ### 5.3 Deterministic post-processing (code, not LLM)
 
@@ -360,6 +402,7 @@ With AI off or failing, the parse answers `source: "rules"` (with `fallback_reas
 - Add the 8 `sample_requests.md` items (3 have expected JSON) and about 15 adversarial prompts from §5.4.
 - Report accuracy per field. **Target ≥ 90 %** on dataset texts before H18. Results go in the README (and the C12 dashboard if built).
 - **Measured (Phase 4, rule parser alone; no Gemini key):** `npm run ai-eval` scores **97.5 %** over the 20 distinct dataset texts (the two series are parsed once): attendance, room types and compulsory groups 100 %; duration, windows and needs 95 %. The three misses are cases where the dataset's answer isn't in the text (BR-09 "Friday night" gives no length and "big screen" reads as a projector; BR-04 "6 to 9" is P10–P12, the dataset says P10–P13). Room types count as correct when they overlap the dataset's list; scored as an exact set they are 70 % (14/20), 92.5 % overall (both are printed). All 48 sample and adversarial cases pass (day ranges as a series, spoken and invalid times, Devanagari, attendance ranges, room numbers, …). With a `GEMINI_API_KEY`, `npm run ai-eval -- --llm` scores the Gemini path the same way.
+- **Assistant intents (Phase 5):** a second section scores intent extraction (English, Hinglish and Devanagari moves, vague timing, "otherwise" and "except" conditions, unavailability, extra sessions, "why?" questions, out-of-scope ids and names, an invented id, prompt injection, rule-bypass asks, impersonation, evening times, a room booking, a relative shift, and a coordinator and an admin naming a faculty member) on 63 messages, adding open-ended times (before / after / until, in English, Hinglish and Devanagari), short Hindi day names (and "Guru Nanak", which is not one), "le jao" / "le chalo", someone else's absence, "not free", period lists, bare hours and several faculty named in one request. The rule parser gets **63/63 intents and 208/208 field checks** (the gate is 90 %). These cases were written alongside the rule parser, so they show it covers the patterns we designed for rather than measuring it independently; Gemini is not measured (no key). The booking section is unchanged: 97.5 % (92.5 % with exact-set room types) and 48/48 cases.
 
 ---
 
@@ -368,22 +411,27 @@ With AI off or failing, the parse answers `source: "rules"` (with `fallback_reas
 | Service (`lib/services/`) | Engine modules used | Routes ([architecture.md §6](./architecture.md#6-api-catalogue)) | Owner |
 |---|---|---|:-:|
 | `datasetService` | — | `/api/admin/dataset`, `/api/admin/reset` | B |
-| `timetable` (+ `timetable-view`) | `solver`, `fest`, `checker`, `soft` | `/api/timetable`, `/check`, `/generate`, `/versions`, `/versions/:id/activate`; later `/api/manual/place` | A + B |
+| `timetable` (+ `timetable-view`) | `solver`, `fest`, `checker`, `soft` | `/api/timetable`, `/check`, `/generate`, `/versions`, `/versions/:id/activate` (refuses a change request's draft; snapshots and restores the Spectra state on a failed save; rejects stale pending change requests via `change-supersede`); activation for approvals | A + B |
 | `exams` | `exams`, `exams-check` | `/api/exams`, `/api/exams/generate` | A |
 | `spectra` | `bookings`, `bookings-check` | `/api/spectra`, `/api/spectra/run` (and every activation) | B |
 | `reference` | — (projects the active dataset) | `/api/reference` | B |
 | `bookings` | `bookings` (via `spectra`), `suggestRoom`; AI `phraseExplanation` | `/api/bookings`, `/api/bookings/:id`, `/cancel`, `/decide` | B |
 | `booking-parse` | `bookings` (preview), `missingNeeds`; AI `parseBookingText` | `/api/bookings/parse` | B |
 | `rooms` | — (reads the Week-7 picture) | `/api/rooms/available` | B |
-| `changeService` | `reschedule`, `checker`, `explain` | `/api/changes/*` | A + B |
-| `llm` | (config only: env switch + admin toggle + key) | used by `booking-parse`, `bookings`; later `/api/assistant`, `/api/explain` | B |
-| `export` | `validate` (gate) | `/api/export`, `/api/validate` | B |
+| `changes` (+ `change-proposal`: builds a proposal, shared with the assistant; `change-scope`: who may file, see, approve, reject; `change-supersede`: closing requests) | `reschedule`, `validateChanges`, `describeChanges` (in `change-proposal`) | `GET`/`POST /api/changes`, `/changes/preview`, `/changes/:id`, `/changes/:id/reject` | A + B |
+| `change-apply` | `applyDisruption`, `checkTimetable` | `/api/changes/:id/approve` (verify, capture the baseline behind the export gate, write the changes into the reference collections with undo, activate, record, supersede; all or nothing) | A + B |
+| `manual` | `checkPlacement` (+ `reschedule` via `changes`) | `/api/manual/place` | A + B |
+| `assistant` | `suggestMoves`, `deriveExtraSession`, `explainSession`; options built by `change-proposal` (`reschedule`, `validateChanges`); AI `extractIntent`, `phraseAssistantReply`, `phraseScheduleExplanation` | `/api/assistant` | B |
+| `explain` | `explainSession`; AI `phraseScheduleExplanation` (sessions only; changes are template-only); booking facts via `bookings` | `/api/explain` | B |
+| `llm` | (config only: env switch + admin toggle + key; `fast` = `GEMINI_MODEL_FAST`, `smart` = `GEMINI_MODEL_SMART`) | used by `booking-parse`, `bookings`, `assistant`, `explain` | B |
+| `export` (+ `baseline`) | `validate` (gate) | `/api/export?file=schedule\|schedule_after\|disruption`, `/api/validate?file=schedule\|schedule_after`; captures the baseline at the first approval | B |
 | `dashboard` | `checker`, `bookings-check` (booking score via `spectra`), utilisation | `/api/dashboard` | B |
 | `authService` | — | `/api/auth/*` | B |
 
 **Cross-cutting rules**
 
-- Every mutating service re-runs `checker` **inside** the write path, even if the UI already checked (TOCTOU-safe). For approvals, it verifies `base_version` is still active (`STALE_VERSION`) and `approver ≠ requested_by` (`SELF_APPROVAL`).
-- Idempotency: `POST /api/changes/:id/approve` on an already-applied request returns the same result. Generation stores `seed` so it's repeatable.
-- Every approve, reject, apply, reset and import writes to `audit_log`.
+- Every mutating service re-runs `checker` **inside** the write path, even if the UI already checked (TOCTOU-safe). For change approvals it verifies that `base_version` is still active (`STALE_VERSION`, the request is rejected), re-applies the changes to the current data and re-checks the draft (`HARD_CONSTRAINT`, it stays pending), and refuses the requester (`SELF_APPROVAL`), except an admin approving a change file or manual edit (`disruption` or `manual_edit`) they filed as admin (`assertCanApproveChange`, see [architecture.md §8](./architecture.md#8-state-machines)).
+- Idempotency: `POST /api/changes/:id/approve` on an already-applied request answers `409 CONFLICT` ("CR-0001 is applied, not pending.") and applies nothing twice; the status update is conditional on `pending`. A `pending` request whose own draft is already active (an earlier approval switched but couldn't record it) is just recorded as applied. Generation stores `seed` so it's repeatable.
+- Recovery without transactions: an approval ends fully applied or fully rolled back (dataset writes snapshotted and undone, the previous version re-activated if needed, a baseline it captured removed); an activation restores the previous version and its Spectra state (decisions, overrides, request states) if its save fails. Steps after the switch (audit entries, superseding other requests) are best-effort and logged.
+- Every approve, reject, apply, reset and import writes to `audit_log` (change requests: `propose`, `approve`, `apply`, `reject`, `supersede`).
 - Error codes are exactly those in [architecture.md §4.5](./architecture.md#45-api-envelope-and-error-codes).

@@ -1,7 +1,7 @@
 import { unstable_rethrow } from "next/navigation";
 import type { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import type { ApiErr } from "@/lib/contracts/api";
+import type { ApiErr, PathIssue } from "@/lib/contracts/api";
 import { ApiError, validationError } from "@/lib/errors";
 import { fail } from "./response";
 
@@ -92,12 +92,18 @@ async function readBodyText(
 /**
  * Reads, size-limits, JSON-parses and validates a request body.
  * Throws `VALIDATION_ERROR` for a non-JSON content type and for oversize, empty, malformed
- * or schema-invalid bodies.
+ * or schema-invalid bodies. A schema failure's `details` are Zod's flattened errors
+ * (`{formErrors, fieldErrors}`); `precheck` problems (checked on the parsed JSON before the
+ * schema) are sent as they are, a `PathIssue[]`.
  */
 export async function parseJsonBody<S extends z.ZodType>(
   request: Request,
   schema: S,
-  options: { maxBytes?: number } = {},
+  options: {
+    maxBytes?: number;
+    /** Problems with the body as sent (size limits, odd keys); any one is a `400` with them all. */
+    precheck?: (raw: unknown) => readonly PathIssue[];
+  } = {},
 ): Promise<z.output<S>> {
   const contentType = request.headers.get("content-type") ?? "";
   if (!/^application\/(?:[\w.+-]+\+)?json\b/i.test(contentType.trim())) {
@@ -115,6 +121,11 @@ export async function parseJsonBody<S extends z.ZodType>(
     raw = JSON.parse(text);
   } catch {
     throw validationError("Request body is not valid JSON.");
+  }
+
+  const issues = options.precheck?.(raw) ?? [];
+  if (issues.length > 0) {
+    throw validationError("The request body is invalid.", [...issues]);
   }
 
   const result = await schema.safeParseAsync(raw);

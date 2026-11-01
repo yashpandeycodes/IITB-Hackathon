@@ -5,6 +5,12 @@ import type {
   GenerateTimetableResult,
   SolverProgress,
 } from "@/lib/contracts/timetable";
+import type { AssistantReply } from "@/lib/contracts/assistant";
+import {
+  ChangeProposalSchema,
+  type ChangeRequest,
+} from "@/lib/contracts/change";
+import type { ExplainResult } from "@/lib/contracts/explain";
 import type { ValidatorReport } from "@/lib/contracts/violation";
 
 import {
@@ -13,10 +19,21 @@ import {
   apiGet,
   apiPatch,
   apiPost,
+  approveChange,
+  askAssistant,
   canExport,
+  explain,
+  EXPORT_DISRUPTION_URL,
+  EXPORT_SCHEDULE_AFTER_URL,
   EXPORT_SCHEDULE_URL,
+  getChange,
   isApiClientError,
+  listChanges,
+  placeManually,
   postEventStream,
+  previewChange,
+  proposeChange,
+  rejectChange,
   streamTimetableGeneration,
 } from "./api-client";
 
@@ -653,24 +670,31 @@ describe("streamTimetableGeneration", () => {
   );
 
   it("parses a 1 MB frame sent in 1 KB chunks without rescanning (linear time)", async () => {
-    const big = "x".repeat(1024 * 1024);
-    const text = `event: result\ndata: ${JSON.stringify({ ...RESULT, pad: big })}\n\n`;
-    const chunks: string[] = [];
-    for (let i = 0; i < text.length; i += 1024)
-      chunks.push(text.slice(i, i + 1024));
-    fetchMock.mockResolvedValue(streamResponse(chunks));
-    const events: string[] = [];
+    /** Streams one `result` frame padded to `bytes`, in 1 KB chunks; returns the ms it took. */
+    const timeFrame = async (bytes: number) => {
+      const text = `event: result\ndata: ${JSON.stringify({ ...RESULT, pad: "x".repeat(bytes) })}\n\n`;
+      const chunks: string[] = [];
+      for (let i = 0; i < text.length; i += 1024)
+        chunks.push(text.slice(i, i + 1024));
+      fetchMock.mockResolvedValue(streamResponse(chunks));
+      const events: string[] = [];
+      const started = performance.now();
+      await postEventStream(
+        "/api/x",
+        {},
+        { onEvent: (event) => events.push(event) },
+      );
+      expect(events).toEqual(["result"]);
+      return performance.now() - started;
+    };
 
-    const started = performance.now();
-    await postEventStream(
-      "/api/x",
-      {},
-      { onEvent: (event) => events.push(event) },
-    );
-
-    expect(events).toEqual(["result"]);
-    // Quadratic rescanning took ~1.5 s here; linear parsing is a few ms. Generous for slow CI.
-    expect(performance.now() - started).toBeLessThan(1000);
+    await timeFrame(64 * 1024); // warm-up
+    const small = await timeFrame(128 * 1024);
+    const large = await timeFrame(1024 * 1024);
+    // 8× the data: linear parsing takes about 8× as long, quadratic rescanning about 64×. A
+    // ratio keeps the check meaningful when the machine is busy (absolute times are not).
+    expect(large / Math.max(small, 5)).toBeLessThan(24);
+    expect(large).toBeLessThan(5000);
   });
 
   it("throws BAD_RESPONSE instead of buffering an endless event", async () => {
@@ -921,5 +945,386 @@ describe("export helpers", () => {
 
     expect(result.ok).toBe(false);
     expect(result.missing_decisions).toEqual(["BR-03"]);
+  });
+});
+
+describe("export helpers for changes", () => {
+  const report: ValidatorReport = {
+    dataset_id: "cit-public-v1",
+    schedule_dataset_id: "cit-public-v1",
+    team: "CIT Crunch Week",
+    soft_penalties: { S1: 0, S2: 0, S3: 0, S4: 3, S5: 0, S6: 0 },
+    soft_total: 3,
+    stability: {
+      sessions_moved: 4,
+      time_changed: 3,
+      room_only_changed: 1,
+      moved_ids: ["A", "B", "C", "D"],
+    },
+    hard_violations: [],
+    hard_violation_count: 0,
+    hard_by_rule: {},
+    warnings: [],
+  };
+
+  it("points the new download links at their files", () => {
+    expect(EXPORT_SCHEDULE_AFTER_URL).toBe("/api/export?file=schedule_after");
+    expect(EXPORT_DISRUPTION_URL).toBe("/api/export?file=disruption");
+  });
+
+  it("checks schedule_after.json against /api/validate?file=schedule_after", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ ok: true, data: report }),
+    );
+    const controller = new AbortController();
+
+    const result = await canExport("schedule_after", {
+      signal: controller.signal,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.report.stability?.sessions_moved).toBe(4);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/validate?file=schedule_after");
+    expect(init?.signal).toBe(controller.signal);
+  });
+
+  it("still accepts init as the only argument and an explicit schedule", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ ok: true, data: report }),
+    );
+    const controller = new AbortController();
+    await canExport({ signal: controller.signal });
+    await canExport("schedule");
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "/api/validate",
+      "/api/validate",
+    ]);
+    expect(fetchMock.mock.calls[0]![1]?.signal).toBe(controller.signal);
+  });
+
+  it("rejects with CONFLICT for schedule_after before any change is applied", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse(
+        {
+          ok: false,
+          error: {
+            code: "CONFLICT",
+            message: "No change has been applied yet.",
+          },
+        },
+        409,
+      ),
+    );
+    const error = await catchError(canExport("schedule_after"));
+    expect(error).toBeInstanceOf(ApiClientError);
+    expect(error).toMatchObject({ code: "CONFLICT", status: 409 });
+  });
+
+  it("reports the applied change requests for disruption.json, oldest decision first", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        ok: true,
+        data: [
+          changeRequest({
+            id: "CR-0003",
+            status: "applied",
+            decided_at: "2027-02-05T11:00:00+05:30",
+          }),
+          changeRequest({
+            id: "CR-0001",
+            status: "applied",
+            decided_at: "2027-02-05T10:00:00+05:30",
+          }),
+        ],
+      }),
+    );
+    expect(await canExport("disruption")).toEqual({
+      ok: true,
+      change_ids: ["CR-0001", "CR-0003"],
+    });
+    expect(fetchMock.mock.calls[0]![0]).toBe("/api/changes?status=applied");
+
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ ok: true, data: [] }),
+    );
+    expect(await canExport("disruption")).toEqual({
+      ok: false,
+      change_ids: [],
+    });
+  });
+});
+
+function changeRequest(overrides: Partial<ChangeRequest> = {}): ChangeRequest {
+  return {
+    id: "CR-0001",
+    kind: "disruption",
+    requested_by: "u_admin",
+    requested_by_role: "admin",
+    changes: [
+      {
+        type: "faculty_unavailable",
+        faculty_id: "F07",
+        days: ["MON"],
+        periods: [1],
+      },
+    ],
+    placements: [],
+    description: null,
+    nl_prompt: null,
+    base_version: "TT-0001",
+    proposed_version: "TT-0002",
+    status: "pending",
+    feasible: true,
+    title: "F07 unavailable MON P1",
+    warnings: [],
+    diff: [],
+    moved_count: 0,
+    time_changed: 0,
+    room_only_changed: 0,
+    soft_penalty: { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, total: 0 },
+    soft_delta: 0,
+    hard_violation_count: 0,
+    conflicts: [],
+    scope: {
+      session_ids: [],
+      faculty_ids: ["F07"],
+      group_ids: [],
+      room_ids: [],
+      departments: ["CSE"],
+    },
+    baseline_stability: null,
+    engine: {
+      broken: 0,
+      evictions: 0,
+      depth: 0,
+      nodes: 1,
+      ms: 1,
+      stopped_by: "complete",
+      algorithm: "minimal-move repair",
+    },
+    approved_by: null,
+    decided_by: null,
+    decided_at: null,
+    comment: null,
+    created_at: "2027-02-05T09:00:00+05:30",
+    ...overrides,
+  };
+}
+
+describe("change request helpers", () => {
+  it("lists with an optional scope and status, and gets one by id", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ ok: true, data: [changeRequest()] }),
+    );
+    expect(await listChanges()).toEqual([changeRequest()]);
+    await listChanges({ scope: "pending" });
+    await listChanges({ scope: "mine", status: "rejected" });
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "/api/changes",
+      "/api/changes?scope=pending",
+      "/api/changes?scope=mine&status=rejected",
+    ]);
+
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ ok: true, data: changeRequest() }),
+    );
+    expect(await getChange("CR-0001")).toEqual(changeRequest());
+    await getChange("CR-0001/../x");
+    expect(fetchMock.mock.calls.slice(3).map(([url]) => url)).toEqual([
+      "/api/changes/CR-0001",
+      "/api/changes/CR-0001%2F..%2Fx",
+    ]);
+  });
+
+  it("proposes and previews by POSTing the request body", async () => {
+    const body = {
+      kind: "disruption" as const,
+      changes: changeRequest().changes,
+      description: "From the change file",
+    };
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ ok: true, data: changeRequest() }, 201),
+    );
+    expect(await proposeChange(body)).toEqual(changeRequest());
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/changes");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(init?.body as string)).toEqual(body);
+
+    const full = changeRequest();
+    const preview = {
+      ...Object.fromEntries(
+        Object.keys(ChangeProposalSchema.shape).map((key) => [
+          key,
+          full[key as keyof ChangeRequest],
+        ]),
+      ),
+      base_version: "TT-0001",
+    };
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ ok: true, data: preview }),
+    );
+    expect(await previewChange(body)).toEqual(preview);
+    expect(fetchMock.mock.calls[1]![0]).toBe("/api/changes/preview");
+  });
+
+  it("approves and rejects with an optional comment", async () => {
+    const applied = changeRequest({ status: "applied" });
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        ok: true,
+        data: { change: applied, version_id: "TT-0002", superseded: [] },
+      }),
+    );
+    expect(await approveChange("CR-0001")).toEqual({
+      change: applied,
+      version_id: "TT-0002",
+      superseded: [],
+    });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/changes/CR-0001/approve");
+    expect(JSON.parse(init?.body as string)).toEqual({});
+
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ ok: true, data: changeRequest({ status: "rejected" }) }),
+    );
+    await rejectChange("CR-0001", { comment: "Duplicate" });
+    expect(fetchMock.mock.calls[1]![0]).toBe("/api/changes/CR-0001/reject");
+    expect(JSON.parse(fetchMock.mock.calls[1]![1]?.body as string)).toEqual({
+      comment: "Duplicate",
+    });
+  });
+
+  it("surfaces SELF_APPROVAL and HARD_CONSTRAINT as ApiClientError", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse(
+        {
+          ok: false,
+          error: {
+            code: "SELF_APPROVAL",
+            message: "You can't approve a change you requested.",
+          },
+        },
+        403,
+      ),
+    );
+    expect(await catchError(approveChange("CR-0001"))).toMatchObject({
+      code: "SELF_APPROVAL",
+      status: 403,
+    });
+
+    const violations = [
+      { rule: "H3", where: "timetable", detail: "CSE-2 double-booked" },
+    ];
+    fetchMock.mockImplementation(async () =>
+      jsonResponse(
+        {
+          ok: false,
+          error: {
+            code: "HARD_CONSTRAINT",
+            message: "The slot is not free.",
+            details: violations,
+          },
+        },
+        409,
+      ),
+    );
+    expect(
+      await catchError(
+        placeManually({
+          session_id: "CS202-L1",
+          day: "THU",
+          start_period: 2,
+          room_id: "LH-3",
+        }),
+      ),
+    ).toMatchObject({ code: "HARD_CONSTRAINT", details: violations });
+    expect(fetchMock.mock.calls[1]![0]).toBe("/api/manual/place");
+  });
+
+  it("throws BAD_RESPONSE when a change request doesn't match the contract", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ ok: true, data: { ...changeRequest(), status: "done" } }),
+    );
+    expect(await catchError(getChange("CR-0001"))).toMatchObject({
+      code: "BAD_RESPONSE",
+    });
+  });
+});
+
+describe("assistant and explanation helpers", () => {
+  it("asks the assistant and parses the reply", async () => {
+    const reply: AssistantReply = {
+      intent: "unsupported",
+      intent_source: "rules",
+      text: "I can move your sessions or mark you unavailable.",
+      text_source: "template",
+      verified: false,
+      session: null,
+      candidates: [],
+      options: [],
+      conflicts: [],
+      follow_up: null,
+      assumptions: [],
+      facts: null,
+      log_id: null,
+    };
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ ok: true, data: reply }),
+    );
+    expect(await askAssistant({ message: "Book SH-1 for me" })).toEqual(reply);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/assistant");
+    expect(JSON.parse(init?.body as string)).toEqual({
+      message: "Book SH-1 for me",
+    });
+  });
+
+  it("explains a subject and parses the result", async () => {
+    const result: ExplainResult = {
+      subject: "change",
+      id: "CR-0001",
+      text: "Four sessions moved because F07 is away on Mondays.",
+      source: "template",
+      facts: {
+        change_id: "CR-0001",
+        status: "pending",
+        title: "F07 unavailable MON",
+        moved_count: 4,
+        time_changed: 3,
+        room_only_changed: 1,
+        soft_delta: 0,
+        diff: [],
+        conflicts: [],
+        summary: "Four sessions moved because F07 is away on Mondays.",
+      },
+    };
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ ok: true, data: result }),
+    );
+    const parsed = await explain({ subject: "change", id: "CR-0001" });
+    expect(parsed).toEqual(result);
+    // The facts are typed by the subject.
+    if (parsed.subject === "change") expect(parsed.facts.moved_count).toBe(4);
+    expect(fetchMock.mock.calls[0]![0]).toBe("/api/explain");
+
+    // Facts that don't fit the subject are a bad response.
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        ok: true,
+        data: { ...result, facts: { change_id: "CR-0001" } },
+      }),
+    );
+    expect(
+      await catchError(explain({ subject: "change", id: "CR-0001" })),
+    ).toMatchObject({ code: "BAD_RESPONSE" });
+
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ ok: true, data: { ...result, source: "oracle" } }),
+    );
+    expect(
+      await catchError(explain({ subject: "change", id: "CR-0001" })),
+    ).toMatchObject({ code: "BAD_RESPONSE" });
   });
 });

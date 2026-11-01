@@ -7,9 +7,15 @@ import sampleDisruption from "../../../data/sample_disruption.json";
 import { getBundledDataset, parseDataset } from "../dataset";
 import {
   AssignmentSchema,
+  AssistantIntentLLMSchema,
+  AssistantReplySchema,
   BookingDecisionSchema,
   BookingDraftSchema,
+  ChangePreviewSchema,
+  ChangeProposalRequestSchema,
   ChangeRequestSchema,
+  ExplainResultSchema,
+  ExportQuerySchema,
   DatasetSchema,
   DisruptionChangeSchema,
   DisruptionSchema,
@@ -18,6 +24,7 @@ import {
   RoomSchema,
   ScheduleAfterExportSchema,
   ScheduleExportSchema,
+  SessionFactsSchema,
   SessionSchema,
   SettingsSchema,
   SpectraDecisionViewSchema,
@@ -26,6 +33,7 @@ import {
   StoredBookingDecisionSchema,
   StoredSessionOverrideSchema,
   TimetableVersionSchema,
+  ValidateQuerySchema,
   ValidatorReportSchema,
   effectiveCategory,
   isAvoidPreference,
@@ -401,12 +409,59 @@ describe("JSON Schema generation", () => {
       ValidatorReportSchema,
       BookingDraftSchema,
       ChangeRequestSchema,
+      ChangePreviewSchema,
+      AssistantIntentLLMSchema,
+      AssistantReplySchema,
+      SessionFactsSchema,
+      ExplainResultSchema,
       StoredBookingDecisionSchema,
       TimetableVersionSchema,
       SettingsSchema,
     ]) {
       expect(() => z.toJSONSchema(schema)).not.toThrow();
     }
+  });
+});
+
+describe("change files as proposals", () => {
+  it("maps the sample disruption onto a change proposal request", () => {
+    const file = DisruptionSchema.parse(sampleDisruption);
+    const request = ChangeProposalRequestSchema.parse({
+      kind: "disruption",
+      changes: file.changes,
+      description: file.description,
+      dataset: file.dataset,
+    });
+    expect(request.changes).toEqual(file.changes);
+    expect(request.placements).toEqual([]);
+    expect(request.dataset).toBe("cit-public-v1");
+  });
+});
+
+describe("export and validate queries", () => {
+  it("defaults to schedule and accepts the Phase 5 files", () => {
+    expect(ExportQuerySchema.parse({})).toEqual({ file: "schedule" });
+    for (const file of ["schedule", "schedule_after", "disruption"]) {
+      expect(ExportQuerySchema.parse({ file })).toEqual({ file });
+    }
+    expect(ExportQuerySchema.safeParse({ file: "exams" }).success).toBe(false);
+    expect(
+      ExportQuerySchema.safeParse({ file: ["schedule", "disruption"] }).success,
+    ).toBe(false);
+  });
+
+  it("validates only the schedule files", () => {
+    expect(ValidateQuerySchema.parse({})).toEqual({ file: "schedule" });
+    expect(ValidateQuerySchema.parse({ file: "schedule_after" })).toEqual({
+      file: "schedule_after",
+    });
+    expect(ValidateQuerySchema.safeParse({ file: "disruption" }).success).toBe(
+      false,
+    );
+    // Unknown query parameters are stripped, like every query schema.
+    expect(ValidateQuerySchema.parse({ file: "schedule", x: "1" })).toEqual({
+      file: "schedule",
+    });
   });
 });
 

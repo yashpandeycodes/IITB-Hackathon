@@ -67,3 +67,26 @@ export {
   type SpectraDecisionResult,
   type SpectraOptions,
 } from "./bookings";
+export {
+  DEFAULT_RESCHEDULE_DEPTH,
+  DEFAULT_RESCHEDULE_NODES,
+  DEFAULT_RESCHEDULE_TIME_MS,
+  DEFAULT_SUGGESTIONS,
+  MAX_SUGGESTIONS,
+  RESCHEDULE_ALGORITHM,
+  describeChanges,
+  reschedule,
+  suggestMoves,
+  validateChanges,
+  type ChangeIssue,
+  type MoveOption,
+  type MoveTarget,
+  type RescheduleInput,
+  type RescheduleOptions,
+  type RescheduleResult,
+  type SuggestMovesResult,
+} from "./reschedule";
+export { checkPlacement, type PlacementCheck } from "./manual";
+export { deriveExtraSession } from "./extra-session";
+export { explainSession } from "./explain";
+export { plural } from "./format";
