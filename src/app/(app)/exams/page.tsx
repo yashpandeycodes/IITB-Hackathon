@@ -6,14 +6,17 @@ import { AppShell } from '@/components/layout/app-shell';
 import { apiGet } from '@/lib/api-client';
 import { ExamScheduleSchema, type ExamDay } from '@/lib/contracts';
 import { useReferenceData } from '@/hooks/use-reference-data';
+import { useSessionUser } from '@/components/providers/session-provider';
+import { GenerateExamsButton } from '@/components/assistant/generate-exams';
 import { PageSkeleton } from '@/components/states/page-skeleton';
 import { ErrorState } from '@/components/states/error-state';
 import { EmptyState } from '@/components/states/empty-state';
 import { formatDay } from '@/lib/format';
-import { CheckCircle2, Building } from 'lucide-react';
+import { CheckCircle2, Building, AlertTriangle } from 'lucide-react';
 
 export default function ExamsGridPage() {
   const { referenceData, roomName, courseName } = useReferenceData();
+  const isAdmin = useSessionUser().role === 'admin';
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [mobileDay, setMobileDay] = useState<ExamDay>('MON');
 
@@ -88,9 +91,14 @@ export default function ExamsGridPage() {
         <EmptyState
           icon={Building}
           title="No exam schedule generated yet"
-          description="The active semester dataset does not have a generated exam schedule. Authorized administrators can generate the exam schedule from the Admin console."
-          cta={{ label: 'Go to Admin Console', href: '/admin' }}
-        />
+          description={
+            isAdmin
+              ? 'Schedule the midsem exams into the exam week: one click places every exam in an AM or PM session and splits it across rooms.'
+              : 'The midsem exams have not been scheduled yet. An admin can generate the exam schedule.'
+          }
+        >
+          {isAdmin && <GenerateExamsButton className="flex flex-col items-center" />}
+        </EmptyState>
       </AppShell>
     );
   }
@@ -113,13 +121,27 @@ export default function ExamsGridPage() {
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-white">Autumn Semester Exam Schedule</h1>
-            <div className="flex items-center gap-2 text-xs font-mono text-[#34d399] mt-1 font-bold">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>✓ 1-exam-per-day rule satisfied across all scheduled cohorts.</span>
+            {examSchedule.penalty === 0 ? (
+              <div className="flex items-center gap-2 text-xs font-mono text-[#34d399] mt-1 font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>No group sits two exams on one day (exam penalty 0).</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-xs font-mono text-amber-300 mt-1 font-bold">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                <span>Exam penalty {examSchedule.penalty}: some groups sit two exams on one day (5 points each).</span>
+              </div>
+            )}
+            <div className="text-[11px] font-mono text-[#98A6BB] mt-1">
+              {examSchedule.exams.length} exams placed
+              {examSchedule.solver_meta ? ` · ${examSchedule.solver_meta.algorithm} in ${examSchedule.solver_meta.ms} ms` : ''}
+              {' · '}
+              {new Date(examSchedule.created_at).toLocaleString()}
             </div>
+            {isAdmin && <GenerateExamsButton label="Regenerate exam schedule" className="mt-3" />}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-start sm:self-center">
             <span className="text-xs font-mono text-[#98A6BB]">Filter Cohort:</span>
             <select
               value={selectedGroup}

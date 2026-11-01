@@ -63,7 +63,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
     { title: 'Find a Free Room', path: '/rooms', icon: Building, cat: 'Pages' },
     { title: 'New Room Booking', path: '/bookings/new', icon: Ticket, cat: 'Pages' },
     { title: 'Spectra Week 7 Board', path: '/spectra', icon: Sparkles, cat: 'Pages' },
-    { title: 'Approvals Inbox (3 pending)', path: '/approvals', icon: CheckCircle2, cat: 'Pages' },
+    { title: 'Approvals Inbox', path: '/approvals', icon: CheckCircle2, cat: 'Pages' },
     { title: 'Disruption Change Requests', path: '/changes', icon: FileText, cat: 'Pages' },
     { title: 'AI Timetable Assistant', path: '/assistant', icon: Sparkles, cat: 'Pages' },
     { title: 'Exam Week Grid', path: '/exams', icon: Calendar, cat: 'Pages' },

@@ -17,7 +17,10 @@ import {
   streamTimetableGeneration,
   canExport,
   EXPORT_SCHEDULE_URL,
+  EXPORT_SCHEDULE_AFTER_URL,
+  EXPORT_DISRUPTION_URL,
 } from '@/lib/api-client';
+import { GenerateExamsButton } from '@/components/assistant/generate-exams';
 import {
   Category,
   TimetableVersionSummarySchema,
@@ -52,6 +55,7 @@ import {
   RefreshCw,
   X,
   ShieldAlert,
+  GraduationCap,
 } from 'lucide-react';
 
 interface GenerationErrorState {
@@ -320,6 +324,177 @@ function SettingsForm({
         </button>
       </div>
     </form>
+  );
+}
+
+/** Eligibility checks are client-side (4xx) answers: retrying them changes nothing. */
+const retryUnlessClientError = (count: number, error: unknown) =>
+  !(isApiClientError(error) && error.status >= 400 && error.status < 500) && count < 2;
+
+/**
+ * `schedule_after.json` and `disruption.json` downloads, each gated by `canExport(...)`. Before
+ * any change request is applied, `canExport('schedule_after')` answers `409 CONFLICT` and
+ * `canExport('disruption')` is not ok: both read "No applied change yet".
+ */
+function ChangeExportsPanel() {
+  const after = useQuery({
+    queryKey: ['export', 'eligibility', 'schedule_after'],
+    queryFn: ({ signal }) => canExport('schedule_after', { signal }),
+    staleTime: 10_000,
+    retry: retryUnlessClientError,
+  });
+  const disruption = useQuery({
+    queryKey: ['export', 'eligibility', 'disruption'],
+    queryFn: ({ signal }) => canExport('disruption', { signal }),
+    staleTime: 10_000,
+    retry: retryUnlessClientError,
+  });
+
+  const afterNotYet =
+    after.isError && isApiClientError(after.error) && after.error.status === 409;
+  const stability = after.data?.report.stability;
+
+  const chip = (tone: 'ok' | 'blocked' | 'idle', label: string) => (
+    <span
+      className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+        tone === 'ok'
+          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+          : tone === 'blocked'
+          ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+          : 'bg-white/5 text-[#98A6BB] border-white/10'
+      }`}
+    >
+      {label}
+    </span>
+  );
+
+  const downloadLink = (href: string, filename: string) => (
+    <a
+      href={href}
+      download={filename}
+      className="px-4 py-2.5 rounded-xl text-xs font-mono font-bold bg-[#66E3F0] hover:bg-[#66E3F0]/90 text-[#070A12] shadow-md flex items-center justify-center gap-2 transition-all shrink-0 cursor-pointer"
+    >
+      <Download className="w-4 h-4" />
+      <span>Download {filename}</span>
+    </a>
+  );
+
+  const disabledButton = (label: string) => (
+    <button
+      type="button"
+      disabled
+      className="px-4 py-2.5 rounded-xl text-xs font-mono font-bold bg-white/5 text-white/30 border border-white/5 cursor-not-allowed flex items-center justify-center gap-2 shrink-0"
+    >
+      <Download className="w-4 h-4" />
+      <span>{label}</span>
+    </button>
+  );
+
+  return (
+    <div className="space-y-3">
+      {/* schedule_after.json */}
+      <div className="p-4 rounded-2xl bg-[#101A2B] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="min-w-0 space-y-1">
+          <div className="text-xs font-mono font-bold text-white flex flex-wrap items-center gap-2">
+            <span>schedule_after.json</span>
+            {after.isPending
+              ? chip('idle', 'Checking…')
+              : afterNotYet
+              ? chip('idle', 'No applied change yet')
+              : after.isError
+              ? chip('blocked', 'Check failed')
+              : after.data.ok
+              ? chip('ok', 'Eligible')
+              : chip('blocked', 'Blocked')}
+          </div>
+          <div className="text-[11px] font-mono text-[#98A6BB]">
+            The live timetable after the applied changes, checked against the changed dataset with
+            schedule.json as the baseline.
+          </div>
+          {afterNotYet && (
+            <div className="text-[11px] font-mono text-[#98A6BB]">
+              Approve a change request in{' '}
+              <Link href="/approvals" className="text-[#66E3F0] hover:underline">
+                Approvals
+              </Link>{' '}
+              to produce it.
+            </div>
+          )}
+          {after.isError && !afterNotYet && (
+            <div className="text-[11px] font-mono text-rose-300 flex flex-wrap items-center gap-2">
+              <span>{after.error instanceof Error ? after.error.message : 'Eligibility check failed.'}</span>
+              <button type="button" onClick={() => after.refetch()} className="text-[#66E3F0] hover:underline">
+                Retry
+              </button>
+            </div>
+          )}
+          {after.data && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-mono text-[#98A6BB]">
+              {stability && (
+                <span>
+                  Stability: <strong className="text-white">{stability.sessions_moved} sessions moved</strong> (
+                  {stability.time_changed} changed time, {stability.room_only_changed} room only)
+                </span>
+              )}
+              <span>
+                Soft penalty: <strong className="text-white">{after.data.report.soft_total} pts</strong>
+              </span>
+              {after.data.report.hard_violation_count > 0 && (
+                <span className="text-rose-400 font-bold">
+                  {after.data.report.hard_violation_count} hard violation(s)
+                </span>
+              )}
+              {after.data.missing_decisions.length > 0 && (
+                <span className="text-amber-400 font-bold">
+                  {after.data.missing_decisions.length} Spectra request(s) without a decision
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+        {after.data?.ok
+          ? downloadLink(EXPORT_SCHEDULE_AFTER_URL, 'schedule_after.json')
+          : disabledButton(afterNotYet ? 'No applied change yet' : 'Download Disabled')}
+      </div>
+
+      {/* disruption.json */}
+      <div className="p-4 rounded-2xl bg-[#101A2B] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="min-w-0 space-y-1">
+          <div className="text-xs font-mono font-bold text-white flex flex-wrap items-center gap-2">
+            <span>disruption.json</span>
+            {disruption.isPending
+              ? chip('idle', 'Checking…')
+              : disruption.isError
+              ? chip('blocked', 'Check failed')
+              : disruption.data.ok
+              ? chip('ok', 'Eligible')
+              : chip('idle', 'No applied change yet')}
+          </div>
+          <div className="text-[11px] font-mono text-[#98A6BB]">
+            Every applied change request&apos;s changes, in apply order, as one starter-pack change file.
+          </div>
+          {disruption.data?.ok && (
+            <div className="text-[11px] font-mono text-[#98A6BB]">
+              {disruption.data.change_ids.length} applied change(s):{' '}
+              <span className="text-white">{disruption.data.change_ids.join(', ')}</span>
+            </div>
+          )}
+          {disruption.isError && (
+            <div className="text-[11px] font-mono text-rose-300 flex flex-wrap items-center gap-2">
+              <span>
+                {disruption.error instanceof Error ? disruption.error.message : 'Eligibility check failed.'}
+              </span>
+              <button type="button" onClick={() => disruption.refetch()} className="text-[#66E3F0] hover:underline">
+                Retry
+              </button>
+            </div>
+          )}
+        </div>
+        {disruption.data?.ok
+          ? downloadLink(EXPORT_DISRUPTION_URL, 'disruption.json')
+          : disabledButton(disruption.data ? 'No applied change yet' : 'Download Disabled')}
+      </div>
+    </div>
   );
 }
 
@@ -837,6 +1012,24 @@ export default function AdminConsolePage() {
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* Midsem exam schedule (POST /api/exams/generate) */}
+            <div className="p-6 rounded-3xl bg-[#0B1220] border border-white/10 shadow-sm flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <GraduationCap className="w-4 h-4 text-[#66E3F0]" />
+                  <h3 className="text-sm font-mono font-bold text-white uppercase">Midsem Exam Schedule</h3>
+                </div>
+                <p className="text-[11px] font-mono text-[#98A6BB] mt-1">
+                  Places every exam in an AM or PM session of the exam week (no group sits two at once) and splits
+                  it across rooms at half capacity. The result is activated straight away.{' '}
+                  <Link href="/exams" className="text-[#66E3F0] hover:underline">
+                    View exams ▸
+                  </Link>
+                </p>
+              </div>
+              <GenerateExamsButton className="shrink-0" />
             </div>
 
             {/* Version Management List (§5.12) */}
@@ -1433,7 +1626,7 @@ export default function AdminConsolePage() {
               </div>
 
               <button
-                onClick={() => refetchExportEligibility()}
+                onClick={() => queryClient.invalidateQueries({ queryKey: ['export', 'eligibility'] })}
                 disabled={isExportEligibilityLoading || isExportEligibilityFetching}
                 className="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-white/5 hover:bg-white/10 text-[#66E3F0] border border-[#66E3F0]/30 flex items-center gap-1.5 transition-colors disabled:opacity-50"
               >
@@ -1601,12 +1794,19 @@ export default function AdminConsolePage() {
                     </a>
                   )}
                 </div>
-
-                <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 text-[11px] font-mono text-[#98A6BB]">
-                  <strong>Note:</strong> <code>schedule_after.json</code> belongs to future Phase 5 disruption & change proposals and is not part of the active baseline export.
-                </div>
               </div>
             )}
+
+            {/* After applied changes: schedule_after.json and disruption.json */}
+            <div className="pt-4 border-t border-white/10 space-y-3">
+              <div>
+                <h3 className="text-sm font-mono font-bold text-white uppercase">After Applied Changes</h3>
+                <p className="text-[11px] font-mono text-[#98A6BB]">
+                  Once a change request is approved, schedule.json stays the baseline and these files hold the result.
+                </p>
+              </div>
+              <ChangeExportsPanel />
+            </div>
           </div>
         )}
 
