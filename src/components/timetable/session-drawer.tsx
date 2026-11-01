@@ -8,17 +8,17 @@ import {
   User,
   Users,
   Clock,
-
-
-  CheckCircle2,
-
-  HelpCircle,
   Shuffle,
-  AlertCircle,
 } from 'lucide-react';
 import { SessionItem, TimetableAssignment } from '@/lib/contracts';
 import { KindChip, Week7OverrideBadge } from '@/components/semantic/badges';
+import { ExplanationPanel } from '@/components/assistant/explanations';
+import { useOptionalSessionUser } from '@/components/providers/session-provider';
+import { useReferenceData } from '@/hooks/use-reference-data';
 import { PERIOD_MAP, formatDay } from '@/lib/format';
+
+/** Legacy display labels the `userRole` prop accepts, for callers without a session. */
+const CAN_REQUEST_LABELS = new Set(['Faculty', 'Department Coordinator', 'Admin']);
 
 interface SessionDrawerProps {
   session: SessionItem | null;
@@ -31,15 +31,23 @@ export const SessionDrawer: React.FC<SessionDrawerProps> = ({
   session,
   assignment,
   onClose,
-  userRole = 'Admin',
+  userRole,
 }) => {
-  const [showExplanation, setShowExplanation] = React.useState(false);
+  const sessionUser = useOptionalSessionUser();
+  const { referenceData } = useReferenceData();
 
   if (!session || !assignment) return null;
 
   const periodData = PERIOD_MAP[assignment.period];
-  const capacity = 150; // Mock room capacity benchmark
-  const occupancyPercent = Math.min(100, Math.round((session.studentCount / capacity) * 100));
+  const room = referenceData.rooms.find((r) => r.id === assignment.roomId);
+  const capacity = room?.capacity ?? null;
+  const occupancyPercent = capacity
+    ? Math.min(100, Math.round((session.studentCount / capacity) * 100))
+    : null;
+  // Clubs can't file change requests; everyone else can (the API checks the scope).
+  const canRequestChange = sessionUser
+    ? sessionUser.role !== 'club'
+    : CAN_REQUEST_LABELS.has(userRole ?? '');
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -85,7 +93,9 @@ export const SessionDrawer: React.FC<SessionDrawerProps> = ({
                 ASSIGNED VENUE
               </div>
               <div className="font-mono font-bold text-sm text-white">{assignment.roomName}</div>
-              <div className="text-[10px] text-[#98A6BB]">Central Complex</div>
+              <div className="text-[10px] text-[#98A6BB]">
+                {room ? `${room.building} · ${room.type}` : assignment.roomId}
+              </div>
             </div>
           </div>
 
@@ -113,15 +123,19 @@ export const SessionDrawer: React.FC<SessionDrawerProps> = ({
                   STUDENT OCCUPANCY
                 </span>
                 <span className="text-xs font-mono font-bold text-white">
-                  {session.studentCount} / {capacity} Seats ({occupancyPercent}%)
+                  {capacity !== null
+                    ? `${session.studentCount} / ${capacity} Seats (${occupancyPercent}%)`
+                    : `${session.studentCount} Students`}
                 </span>
               </div>
-              <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-[#66E3F0] to-[#8279FF] rounded-full"
-                  style={{ width: `${occupancyPercent}%` }}
-                />
-              </div>
+              {occupancyPercent !== null && (
+                <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-[#66E3F0] to-[#8279FF] rounded-full"
+                    style={{ width: `${occupancyPercent}%` }}
+                  />
+                </div>
+              )}
               <div className="mt-2 flex flex-wrap gap-1">
                 {session.groups.map((g) => (
                   <span key={g} className="px-2 py-0.5 rounded text-[10px] font-mono bg-white/10 text-white">
@@ -132,43 +146,20 @@ export const SessionDrawer: React.FC<SessionDrawerProps> = ({
             </div>
           </div>
 
-          {/* "Why here?" AI Constraint Explainer (§5.3) */}
+          {/* "Why here?" from the engine (POST /api/explain, subject session) */}
           <div className="mt-5">
-            <button
-              onClick={() => setShowExplanation(!showExplanation)}
-              className="w-full py-2.5 px-3 rounded-xl bg-[#132035] hover:bg-[#1a2b47] border border-[#66E3F0]/30 text-xs font-mono font-bold text-[#66E3F0] flex items-center justify-between transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <HelpCircle className="w-4 h-4" />
-                Why was this scheduled here?
-              </span>
-              <span>{showExplanation ? '▲ Hide' : '▼ Explain'}</span>
-            </button>
-
-            {showExplanation && (
-              <div className="mt-3 p-3.5 rounded-xl bg-[#070A12] border border-white/10 space-y-2 text-xs text-[#cbd5e1] animate-in fade-in">
-                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-mono">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                  <span>Preview — not connected yet (Phase 5: POST /api/explain). Illustrative solver rationale.</span>
-                </div>
-                <div className="flex items-center gap-2 font-bold text-[#34d399]">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  Illustrative Multi-Objective Assignment:
-                </div>
-                <ul className="list-disc pl-5 space-y-1 text-[11px] text-[#98A6BB]">
-                  <li>H1/H2: Room {assignment.roomName} and {session.facultyName} strictly clash-free at {assignment.period}.</li>
-                  <li>H4 Capacity: {session.studentCount} enrolled students fit comfortably within {capacity} room seats.</li>
-                  <li>S1 Compactness: Zero idle gap periods created for {session.groups.join(', ')}.</li>
-                  <li>S4 Preference: Theory lecture matched to morning window per department curriculum weight.</li>
-                </ul>
-              </div>
-            )}
+            <ExplanationPanel
+              key={session.id}
+              subject="session"
+              id={session.id}
+              label="Why was this scheduled here?"
+            />
           </div>
         </div>
 
         {/* Action Buttons */}
         <div className="pt-6 border-t border-white/10 space-y-2">
-          {(userRole === 'Faculty' || userRole === 'Department Coordinator' || userRole === 'Admin') && (
+          {canRequestChange && (
             <Link
               href={`/changes/new?session=${session.id}&course=${session.courseCode}`}
               className="w-full py-2.5 rounded-xl text-xs font-mono font-bold bg-[#8279FF]/20 hover:bg-[#8279FF]/30 text-[#8279FF] border border-[#8279FF]/40 flex items-center justify-center gap-2 transition-colors"
