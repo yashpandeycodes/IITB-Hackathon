@@ -14,7 +14,7 @@ import type {
   StudentGroup,
 } from "@/lib/contracts";
 import { COLLECTIONS, type BaseDoc, type CollectionName } from "../collections";
-import { omit, stripMeta } from "./meta";
+import { nowIso, omit, stripMeta } from "./meta";
 
 /**
  * Reference data (architecture §5.2): the starter-pack collections. Every document is the
@@ -33,14 +33,25 @@ export type RoomUnavailabilityRecord = RoomUnavailability & {
 };
 export type RoomUnavailabilityDoc = RoomUnavailabilityRecord & RefMeta;
 
-export type FacultyRecord = Faculty & { user_id?: string | null };
+/** `change_request_id` is set on faculty added by an applied change request. */
+export type FacultyRecord = Faculty & {
+  user_id?: string | null;
+  change_request_id?: string | null;
+};
 export type FacultyDoc = FacultyRecord & RefMeta;
 
 export type StudentGroupDoc = StudentGroup & RefMeta;
 export type CourseDoc = Course & RefMeta;
 
-/** `removed` soft-deletes a session so diffs stay explainable. */
-export type SessionRecord = Session & { removed: boolean };
+/**
+ * `removed` soft-deletes a session so diffs stay explainable; `removed_by` names the change
+ * request that removed it. `change_request_id` is set on sessions an applied change added.
+ */
+export type SessionRecord = Session & {
+  removed: boolean;
+  removed_by?: string | null;
+  change_request_id?: string | null;
+};
 export type SessionDoc = SessionRecord & RefMeta;
 
 export type ExamDoc = Exam & RefMeta;
@@ -308,4 +319,107 @@ export async function replaceReferenceData(
     }),
   );
   return Object.fromEntries(entries) as Record<ReferenceCollection, number>;
+}
+
+// ------------------------------------------------------------- applied change requests
+
+/**
+ * The reference collections an applied change request writes to (`change-apply.ts`): faculty
+ * unavailability and added faculty, room closures, added and removed sessions.
+ */
+export type ChangeTarget =
+  | typeof COLLECTIONS.faculty
+  | typeof COLLECTIONS.room_unavailability
+  | typeof COLLECTIONS.sessions;
+
+export type ChangeTargetDoc = {
+  faculty: FacultyDoc;
+  room_unavailability: RoomUnavailabilityDoc;
+  sessions: SessionDoc;
+};
+
+const raw = <K extends ChangeTarget>(db: Db, name: K) =>
+  db.collection<ChangeTargetDoc[K]>(name);
+
+/** The highest `seq` in `name` (soft-removed sessions included), or -1 when it is empty. */
+export async function maxReferenceSeq(
+  db: Db,
+  name: ChangeTarget,
+): Promise<number> {
+  const doc = await db
+    .collection<RefMeta>(name)
+    .findOne({}, { sort: { seq: -1 }, projection: { seq: 1 } });
+  return doc?.seq ?? -1;
+}
+
+/** The stored documents (with their metadata) for `ids`, for snapshots taken before a write. */
+export function findReferenceDocs<K extends ChangeTarget>(
+  db: Db,
+  name: K,
+  ids: readonly string[],
+): Promise<ChangeTargetDoc[K][]> {
+  if (ids.length === 0) return Promise.resolve([]);
+  return raw(db, name)
+    .find({ _id: { $in: [...ids] } } as Filter<ChangeTargetDoc[K]>)
+    .toArray() as Promise<ChangeTargetDoc[K][]>;
+}
+
+export async function insertReferenceDocs<K extends ChangeTarget>(
+  db: Db,
+  name: K,
+  docs: readonly ChangeTargetDoc[K][],
+): Promise<void> {
+  if (docs.length === 0) return;
+  await db.collection<RefMeta>(name).insertMany(
+    docs.map((d) => ({ ...d })),
+    {
+      ordered: true,
+    },
+  );
+}
+
+export async function deleteReferenceDocs(
+  db: Db,
+  name: ChangeTarget,
+  ids: readonly string[],
+): Promise<void> {
+  if (ids.length === 0) return;
+  await db.collection<RefMeta>(name).deleteMany({ _id: { $in: [...ids] } });
+}
+
+/** Puts each document back exactly as given (by `_id`, inserting it when missing). */
+export async function restoreReferenceDocs<K extends ChangeTarget>(
+  db: Db,
+  name: K,
+  docs: readonly ChangeTargetDoc[K][],
+): Promise<void> {
+  const collection = db.collection<RefMeta>(name);
+  for (const doc of docs) {
+    await collection.replaceOne({ _id: doc._id }, doc, { upsert: true });
+  }
+}
+
+/** Replaces a faculty member's whole `unavailable` list. */
+export async function setFacultyUnavailable(
+  db: Db,
+  id: string,
+  unavailable: Faculty["unavailable"],
+): Promise<void> {
+  await raw(db, COLLECTIONS.faculty).updateOne(
+    { _id: id },
+    { $set: { unavailable, updated_at: nowIso() } },
+  );
+}
+
+/** Soft-removes sessions on behalf of change request `removedBy`. */
+export async function markSessionsRemoved(
+  db: Db,
+  ids: readonly string[],
+  removedBy: string,
+): Promise<void> {
+  if (ids.length === 0) return;
+  await raw(db, COLLECTIONS.sessions).updateMany(
+    { _id: { $in: [...ids] } },
+    { $set: { removed: true, removed_by: removedBy, updated_at: nowIso() } },
+  );
 }

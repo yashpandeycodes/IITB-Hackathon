@@ -198,6 +198,39 @@ describe("parseJsonBody", () => {
     });
   });
 
+  it("runs precheck on the parsed JSON first and sends its PathIssues as they are", async () => {
+    const precheck = (raw: unknown) =>
+      (raw as { title?: string }).title === "bad"
+        ? [{ path: "title", message: "Not that title." }]
+        : [];
+    await expect(
+      parseJsonBody(
+        post(JSON.stringify({ title: "bad", attendance: "lots" })),
+        BodySchema,
+        { precheck },
+      ),
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      message: "The request body is invalid.",
+      details: [{ path: "title", message: "Not that title." }],
+    });
+    // No problems: the schema decides, as without a precheck.
+    expect(
+      await parseJsonBody(
+        post(JSON.stringify({ title: "Quiz", attendance: 3 })),
+        BodySchema,
+        { precheck },
+      ),
+    ).toEqual({ title: "Quiz", attendance: 3 });
+    await expect(
+      parseJsonBody(post(JSON.stringify({ title: "Quiz" })), BodySchema, {
+        precheck,
+      }),
+    ).rejects.toMatchObject({
+      details: { fieldErrors: { attendance: expect.any(Array) } },
+    });
+  });
+
   it("rejects bodies over the size limit", async () => {
     const big = JSON.stringify({
       title: "x".repeat(MAX_JSON_BODY_BYTES),

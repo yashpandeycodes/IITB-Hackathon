@@ -65,6 +65,13 @@ export const INDEXES: Partial<Record<CollectionName, IndexDescription[]>> = {
   [COLLECTIONS.change_requests]: [
     { key: { status: 1 }, name: "status_1" },
     { key: { requested_by: 1 }, name: "requested_by_1" },
+    // Pending proposals built on one version (superseded together when one of them is applied).
+    { key: { base_version: 1, status: 1 }, name: "base_version_1_status_1" },
+    // The list's visibility filter (`GET /api/changes`): a coordinator's department, a faculty id.
+    { key: { "scope.departments": 1 }, name: "scope.departments_1" },
+    { key: { "scope.faculty_ids": 1 }, name: "scope.faculty_ids_1" },
+    // Newest first.
+    { key: { created_at: -1 }, name: "created_at_-1" },
   ],
   [COLLECTIONS.audit_log]: [
     { key: { at: -1 }, name: "at_-1" },
