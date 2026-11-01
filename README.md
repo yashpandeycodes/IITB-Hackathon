@@ -3,7 +3,7 @@
 A web platform for Chilika Institute of Technology that generates a clash-free weekly timetable, schedules midsem exams, decides Spectra-week (Week 7) venue requests by priority and repairs the timetable after disruptions with minimal moves and admin approval.
 Venue requests can be typed in plain English or Hinglish. Every decision comes with a reason, and validity is always checked by a deterministic constraint engine.
 
-> **Status:** Phase 5 backend done: rescheduling after disruptions with the fewest moves (the sample change file: 9 sessions moved, all room-only, 0 hard violations), change requests with an admin approval step, manual placement, the timetable assistant and "why?" explanations, and the `schedule_after.json` export (see [Rescheduling](#rescheduling-apply-a-change-file)). Earlier phases: the plain-language booking parser (Gemini with an offline English/Hinglish rule parser, 97.5 % on the dataset's request texts without AI) and the bookings API with approvals; the timetable generator, exam scheduler, Spectra decisions and `schedule.json` export (0 hard violations, see [Validating](#validating)); the engine checker with exact `validator.py` parity, data layer, auth and read APIs. Every screen runs on the live API: bookings (describe → draft → submit, cancel, approvals), change requests and their approval with a before/after diff, manual placement, the assistant, "why?" explanations, exam generation and all three exports. Live at <https://iitb-hackathon-ten.vercel.app>.
+ Live at <https://iitb-hackathon-ten.vercel.app>.
 
 ---
 
@@ -299,8 +299,8 @@ Scripts that import server-only modules (database, env) run with `npx tsx --cond
 
 ## Team
 
-| Area                  | Owns                                                               | Member |
-| --------------------- | ------------------------------------------------------------------ | ------ |
-| Engine                | Constraint checker, solver, exam scheduler, rescheduler, optimiser | TBD    |
-| Backend and AI        | Database, auth and RBAC, services, API, booking engine, AI layer   | TBD    |
-| Frontend and delivery | UI, design system, deployment, docs, demo video                    | TBD    |
+| Area                  | Owns                                                               | Member           |
+| --------------------- | ------------------------------------------------------------------ | ------           |
+| Engine                | Constraint checker, solver, exam scheduler, rescheduler, optimiser | Lakshay Sudhera  |
+| Backend and AI        | Database, auth and RBAC, services, API, booking engine, AI layer   | Aryan Sinha      |
+| Frontend and delivery | UI, design system, deployment, docs, demo video                    | Yash Pandey      |
