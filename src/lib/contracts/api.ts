@@ -39,6 +39,18 @@ export const ERROR_HTTP_STATUS: Record<ErrorCode, number> = {
   CONFLICT: 409,
 };
 
+/**
+ * One problem with a field of a request or an uploaded file, as `400 VALIDATION_ERROR` `details`
+ * list them. `path` says where: `changes[0].faculty_id` and `placements[1].room_id` for a change
+ * request, `sessions.12.faculty_id` for a dataset file, "" for the body as a whole. `message`
+ * says what is wrong.
+ */
+export const PathIssueSchema = z.strictObject({
+  path: z.string(),
+  message: z.string(),
+});
+export type PathIssue = z.infer<typeof PathIssueSchema>;
+
 export const ApiErrorBody = z.object({
   code: ErrorCode,
   message: z.string(),
