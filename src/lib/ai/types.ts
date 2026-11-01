@@ -3,8 +3,12 @@
  * facts; validity, priority and status are decided by the engine (backend.md §5.1).
  */
 import type {
+  AssistantIntentKind,
+  AssistantIntentLLM,
   BookingDraftLLM,
   Category,
+  ConflictEntry,
+  Day,
   DecisionStatus,
   ExplanationSource,
   FallbackCode,
@@ -12,7 +16,10 @@ import type {
   ParsedBookingDraft,
   ParseSource,
   ReasonCode,
+  Role,
   Room,
+  SessionKind,
+  SessionRef,
   StudentGroup,
   Calendar,
 } from "@/lib/contracts";
@@ -152,4 +159,119 @@ export type Explanation = {
   latency_ms: number;
   /** Why the template was used although a model was called (detail, for `ai_logs`); else null. */
   fallback_reason: string | null;
+};
+
+// ------------------------------------------------------------------------------- assistant
+
+/**
+ * What the assistant's intent extraction knows (built from the active dataset and timetable by
+ * the service). Ids in here are reference data for matching; the service still resolves every id
+ * against the user's own scope.
+ */
+export type AssistantContext = {
+  datasetId: string;
+  calendar: ParseContext["calendar"];
+  /** "Today" for "kal", "tomorrow", "aaj": `YYYY-MM-DD` (settings.reference_date). */
+  referenceDate: string;
+  /** Who is asking: shapes what "I" means and whether a faculty member may be named. */
+  role: Role;
+  /** The asker's own faculty id ("I", "me", "my"); null for coordinators and admins. */
+  selfFacultyId: string | null;
+  courses: readonly { id: string; title: string; department: string }[];
+  faculty: readonly { id: string; name: string; department: string }[];
+  rooms: readonly { id: string; name: string }[];
+  /**
+   * The asker's sessions and where they are now (bounded by the service), so the model can map
+   * "my Friday lecture" to a course. Never used to decide anything.
+   */
+  sessions: readonly {
+    id: string;
+    course_id: string;
+    kind: SessionKind;
+    day: Day | null;
+    start_period: number | null;
+    room_id: string | null;
+  }[];
+  /** In-scope sessions beyond `sessions` (left out of the model's context). */
+  sessionsOmitted: number;
+};
+
+/** A window to try when the first one has no option ("Thursday morning, otherwise Friday"). */
+export type FallbackWindow = { days: Day[]; periods: number[] };
+
+/** What code read from the message itself, whichever extractor produced the intent. */
+export type IntentSignals = {
+  /** Asks to approve, apply, override or ignore the rules ("approve it yourself"). */
+  bypass: boolean;
+  /** Reads like a room or event booking (the booking request form handles those). */
+  booking: boolean;
+  /** "All my classes": more than one session at once. */
+  allSessions: boolean;
+  /** A time outside teaching hours ("evening", "7 pm", "6 am"), as written; else null. */
+  outsideHours: string | null;
+  /** Saturday or Sunday was named. */
+  weekend: boolean;
+  /** "same day": keep the session's own day. */
+  sameDay: boolean;
+  /** "another day", "koi aur din": any day but the session's own. */
+  otherDay: boolean;
+  /** The text after "otherwise", "else", "warna": a second window to try. */
+  fallback: FallbackWindow | null;
+  /**
+   * A shift relative to where the session is now, in periods: "two hours later" = 2, "an hour
+   * earlier" = -1; null when none is asked.
+   */
+  shift: number | null;
+};
+
+export type ExtractIntentOptions = {
+  llm: LlmConfig;
+  /** Total time for the model calls (first call + repair); default `llm.timeoutMs`. */
+  budgetMs?: number;
+  /** Aborts the model calls; the rule parser then answers. */
+  signal?: AbortSignal;
+};
+
+export type IntentOutcome = {
+  intent: AssistantIntentLLM;
+  source: ParseSource;
+  /** The model whose intent was used; null whenever the rule parser answered. */
+  model: string | null;
+  /** Why the rule parser answered although a model was configured (safe to show); else null. */
+  fallback_code: FallbackCode | null;
+  /** The same in detail, for `ai_logs` only (keys redacted). */
+  fallback_reason: string | null;
+  /** The model's raw text (for `ai_logs`); null for the rule parser. */
+  raw_output: string | null;
+  repaired: boolean;
+  latency_ms: number;
+  /** Readings the user should see ("'morning' read as P1–P5 (08:00–13:00)"). */
+  assumptions: string[];
+  signals: IntentSignals;
+};
+
+/** One option as the reply's phrasing sees it (already verified by the engine). */
+export type ReplyOptionFacts = {
+  option_id: string;
+  label: string;
+  moved_count: number;
+  time_changed: number;
+  room_only_changed: number;
+  soft_delta: number;
+};
+
+/**
+ * Everything an assistant reply may say, computed by code and the engine. Nothing has changed
+ * when a reply is written: an option becomes a change request only when the user submits it,
+ * and only an admin's approval applies it.
+ */
+export type AssistantReplyFacts = {
+  intent: AssistantIntentKind;
+  session: SessionRef | null;
+  /** True when the options and conflicts come from the constraint engine. */
+  verified: boolean;
+  options: ReplyOptionFacts[];
+  conflicts: Pick<ConflictEntry, "session_id" | "summary" | "contradictions">[];
+  assumptions: string[];
+  follow_up: string | null;
 };

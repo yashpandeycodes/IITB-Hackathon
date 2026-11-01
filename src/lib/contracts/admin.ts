@@ -4,6 +4,7 @@
  */
 import { z } from "zod";
 
+import { PathIssueSchema, type PathIssue } from "./api";
 import { SettingsSchema } from "./settings";
 import { Count, Id, Timestamp } from "./util";
 
@@ -48,12 +49,12 @@ export const ImportReportSchema = z.strictObject({
 });
 export type ImportReport = z.infer<typeof ImportReportSchema>;
 
-/** One dataset validation problem, with a dotted path such as `sessions.12.faculty_id`. */
-export const DatasetIssueSchema = z.strictObject({
-  path: z.string(),
-  message: z.string(),
-});
-export type DatasetIssue = z.infer<typeof DatasetIssueSchema>;
+/**
+ * One dataset validation problem, with a dotted path such as `sessions.12.faculty_id` ("(root)"
+ * for the file as a whole). The same shape as every other `PathIssue`.
+ */
+export const DatasetIssueSchema = PathIssueSchema;
+export type DatasetIssue = PathIssue;
 
 /** `details` of the `VALIDATION_ERROR` for a rejected dataset (first 50 issues). */
 export const DatasetValidationDetailsSchema = z.strictObject({

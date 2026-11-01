@@ -17,9 +17,9 @@ generates a clash-free weekly timetable (189 sessions) → schedules 41 midsem e
 | 1   | **0 hard violations** in every export         | −3 marks per violation (Correctness = 25)            | Export endpoint refuses to write if our checker reports any H/B/E violation; CI runs the official `validator.py` on `exports/` |
 | 2   | **LLM never decides validity**                | Validity depending on an LLM gives 0 for correctness | LLM output → Zod parse → deterministic engine check → human confirm. LLM has no write access to anything.                      |
 | 3   | **Manual booking form works without the LLM** | Judges will turn the AI off or exhaust credits       | `LLM_ENABLED` flag + automatic fallback; form never calls Gemini                                                               |
-| 4   | **Exports produced by the app**               | Hand-edited exports mean disqualification            | Exports are only created by `GET /api/export` (`npm run export`; the Admin Export button is pending). Committed as downloaded. |
+| 4   | **Exports produced by the app**               | Hand-edited exports mean disqualification            | Exports are only created by `GET /api/export?file=schedule\|schedule_after` (`npm run export [-- --after | --disruption]`; the Admin Export button is pending). Committed as downloaded. |
 | 5   | **Read data, never hard-code it**             | Judges reset and load their own change files         | All rules (calendar, lab starts, lunch, priority order, role caps) are read from the dataset document                          |
-| 6   | **Nobody approves their own request**         | Explicit rule in §4 of the problem statement         | Server-side check `approver_id !== requested_by` on every approve route                                                        |
+| 6   | **Nobody approves their own request**         | Explicit rule in §4 of the problem statement         | Server-side check on every approve route (`SELF_APPROVAL`): requests (bookings; faculty, coordinator and assistant change requests) are never approved by their requester. Change files and manual edits are the Admin's own actions (problem statement §2.5, §2.9, §2.10): they still stop at `pending` until the Admin confirms the engine's diff. Only admins approve timetable changes (§8). |
 
 ---
 
@@ -103,25 +103,30 @@ Anything right of `Z` is our code. Gemini can never reach the database, change a
 │   │   ├── engine/                       # ★ pure TS, no I/O. validator.py port (instance, checker, soft,
 │   │   │                                 #   bookings-check, exams-check, disruption, validate, py, rng);
 │   │   │                                 #   solver (model, fest, solver, solver-search), exams (scheduler),
-│   │   │                                 #   bookings (+ bookings-text). Planned: reschedule, explain
+│   │   │                                 #   bookings (+ bookings-text); rescheduler (reschedule, repair,
+│   │   │                                 #   conflicts, format), manual (placement check), extra-session, explain
 │   │   ├── db/                           # native driver, no Mongoose
 │   │   │   ├── client.ts  collections.ts  indexes.ts   # cached client, collection names, every index
-│   │   │   ├── locks.ts                  # dataset lock: reset, import, generate, activate, exams, Spectra, booking writes (409; booking writes wait ≤ 3 s)
+│   │   │   ├── locks.ts                  # dataset lock: reset, import, generate, activate, exams, Spectra, booking and change writes (409; booking and change writes wait ≤ 3 s)
 │   │   │   ├── repos/                    # reference, datasets, users (+ revoked_sessions), settings, timetable-versions,
-│   │   │   │                             #   exam-schedules, booking-decisions, session-overrides,
-│   │   │   │                             #   booking-requests, ai-logs, change-requests, audit-log, meta (timestamps, helpers)
+│   │   │   │                             #   exam-schedules, booking-decisions, session-overrides, booking-requests,
+│   │   │   │                             #   ai-logs, change-requests, baselines, audit-log, meta (timestamps, helpers)
 │   │   │   └── models/user.model.ts      # type re-export kept for src/lib/validation.ts
-│   │   ├── services/                     # use-cases. Now: dataset (import), reset (+ generation pipeline),
+│   │   ├── services/                     # use-cases: dataset (import), reset (+ generation pipeline),
 │   │   │                                 #   settings, timetable (generate, activate, versions), timetable-view
-│   │   │                                 #   (view + what-if), exams, spectra, export (+ validator report),
+│   │   │                                 #   (view + what-if), exams, spectra, export (+ validator report, baseline),
 │   │   │                                 #   rooms (availability), dashboard, reference (UI reference data),
-│   │   │                                 #   brevo-mail (OTP), llm (AI on/off + client), booking-parse, bookings.
-│   │   │                                 #   Planned: changes, assistant
-│   │   ├── ai/                           # Gemini client, prompt loader, English/Hinglish rule parser,
-│   │   │                                 # post-processing, parse cache, explanation phrasing
+│   │   │                                 #   brevo-mail (OTP), llm (AI on/off + client), booking-parse, bookings,
+│   │   │                                 #   changes (+ change-proposal, change-scope, change-apply, change-supersede), baseline
+│   │   │                                 #   (the schedule.json snapshot and the dataset as loaded), manual,
+│   │   │                                 #   assistant, explain
+│   │   ├── ai/                           # Gemini client, prompt loader, English/Hinglish rule parsers (bookings,
+│   │   │                                 # assistant intents), structured output + repair, post-processing,
+│   │   │                                 # parse cache, fact-checked phrasing (explanations, assistant replies)
 │   │   ├── auth/
 │   │   │   ├── session.ts                # jose HS256 JWT (with jti) in the cit_nexus_session cookie (12 h)
 │   │   │   ├── guards.ts                 # requireUser, requireRole (re-read user, check revocation), assertNotSelf
+│   │   │   ├── policy.ts                 # assertNotSelf, framework-free (services import it, not guards)
 │   │   │   ├── current-user.ts           # userForClaims: verified claims → stored user (revocation, verified)
 │   │   │   ├── server-session.ts         # getSessionUser(): signed-in User for Server Components (cached; same checks)
 │   │   │   ├── proxy-rules.ts            # pure rules behind src/proxy.ts (no DB access)
@@ -140,8 +145,8 @@ Anything right of `Z` is our code. Gemini can never reach the database, change a
 │   └── proxy.ts                          # auth gate (Next.js 16 replacement for middleware.ts)
 ├── prompts/                              # versioned prompt files (declared in AI_USAGE.md)
 ├── scripts/                              # seed.ts (reset demo DB), parity.ts (engine vs validator.py),
-│                                         # validate.ts (exports), export.ts (downloads /api/export),
-│                                         # ai-eval.ts (booking-parser accuracy)
+│                                         # validate.ts (exports, --after), export.ts (downloads /api/export, --after, --disruption),
+│                                         # ai-eval.ts (booking-parser and assistant-intent accuracy)
 │                                         # (DB scripts: npx tsx --conditions=react-server …)
 ├── data/                                 # copy of starter-pack cit_public.json + sample_disruption.json
 ├── exports/                              # schedule.json, schedule_after.json (from the app)
@@ -149,7 +154,7 @@ Anything right of `Z` is our code. Gemini can never reach the database, change a
 ├── AI_USAGE.md  THIRD_PARTY.md  README.md  .env.example
 ```
 
-**Dependency rule:** `app → services → (engine | ai | db) → contracts`. The engine imports only `contracts`. UI components import `contracts` and `api-client`, never `db` or `services`. Route handlers may import only `getDb`/`pingDb` from the db layer (to hand a `Db` to services), never repositories, the engine or the driver; services never import route helpers or Next.js; the db layer never imports services, auth, api or the engine. ESLint enforces all of this with `no-restricted-imports` (`eslint.config.mjs`). Scripts that import `server-only` modules run with `npx tsx --conditions=react-server`.
+**Dependency rule:** `app → services → (engine | ai | db) → contracts`. The engine imports only `contracts`. UI components import `contracts` and `api-client`, never `db` or `services`. Route handlers may import only `getDb`/`pingDb` from the db layer (to hand a `Db` to services), never repositories, the engine or the driver; services never import route helpers or Next.js; the db layer never imports services, auth, api or the engine. Services may use the framework-free `@/lib/auth/policy` and `@/lib/auth/rate-limit`, never the guards, cookies or session modules. ESLint enforces all of this with `no-restricted-imports` (`eslint.config.mjs`). Scripts that import `server-only` modules run with `npx tsx --conditions=react-server`.
 
 ---
 
@@ -363,16 +368,16 @@ type ApiErr = {
 
 | `code`                          | HTTP      | When                                                                                                                                                      |
 | ------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VALIDATION_ERROR`              | 400       | Zod parse failed (`details` = flattened issues)                                                                                                           |
+| `VALIDATION_ERROR`              | 400       | Zod parse failed (`details` = flattened issues); a change request over `REQUEST_LIMITS`, not fitting its kind or naming unknown ids (`details` = `PathIssue[]`, `[{path, message}]` with paths like `changes[0].faculty_id`, at most 20) |
 | `UNAUTHENTICATED` / `FORBIDDEN` | 401 / 403 | No session / role not allowed                                                                                                                             |
-| `SELF_APPROVAL`                 | 403       | Approver is the requester                                                                                                                                 |
+| `SELF_APPROVAL`                 | 403       | Approver is the requester (bookings; change requests, except an admin's own change file or manual edit, see §8)                                         |
 | `HARD_CONSTRAINT`               | 409       | Engine found violations (`details` = `Violation[]`, H1–H14; the export gate adds B1–B3 / E1–E2)                                                           |
-| `INFEASIBLE`                    | 422       | No valid schedule exists (`details` = `{unplaced, violations, issues}` for generation / exams; a conflict report for changes in P5)                       |
+| `INFEASIBLE`                    | 422       | No valid schedule exists (`details` = `{unplaced, violations, issues}` for generation / exams). A change with no valid fix is not an error: it is stored as an `infeasible` change request with its conflict report. |
 | `NOT_FOUND`                     | 404       | Unknown id                                                                                                                                                |
-| `STALE_VERSION`                 | 409       | Proposal was built on a timetable that is no longer active                                                                                                |
+| `STALE_VERSION`                 | 409       | Timetable built for another dataset; a change proposal built on a timetable that is no longer active (the proposal is rejected)                         |
 | `LLM_UNAVAILABLE`               | 503       | Reserved; not returned today: when Gemini fails the parse answers with the rule parser (`source: "rules"`, `fallback_reason`). Never blocks a booking.   |
 | `INTERNAL_ERROR`                | 500       | Unhandled error, or a server-side schema failure (bare `ZodError`). Generic message; details never exposed.                                               |
-| `CONFLICT`                      | 409       | Another reset, import or schedule run holds the dataset lock; Spectra decisions missing at export; a sign-up for this email is pending in another browser |
+| `CONFLICT`                      | 409       | Another reset, import, schedule run, booking or change write holds the dataset lock; Spectra decisions missing at export; an export file that needs an applied change (`schedule_after`, `disruption`); a change request that isn't pending, or 20 open ones already; the first change approval while `schedule.json` isn't exportable; activating a change request's draft directly; a sign-up for this email is pending in another browser |
 | `EMAIL_TAKEN`                   | 409       | Sign-up with an email a verified account already uses                                                                                                     |
 | `RATE_LIMITED`                  | 429       | Too many attempts (`details.retry_after_seconds` + `Retry-After` header)                                                                                  |
 | `MAIL_UNAVAILABLE`              | 503       | The sign-up code can't be emailed (mail not configured, Brevo failed, global hourly cap)                                                                  |
@@ -405,6 +410,8 @@ erDiagram
   booking_decisions ||--o{ session_overrides : displaces
   change_requests }o--|| timetable_versions : based_on
   change_requests ||--o| timetable_versions : proposes
+  change_requests ||--o| baselines : "first applied captures"
+  change_requests ||--o{ sessions : "adds / removes"
   exams ||--o| EXAM_PLACEMENT : placed_in
   exam_schedules ||--|{ EXAM_PLACEMENT : embeds
   users ||--o{ booking_requests : creates
@@ -413,17 +420,17 @@ erDiagram
 
 ### 5.2 Reference data (mirrors the starter pack)
 
-All fields are exactly as in `cit_public.json`, plus `_id` (= `id`), `origin: "dataset" | "disruption" | "manual"`, `seq` (position in the source file, so exports keep file order), `created_at`, `updated_at`. Timestamps are ISO strings (§4.2) except TTL and lock fields (`expires_at`, `unverified_expires_at`, `acquired_at`), which are BSON Dates because MongoDB TTL indexes require them.
+All fields are exactly as in `cit_public.json`, plus `_id` (= `id`), `origin: "dataset" | "disruption" | "manual"`, `seq` (position in the source file, so exports keep file order; records an applied change request adds get the next `seq` and `origin: "disruption"`), `created_at`, `updated_at`. After every approval the stored dataset equals `applyDisruption(loaded file, applied changes in apply order)`, which is what `getActiveDataset` returns. Timestamps are ISO strings (§4.2) except TTL and lock fields (`expires_at`, `unverified_expires_at`, `acquired_at`), which are BSON Dates because MongoDB TTL indexes require them.
 
 | Collection            | Source key              | Extra fields                                                                                                                                                                                                                                                                                                                                                                                                              | Indexes                                                     |
 | --------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `datasets`            | whole file meta         | `_id` = `dataset_id`, `institute`, `calendar`, `priority_order`, `role_category_cap`, `loaded_at`, `source: "bundled" \| "upload"`, `raw` (original JSON for reset)                                                                                                                                                                                                                                                       | —                                                           |
 | `rooms`               | `rooms[]`               | `department` (derived for labs: `lab_cs→CSE`, `lab_elec→ECE`, `workshop→ME`, `lab_civil→CE`, `lab_phy→PH`)                                                                                                                                                                                                                                                                                                                | `type`, `capacity`                                          |
-| `room_unavailability` | `room_unavailability[]` | `_id` = `${room_id}:${day}:${hash}`, `change_request_id?`                                                                                                                                                                                                                                                                                                                                                                 | `{room_id, day}`                                            |
-| `faculty`             | `faculty[]`             | `user_id?`                                                                                                                                                                                                                                                                                                                                                                                                                | `department`                                                |
+| `room_unavailability` | `room_unavailability[]` | `_id` = `${room_id}:${day}:${hash}`; a closure from an applied change: `_id` = `${CR}:${room_id}:${day}:${n}` with `change_request_id` (one document per closed day, appended)  | `{room_id, day}`                                            |
+| `faculty`             | `faculty[]`             | `user_id?`; `change_request_id?` on a member added by an applied change (`faculty_unavailable` replaces the member's `unavailable` list in place)  | `department`                                                |
 | `student_groups`      | `student_groups[]`      | —                                                                                                                                                                                                                                                                                                                                                                                                                         | `department, year`                                          |
 | `courses`             | `courses[]`             | —                                                                                                                                                                                                                                                                                                                                                                                                                         | —                                                           |
-| `sessions`            | `sessions[]`            | `removed: boolean` (soft-delete so diffs stay explainable)                                                                                                                                                                                                                                                                                                                                                                | `faculty_id`, `groups`, `basket_slot`                       |
+| `sessions`            | `sessions[]`            | `removed: boolean` (soft-delete so diffs stay explainable), `removed_by?` (the change request that removed it), `change_request_id?` (the one that added it)  | `faculty_id`, `groups`, `basket_slot`                       |
 | `exams`               | `exams[]`               | —                                                                                                                                                                                                                                                                                                                                                                                                                         | `groups`                                                    |
 | `booking_requests`    | `booking_requests[]`    | `state: RequestState`, `source: "dataset" \| "nl" \| "form"`, `created_by` (user id, null for dataset), `ai_meta?: { model, prompt_id, assumptions[], follow_up?, log_id }`, `approval?: { approved_by, approved_at, room_id, day, start_period, end_period }` (an approver accepted this exact slot), `rejection?: { rejected_by, rejected_at, comment }`. Live requests get ids `REQ-0001…` (series share `series_id`). | `state`, `created_by`, `submitted_at`, `{"windows.day": 1}` |
 | `cancellations`       | `cancellations[]`       | —                                                                                                                                                                                                                                                                                                                                                                                                                         | `request_id` (unique)                                       |
@@ -473,6 +480,8 @@ All fields are exactly as in `cit_public.json`, plus `_id` (= `id`), `origin: "d
 
 Indexes: `{status: 1}` (partial unique on `status: "active"`, so only one active version), `{created_at: -1}`.
 
+A change request's proposal is a `draft` with `source: "reschedule"` (or `"manual"` for a manual edit), `parent_version` = the base and `change_request_id` set. Such a draft becomes active only by approving its request (`POST /api/timetable/versions/:id/activate` answers `409 CONFLICT`), is deleted when the request is rejected, and is never pruned while the request is `pending` (it doesn't count toward the 20 kept inactive versions).
+
 **`exam_schedules`**: same pattern (`_id: "EXS-0001"`, `status`, `exams: ExamPlacement[]`, `penalty`).
 
 **`booking_decisions`**: one per request. It's the export shape plus metadata.
@@ -503,47 +512,77 @@ Indexes: `{status: 1}`, `{room_id: 1, day: 1}`, `{timetable_version: 1}`. `appro
 
 **`session_overrides`**: Week-7-only moves caused by an approved institute event (`_id = session_id`, `session_id, day, start_period, room_id, displaced_by, approved_by, timetable_version`). Indexes: `{displaced_by: 1}`, `{timetable_version: 1}`.
 
-**`change_requests`**: every disruption, faculty request or manual edit becomes a proposal.
+**`change_requests`**: every change file, unavailability notice, faculty request or manual placement becomes a proposal (`ChangeRequestSchema`, `contracts/change.ts`). The engine's proposal is stored on the request itself, so the list, the detail, the diff view and the explanation all read one document. As stored after `POST /api/changes` with `data/sample_disruption.json` (trimmed):
 
 ```json
 {
   "_id": "CR-0001",
-  "kind": "disruption", // disruption | faculty_request | manual_edit | unavailability
-  "requested_by": "u_coord_cse",
+  "kind": "disruption", // disruption | unavailability | faculty_request | manual_edit
+  "requested_by": "u_admin",
+  "requested_by_role": "admin", // the role when filed; decides SELF_APPROVAL later
   "changes": [
     {
       "type": "faculty_unavailable",
       "faculty_id": "F07",
       "days": ["MON"],
       "periods": [1, 2, 3, 4, 5, 6, 7, 8, 9],
-      "reason": "Conference travel"
+      "reason": "Conference travel every Monday for the rest of the semester"
     }
+    // … room_unavailable CR-102, add_session CS202-T2
   ],
-  "base_version": "TT-0002",
-  "proposed_version": "TT-0003", // draft timetable_versions doc
-  "status": "pending",
+  "placements": [], // Assignment[]: sessions pinned exactly (manual placement, assistant options)
+  "description": "Practice disruption for the public dataset. …",
+  "nl_prompt": null, // the assistant message an option came from (returned only to the requester and admins)
+  "base_version": "TT-0001",
+  "proposed_version": "TT-0002", // draft timetable_versions doc; null when infeasible
+  "status": "pending", // pending | infeasible | applied | rejected
+  "feasible": true,
+  "title": "F07 unavailable MON · CR-102 closed MON–FRI · add CS202-T2",
+  "warnings": [],
   "diff": [
     {
-      "session_id": "CS203-L1",
-      "from": { "day": "MON", "start_period": 3, "room_id": "CR-201" },
-      "to": { "day": "TUE", "start_period": 4, "room_id": "CR-201" },
-      "reason": "F07 unavailable MON P1–P9"
+      "session_id": "MA101-A-T1",
+      "from": { "day": "WED", "start_period": 2, "room_id": "CR-102" },
+      "to": { "day": "WED", "start_period": 2, "room_id": "LH-3" },
+      "move": "room_only", // room_only | time_only | time_and_room | added | removed
+      "cause": "broken", // broken | evicted | requested | added | removed
+      "rules": ["H8"],
+      "displaced_by": null, // the session that needed this slot (evicted)
+      "reason": "CR-102 closed MON–FRI P1–P9 (Water leak, …); same time, now in LH-3"
     }
+    // … 8 more room-only moves, then CS202-T2 added at MON P7 in CR-103
   ],
-  "moved_count": 4,
-  "time_changed": 3,
-  "room_only_changed": 1,
-  "soft_delta": -2,
+  "moved_count": 9, // validator stability semantics, against base_version
+  "time_changed": 0,
+  "room_only_changed": 9,
+  "soft_penalty": { "S1": 0, "S2": 0, "S3": 0, "S4": 3, "S5": 0, "S6": 0, "total": 3 },
+  "soft_delta": 0,
   "hard_violation_count": 0,
-  "conflicts": [], // filled when status = infeasible
-  "nl_prompt": null, // original text if it came from the AI assistant
-  "approved_by": null,
+  "conflicts": [], // ConflictEntry[] when infeasible: {session_id, blocking[{rule, count, detail}], contradictions[], summary}
+  "scope": {
+    "session_ids": ["MA101-A-T1", "…", "CS202-T2"],
+    "faculty_ids": ["F01", "F02", "F06", "F07", "F19", "F22", "F36"],
+    "group_ids": ["CSE-2", "Y1-A", "Y1-B", "Y1-C", "Y1-D"],
+    "room_ids": ["CR-102", "CR-103", "CR-201", "LH-3"],
+    "departments": ["CSE", "HSS", "MA", "PH"]
+  },
+  "engine": { "broken": 10, "evictions": 0, "depth": 0, "nodes": 148, "ms": 19, "stopped_by": "complete", "algorithm": "minimal-move repair (room, time, ejection chains ≤ 3)" },
+  "baseline_stability": null, // {sessions_moved, time_changed, room_only_changed} against the baseline schedule.json once a change is applied; null before (moved_count equals it then) and when infeasible
+  "approved_by": null, // set on applied
+  "decided_by": null, // the admin, the withdrawing requester, or "system" (stale, superseded)
   "decided_at": null,
-  "comment": null
+  "comment": null, // the decider's comment, "Superseded by CR-0004", or why it went stale ("The timetable changed (TT-0003 is active now); file it again.")
+  // "applied_seq": Mongo-only, added when applied: the apply order (the exported change file follows it)
+  "created_at": "2026-11-01T03:54:40+05:30",
+  "updated_at": "2026-11-01T03:54:41+05:30"
 }
 ```
 
-The `changes[]` items use the **exact starter-pack disruption format** (`faculty_unavailable`, `room_unavailable`, `add_faculty`, `add_session`, `remove_session`), so an uploaded change file, a form and the AI assistant all produce the same object.
+The `changes[]` items use the **exact starter-pack disruption format** (`faculty_unavailable`, `room_unavailable`, `add_faculty`, `add_session`, `remove_session`), so an uploaded change file, a form and the AI assistant all produce the same object. Before parsing, `changes[]` and `placements[]` are checked against `REQUEST_LIMITS` (ids ≤ 64 characters, other strings ≤ 500, nesting ≤ 6, no `$`/`.`/NUL field names and none of the stored records' own fields such as `_id` or `seq`; full list in [api.md](./api.md#request-limits)), so a request can't store huge or oddly keyed values. Indexes: `{status: 1}`, `{requested_by: 1}`, `{base_version: 1, status: 1}` (pending proposals built on one version), `{"scope.departments": 1}` and `{"scope.faculty_ids": 1}` (the list's visibility filter, applied in the query as an `$or` on requester, department and faculty id), `{created_at: -1}` (newest first). The ids are `CR-0001…`.
+
+**Applied changes live in the reference data.** Approval writes a request's `changes` into the reference collections (§5.2: appended documents with `origin: "disruption"` and `change_request_id`, soft-removed sessions with `removed_by`, faculty `unavailable` lists replaced), so the stored dataset equals `applyDisruption(before, changes)` and every later run (generation, Spectra, the next change) sees the changed data. Mongo here has no multi-collection transactions (standalone locally), so each write is snapshotted first and every insert recorded, and an approval ends either fully applied or fully rolled back (§7.3).
+
+**`baselines`** (singleton `_id: "schedule"`): `{ schedule: ScheduleExport, version_id, dataset_id, change_request_id, captured_at, captured_by }`, i.e. `schedule.json` exactly as it stood just before the first change request was applied. Captured by that approval, and only if `schedule.json` passes the export gate then (0 hard violations, exams included, and a decision for every dataset request; otherwise the approval is a `409 CONFLICT` and the request stays pending). Removed again if the approval rolls back. From then on `GET /api/export?file=schedule` serves this snapshot (checked against `datasets.raw`, the dataset as loaded) and `file=schedule_after` the live timetable, so the pair is exactly what `validator.py --disruption … --baseline schedule.json` compares. Reset and import clear it.
 
 **`users`**
 
@@ -568,13 +607,13 @@ Indexes: unique `email`; partial TTL on `unverified_expires_at` (unverified sign
 
 **`revoked_sessions`**: `{ _id: <jti>, expires_at }` with a TTL index. Logout revokes only that token; API guards check it and re-read the user on every request, and so does `getSessionUser()` (`src/lib/auth/server-session.ts`) for Server Components. A page whose session is rejected goes to `GET /api/auth/session-expired`, which clears the cookie before `/login` (avoiding a proxy redirect loop).
 
-**`locks`**: `{ _id: "dataset", token, acquired_at, expires_at }`. Single-flight lock taken by reset, import, generation, activation, exam generation, Spectra runs and booking writes (a concurrent call gets 409 `CONFLICT`; booking writes retry for up to 3 s first); a streamed generation holds it from before the stream opens until the run ends. It expires after 75 s (just above Vercel's 60 s route cap) so a crashed request can't wedge it.
+**`locks`**: `{ _id: "dataset", token, acquired_at, expires_at }`. Single-flight lock taken by reset, import, generation, activation, exam generation, Spectra runs, booking writes and change writes (propose, approve, reject; a concurrent call gets 409 `CONFLICT`; booking and change writes retry for up to 3 s first); a streamed generation holds it from before the stream opens until the run ends. It expires after 75 s (just above Vercel's 60 s route cap) so a crashed request can't wedge it.
 
 **`settings`** (singleton `_id: "app"`): `team` (defaults to `TEAM_NAME`; the export reads `settings.team`), `priority_order` (editable copy for the admin's priority editor, defaults to the dataset's; **every decision and the parse preview use `datasets.priority_order`**, because the official validator ranks priorities and inversions with the dataset's order), `llm_enabled`, `reference_date` (what "today/kal" resolves against, defaulting to the Monday before Week 7), `solver_seed`.
 
-**`audit_log`**: `{ actor, action, entity, entity_id, before?, after?, at }`. Every approve/reject/apply/reset is logged.
+**`audit_log`**: `{ actor, action, entity, entity_id, before?, after?, at }`. Every approve/reject/apply/reset is logged; change requests log `propose`, `approve`, `apply`, `reject` and `supersede`.
 
-**`ai_logs`**: `{ _id: "AI-…", feature: "parse_booking" | "assistant" | "explain", source: "llm" | "rules" | "template", model, prompt_id, input, output_raw, parsed_ok, repaired, cached, fallback_reason, assumptions, follow_up, engine_verdict, latency_ms, user_id, at }`: one per parse (including rule-parser fallbacks and cache hits, flagged `cached`) and one per model-phrased explanation. A submitted booking's AI provenance copies `assumptions`/`follow_up` from here, never from the request body. Entries expire after 30 days (TTL index). This backs the AI_USAGE declarations and `npm run ai-eval`.
+**`ai_logs`**: `{ _id: "AI-…", feature: "parse_booking" | "assistant" | "explain", source: "llm" | "rules" | "template", model, prompt_id, input, output_raw, parsed_ok, repaired, cached, fallback_reason, assumptions, follow_up, engine_verdict, latency_ms, user_id, at }`: one per parse (including rule-parser fallbacks and cache hits, flagged `cached`), one per assistant turn (`prompt_id: "assistant_intent.v1"`, with the engine's verdict such as `options:3` or `refused`) and one per model-phrased explanation or assistant reply. A submitted booking's AI provenance copies `assumptions`/`follow_up` from here, never from the request body. Entries expire after 30 days (TTL index). This backs the AI_USAGE declarations and `npm run ai-eval`.
 
 ### 5.4 Mongo ↔ API ↔ Export mapping (proof of no drift)
 
@@ -590,14 +629,15 @@ The exporter is a **projection** (`pick`), not a transformation, so there's noth
 ### 5.5 Reset and import
 
 - **Reset demo data** (Admin, `POST /api/admin/reset` or `npm run seed`): clear the working collections and settings, load the bundled `data/cit_public.json` (default) or, with `{"from":"stored"}` / `--stored`, re-import the last upload from `datasets.raw`; ensure indexes, re-seed the demo users, write default settings. Then `postResetPipeline` (`src/lib/services/reset.ts`) generates a timetable with `settings.solver_seed`, activates it (which runs Spectra decisions), and schedules exams, all inside the same lock. An infeasible solve leaves `timetable_version: null` instead of failing the reset. Target: under 15 s.
-- **Import** (`POST /api/admin/dataset`) accepts `cit_public.json`-shaped JSON (full replace). The whole file is validated with Zod before any write, including dangling references (sessions → faculty / groups / courses, exams → groups, room unavailability → rooms, mandatory groups, cancellations → requests; an unknown `requested_room` is allowed), and the UI shows `{ path, message }` issues. Import clears timetable versions, exam schedules, decisions, overrides and change requests, and resets the saved priority order to the new dataset's. Disruption files (becoming a `change_request` with `status: "proposing"`) come in Phase 5.
-- Reset, import and every schedule run share one dataset lock (`src/lib/db/locks.ts`, `locks` collection, 75 s expiry); an overlapping call gets `409 CONFLICT`. Timetable versions and exam schedules keep the active one plus the 20 newest inactive ones.
+- **Import** (`POST /api/admin/dataset`) accepts `cit_public.json`-shaped JSON (full replace). The whole file is validated with Zod before any write, including dangling references (sessions → faculty / groups / courses, exams → groups, room unavailability → rooms, mandatory groups, cancellations → requests; an unknown `requested_room` is allowed), and the UI shows `{ path, message }` issues. Import clears timetable versions, exam schedules, decisions, overrides, change requests and the export baseline (and, by replacing the reference collections, everything applied changes wrote), and resets the saved priority order to the new dataset's; reset clears the same.
+- **Change files** (starter-pack disruption format) are not imported: they are posted to `POST /api/changes` exactly as they are (`kind` defaults to `disruption`; the file's `id` is accepted and ignored) and become a `change_request` (`pending` with a draft timetable, or `infeasible` with a conflict report). Only an admin's approval writes them into the reference data (§5.3). A change file written for another dataset is accepted with a warning; unknown ids are a `400` with `{path, message}` issues.
+- Reset, import, every schedule run, booking write and change write share one dataset lock (`src/lib/db/locks.ts`, `locks` collection, 75 s expiry); an overlapping call gets `409 CONFLICT`. Timetable versions and exam schedules keep the active one plus the 20 newest inactive ones.
 
 ---
 
 ## 6. API catalogue
 
-All routes live under `src/app/api/`. Request and response bodies are the Zod contracts above. "Roles" = who may call it ("public" = no session; "any" = any signed-in role). **Status:** ✅ = implemented (details and real examples in [api.md](./api.md)); P3 / P4 / P5 = planned for that phase.
+All routes live under `src/app/api/`. Request and response bodies are the Zod contracts above. "Roles" = who may call it ("public" = no session; "any" = any signed-in role). **Status:** ✅ = implemented (details and real examples in [api.md](./api.md)); — = not available. Every planned route is built at the end of Phase 5 except Google sign-in (`/api/auth/google` always redirects; §9).
 
 | Route                                                                 | Method             | Roles                                                      | Request → Response                                                                                                                                                                                                      | Status  |
 | --------------------------------------------------------------------- | ------------------ | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-----: |
@@ -613,10 +653,10 @@ All routes live under `src/app/api/`. Request and response bodies are the Zod co
 | `/api/admin/dataset`                                                  | POST (JSON ≤ 2 MB) | admin                                                      | `Dataset` (refs checked) → `ImportReport` (counts, cleared working state); `409` if busy                                                                                                                                |   ✅    |
 | `/api/timetable/generate`                                             | POST (JSON or SSE) | admin                                                      | `{seed?, time_budget_ms?, activate?}` → `GenerateTimetableResult` (draft unless `activate`); `Accept: text/event-stream` streams `progress` (`SolverProgress`) then `result` / `error`; `422 INFEASIBLE`, `409` if busy |   ✅    |
 | `/api/timetable/versions`                                             | GET                | admin                                                      | → `TimetableVersionSummary[]` (newest first, no assignments)                                                                                                                                                            |   ✅    |
-| `/api/timetable/versions/:id/activate`                                | POST               | admin                                                      | → `ActivateTimetableResult` (`{version, spectra}`); re-checked against the current dataset (`STALE_VERSION`, `HARD_CONSTRAINT`); re-runs Spectra                                                                        |   ✅    |
+| `/api/timetable/versions/:id/activate`                                | POST               | admin                                                      | → `ActivateTimetableResult` (`{version, spectra}`); re-checked against the current dataset (`STALE_VERSION`, `HARD_CONSTRAINT`); re-runs Spectra (restores the previous version and Spectra state if the save fails); rejects pending change requests built on another version (`CONFLICT` for a change request's own draft) |   ✅    |
 | `/api/timetable?view=group\|faculty\|room&id=…&week=regular\|spectra` | GET                | any (read-only, every view)                                | → `TimetableView` (cells + Spectra bookings; `version_id: null` before generation)                                                                                                                                      |   ✅    |
 | `/api/timetable/check`                                                | POST               | any                                                        | `{assignments: Assignment[]}` (what-if) → `{violations, soft_penalty, soft_delta}` for the merged timetable                                                                                                             |   ✅    |
-| `/api/manual/place`                                                   | POST               | admin, coordinator (own dept)                              | `Assignment` → `ChangeRequest` (pending) or `HARD_CONSTRAINT`                                                                                                                                                           |   P5    |
+| `/api/manual/place` | POST | admin, coordinator (own dept) | `ManualPlacementRequest` (`{session_id, day, start_period, room_id, repair?, description?}`) → `ChangeRequest` (201, `manual_edit`, waiting for approval); without `repair` a slot that isn't free → `409 HARD_CONSTRAINT` (nothing stored); with `repair` blockers move (fewest moves) | ✅ |
 | `/api/rooms/available`                                                | GET                | any                                                        | `day, from_period, to_period, use? (event), min_capacity?, needs?, types?, accessible?` → `RoomAvailability[]`                                                                                                          |   ✅    |
 | `/api/bookings/parse`                                                 | POST               | any                                                        | `{text}` → `ParseBookingResult`: editable draft (`missing[]`, assumptions, follow-up), category (role cap; claim reported), room note, engine preview; one `ai_logs` entry                                              |   ✅    |
 | `/api/bookings`                                                       | GET / POST         | any                                                        | `?scope=mine\|all\|approvals` → `BookingView[]` / `CreateBookingRequest` → `CreateBookingResult` (201; re-decides all requests, reports bumps)                                                                          |   ✅    |
@@ -627,19 +667,21 @@ All routes live under `src/app/api/`. Request and response bodies are the Zod co
 | `/api/spectra`                                                        | GET                | any                                                        | stored decisions + overrides + booking stats of the active version → `SpectraState` (approver ids for admins only)                                                                                                      |   ✅    |
 | `/api/exams/generate`                                                 | POST               | admin                                                      | → `ExamSchedule` (activated)                                                                                                                                                                                            |   ✅    |
 | `/api/exams`                                                          | GET                | any                                                        | → active `ExamSchedule` or `null`                                                                                                                                                                                       |   ✅    |
-| `/api/changes`                                                        | GET / POST         | any / admin, coordinator, faculty                          | list / `{kind, changes[]}` → `ChangeRequest` (with proposal or conflicts)                                                                                                                                               |   P5    |
-| `/api/changes/:id/approve` · `/reject`                                | POST               | admin (never the requester)                                | `{comment?}` → `ChangeRequest`                                                                                                                                                                                          |   P5    |
-| `/api/assistant`                                                      | POST               | faculty, coordinator, admin                                | `{message, thread_id?}` → `AssistantReply` (text + verified `options[]`)                                                                                                                                                |   P5    |
-| `/api/explain`                                                        | POST               | any                                                        | `{subject: "session"\|"booking"\|"change", id}` → `{facts, text}`                                                                                                                                                       |   P5    |
-| `/api/export?file=schedule\|schedule_after`                           | GET                | admin                                                      | → `ScheduleExport` download; `409 HARD_CONSTRAINT` if the validator port finds a hard violation, `409 CONFLICT` if Spectra decisions are missing. `schedule_after` arrives in P5                                        | ✅ / P5 |
-| `/api/validate`                                                       | GET                | admin                                                      | → `ValidatorReport` of the current export projection (same sections as `validator.py`)                                                                                                                                  |   ✅    |
+| `/api/changes` | GET / POST | admin, coordinator, faculty (within scope; club `403`, checked before the body) | `?scope=all\|mine\|pending&status=` → `ChangeRequest[]` (what the user may see, filtered in the query, newest 100) / `ChangeProposalRequest` (`{kind?, id?, changes[], placements[], description?, dataset?, nl_prompt?}`; `kind` defaults to `disruption`, so a starter-pack change file is accepted as it is, its `id` ignored; request limits checked before parsing) → `ChangeRequest` (201: `pending` with `diff`, stability counts, `baseline_stability` and a draft version, or `infeasible` with `conflicts`); at most 20 open (pending + infeasible) per user on the active timetable | ✅ |
+| `/api/changes/preview` | POST | admin, coordinator, faculty (within scope) | `ChangeProposalRequest` → `ChangePreview` (the proposal + `base_version`; nothing stored, no lock) | ✅ |
+| `/api/changes/:id` | GET | admin; requester; coordinator / faculty it touches | → `ChangeRequest` (`404` when not visible) | ✅ |
+| `/api/changes/:id/approve` · `/reject` | POST | approve: admin only (their own request only for a `disruption` or `manual_edit` they filed as admin; anything else they filed: `SELF_APPROVAL`) · reject: admin or the requester (withdraw) | `{comment?}` → `ChangeApplyResult` (`{change, version_id, superseded}`: verify + write the changes + activate, all or nothing; `STALE_VERSION` / `HARD_CONSTRAINT`; `CONFLICT` on the first approval while `schedule.json` isn't exportable) · → `ChangeRequest` (rejected, draft deleted) | ✅ |
+| `/api/assistant` | POST | faculty, coordinator, admin | `{message, session_id?}` → `AssistantReply` (intent, text, `candidates`, engine-verified `options[]` each with a `proposal` for `POST /api/changes`, `conflicts`, `follow_up`, `assumptions`, `facts`); stores only an `ai_logs` entry | ✅ |
+| `/api/explain` | POST | any (booking: as `/api/bookings/:id`; change: as `/api/changes/:id`, `404` when not visible) | `{subject: "session"\|"booking"\|"change", id}` → `ExplainResult` (`{subject, id, text, source, facts}`, a union on `subject`: `SessionFacts`, the booking's facts or `ChangeFacts`; a change is always the template) | ✅ |
+| `/api/export?file=schedule\|schedule_after\|disruption` | GET | admin | → the file (`schedule.json`: live, or the baseline once a change is applied · `schedule_after.json`: after the applied changes · `disruption.json`: the applied changes in order); `409 HARD_CONSTRAINT` if the validator port finds a hard violation, `409 CONFLICT` if Spectra decisions are missing or no change is applied yet | ✅ |
+| `/api/validate?file=schedule\|schedule_after` | GET | admin | → `ValidatorReport` of what the export would serve (same sections as `validator.py`; `schedule_after` adds `stability`) | ✅ |
 | `/api/dashboard`                                                      | GET                | any (role-aware)                                           | → `Dashboard`: timetable/exam coverage, bookings (incl. booking score), pending approvals, mine, utilisation matrix                                                                                                     |   ✅    |
 | `/api/settings`                                                       | GET / PATCH        | any / admin                                                | → `Settings` / `SettingsPatch` (`team, priority_order, llm_enabled, reference_date, solver_seed`) → `Settings`                                                                                                          |   ✅    |
 | `/api/reference`                                                      | GET                | any                                                        | → `ReferenceData`: calendar, rooms, room maintenance, faculty, groups, courses, sessions, exams, Week-7 requests (names for the UI)                                                                                     |   ✅    |
 
 The four account-form routes (`login`, `signup`, `verify-otp`, `resend-otp`) answer errors as `{ ok: false, error: "message", code, details? }` for the CIT Nexus forms; every other route uses the §4.5 envelope. Unknown `/api/*` paths get Next's default 404 (or the proxy's 401 when signed out).
 
-Long-running routes (`admin/reset`, `admin/dataset`, `timetable/generate`, `timetable/versions/:id/activate`, `exams/generate`, `spectra/run`, and later `reschedule`) set `export const maxDuration = 60`. The solver stops on a deterministic iteration budget (or as soon as it reaches its proven lower bound), with `SOLVER_TIME_BUDGET_MS` (default 8000, at most 30000) as a safety cap on active solver time, so it's safe on Vercel. Schedule runs share a rate limit (30 per admin, 60 per IP per 10 minutes) because the demo admin is public and every run stores data.
+Long-running routes (`admin/reset`, `admin/dataset`, `timetable/generate`, `timetable/versions/:id/activate`, `exams/generate`, `spectra/run`, `POST /api/changes`, `changes/preview`, `changes/:id/approve`, `manual/place`, `assistant`) set `export const maxDuration = 60`. The solver stops on a deterministic iteration budget (or as soon as it reaches its proven lower bound), with `SOLVER_TIME_BUDGET_MS` (default 8000, at most 30000) as a safety cap on active solver time, so it's safe on Vercel. Schedule runs share a rate limit (30 per admin, 60 per IP per 10 minutes) because the demo admin is public and every run stores data. The rescheduler has its own budgets (200,000 search nodes and a 4 s safety cap per proposal), and change runs share a limit of 30 per user and 120 per IP per 10 minutes (§9).
 
 **Generation progress (SSE).** Progress streams from the same `POST /api/timetable/generate`, not a separate GET: a mutating GET would bypass the proxy's Origin check and can't carry a body. With `Accept: text/event-stream` the route takes the dataset lock first (a busy lock is a plain `409`), then streams `event: progress` frames (`SolverProgress`), and finally one `event: result` (`GenerateTimetableResult`) or `event: error` (`{code, message, details?}`). The browser reads it with `fetch` and a stream reader (`EventSource` can't POST).
 
@@ -669,7 +711,8 @@ sequenceDiagram
   S->>DB: insert timetable_versions (draft)
   opt activate
     S->>E: checkTimetable + decideBookings (self-checked)
-    S->>DB: draft → active, old → superseded; booking_decisions, session_overrides (tagged)
+    S->>DB: snapshot Spectra state; draft → active, old → superseded; booking_decisions, session_overrides (tagged); on failure restore both
+    S->>DB: best-effort: audit_log, pending change requests on another version → rejected ("The timetable changed …")
   end
   API-->>UI: (SSE result) GenerateTimetableResult {version, activated, spectra}
   Note over S,DB: Exams come from POST /api/exams/generate or the reset pipeline
@@ -702,24 +745,42 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-  actor K as Coordinator
-  actor A as Admin
+  actor A as Admin (or Coordinator / Faculty, within scope)
+  actor D as Admin (approver)
   participant API as /api/changes
+  participant S as changes + change-apply
   participant R as Rescheduler (engine)
   participant DB
-  K->>API: upload sample_disruption.json
-  API->>R: repair(active TT, changes)
-  alt fix found
-    R-->>API: new assignments, diff (4 moved), 0 hard
-    API->>DB: change_requests{pending}, timetable_versions{draft}
+  A->>API: POST the change file as it is ({id, dataset, description, changes}, kind defaults to disruption)
+  API->>API: role (club → 403), change-run quota, request limits on the raw body (→ 400), parse
+  API->>S: kind check, take the dataset lock (wait ≤ 3 s)
+  S->>S: validateChanges (unknown ids → 400), scope check (→ 403), open-request cap (20 pending + infeasible → 409)
+  S->>R: reschedule(dataset, active TT, changes, placements)
+  R->>R: applyDisruption · keep every slot that still holds · re-place broken ones (room only → other start → ejection chain ≤ 3) · checkTimetable
+  alt fix found (0 hard)
+    R-->>S: assignments, diff (9 moved: 0 time, 9 room only), soft 3 → 3
+    S->>DB: change_requests {pending} + timetable_versions {draft, change_request_id}
   else no valid fix
-    R-->>API: conflicts: [{session, blocking: [H2 F06 busy, H12 F06 at 4h, H3 CSE-2 busy]}]
-    API->>DB: change_requests{infeasible}
+    R-->>S: conflicts [{session_id, blocking [{rule, count}], contradictions, summary}]
+    S->>DB: change_requests {infeasible}
   end
-  A->>API: POST /changes/CR-0001/approve
-  API->>API: guard: approver ≠ requester, base_version still active
-  API->>DB: draft → active, old → superseded, audit_log
+  API-->>A: 201 ChangeRequest (diff view / conflict report)
+  D->>API: POST /changes/CR-0001/approve {comment?}
+  API->>API: admin? (else 403, before the quota is counted), change-run quota
+  API->>S: lock, then: own request? only a disruption or manual_edit filed as admin (else SELF_APPROVAL) · still pending?
+  S->>S: draft already active? (an earlier approval switched but couldn't record it → just record it)
+  S->>S: base_version still active? (else reject + 409 STALE_VERSION)
+  S->>R: re-verify from scratch: applyDisruption(current data) + checkTimetable(draft) + placements held (else 409 HARD_CONSTRAINT)
+  S->>DB: baselines ← schedule.json (first applied change only; must pass the export gate, else 409 CONFLICT)
+  S->>DB: write changes into reference collections (snapshots kept for undo)
+  S->>DB: activate draft (re-check + Spectra re-run)
+  S->>DB: CR → applied (applied_seq), then best-effort: audit_log, other pending → rejected "Superseded by CR-0001"
+  API-->>D: ChangeApplyResult {change, version_id, superseded}
 ```
+
+**Recovery (all or nothing).** If writing the changes or activating fails, `recoverFailedApply` checks which version is active: the proposed one → the change is live, Spectra is re-run for it and the approval is recorded; none → the previous version is activated again, then the dataset writes are undone; the previous one → the dataset writes are undone. When rolled back, a baseline this approval captured is removed and the request stays `pending`. Activation itself snapshots the stored Spectra state (decisions, overrides, request states) and restores it, with the previous version, if its own save fails.
+
+`POST /api/changes/preview` runs the same steps up to the proposal without the lock and without storing anything. `POST /api/manual/place` files a `manual_edit` with one placement: without `repair` the engine's `checkPlacement` must find the slot free (else `409 HARD_CONSTRAINT`, nothing stored) and no other session may move; with `repair` the rescheduler moves whatever is in the way. After an approval, `GET /api/export?file=schedule` keeps serving the baseline and `file=schedule_after` the live timetable.
 
 ### 7.4 Faculty AI assistant
 
@@ -727,17 +788,23 @@ sequenceDiagram
 sequenceDiagram
   actor F as Faculty (F06)
   participant AS as /api/assistant
-  participant G as Gemini
+  participant G as Gemini (or rule parser)
   participant E as Engine
-  F->>AS: "Can I move my Friday 3pm CS202 lecture to Thursday morning?"
-  AS->>G: extract intent → ChangeIntent JSON (move_session, session hint, target window)
-  AS->>AS: resolve session id from F06's own sessions (code, not LLM)
-  AS->>E: enumerate valid targets + minimal-move repairs
-  E-->>AS: options [THU P2 LH-3 (0 other moves), THU P4 CR-201 (1 move)] or conflicts
-  AS->>G: phrase reply from facts (no new facts allowed)
-  AS-->>F: text + option cards ✓ "Verified by constraint engine"
-  F->>AS: "Submit option 1" → ChangeRequest (pending admin)
+  participant CH as /api/changes
+  F->>AS: "Can I move my Friday CS202 lecture to Thursday morning?"
+  AS->>G: extract intent (GEMINI_MODEL_FAST, AssistantIntentLLM schema, 1 repair retry, rule parser when AI is off or fails)
+  G-->>AS: {intent: move_session, session: {course_id: CS202, kind: lecture, day: FRI}, target: {days: [THU], periods: [1..5]}}
+  AS->>AS: resolve the session in F06's own sessions (code, not LLM) → CS202-L2 (several matches → candidates + question)
+  AS->>E: suggestMoves(CS202-L2, THU P1–P5): each option = full minimal-move repair with CS202-L2 pinned
+  E-->>AS: options [THU P1 CR-104 (2 moved), THU P2 CR-104 (2 moved), …] or conflicts
+  AS->>AS: build each option with computeProposal, as POST /api/changes does (checks, scope, rescheduler, validateDataset, self-check), drop any that filing would refuse or find infeasible
+  AS->>G: phrase the reply from the facts (GEMINI_MODEL_SMART, used only if it passes the fact checks, else the template)
+  AS-->>F: text + option cards (verified: true) + assumptions ("'morning' read as P1–P5")
+  F->>CH: POST option.proposal ({kind: "faculty_request", placements: [CS202-L2 THU P1 CR-104]})
+  CH-->>F: ChangeRequest (recomputed from scratch, pending for an admin)
 ```
+
+The same turn handles "I'm away on Monday" (`mark_unavailable` → one `unavailability` option showing which classes would move), "I need an extra CS202 tutorial" (`add_session` → an `add_session` change modelled on an existing session, with placements) and "why is CS202 at 8 AM?" (`explain_session` → the engine's `SessionFacts`). Nothing is stored except `ai_logs`; with AI off the rule parser and templates do the whole job.
 
 ---
 
@@ -770,17 +837,29 @@ The export and its booking score cover dataset requests only. `schedule.json` ne
 
 ```mermaid
 stateDiagram-v2
-  [*] --> proposing: upload / form / assistant
-  proposing --> pending: rescheduler found fix (0 hard)
-  proposing --> infeasible: no fix → conflict report
-  pending --> approved: Admin (≠ requester)
-  pending --> rejected: Admin
-  approved --> applied: draft version activated
-  pending --> rejected: base_version superseded (STALE_VERSION)
-  infeasible --> [*]
+  [*] --> pending: filed (POST /api/changes, manual/place, an assistant option) and the rescheduler found a fix (0 hard)
+  [*] --> infeasible: no valid fix → conflict report
+  pending --> applied: Admin approves → verify again, write changes, activate the draft
+  pending --> rejected: Admin rejects, or the requester withdraws
+  pending --> rejected: system - another change was applied (Superseded by CR-…)
+  pending --> rejected: system - another version was activated directly (The timetable changed …)
+  pending --> rejected: system - base_version no longer active at approval (STALE_VERSION)
+  infeasible --> rejected: Admin rejects, or the requester withdraws
   applied --> [*]
   rejected --> [*]
 ```
+
+A proposal is computed under the dataset lock before it is stored, so there is no stored `proposing` state, and approval applies it in the same call, so there is no stored `approved` state (both values stay in `ChangeStatus` but are never written). A `pending` request whose re-check fails at approval (`409 HARD_CONSTRAINT`) stays `pending`; so does the first approval while `schedule.json` isn't exportable (`409 CONFLICT`), and one whose apply step rolls back (its dataset writes are undone). Only `pending` and `infeasible` requests can be rejected; rejecting deletes the draft. `decided_by` is the admin, the withdrawing requester, or `"system"` (superseded or stale; audit action `supersede` when a newly active version made it stale).
+
+**Approval policy** (`src/lib/services/change-scope.ts`):
+
+- Only an admin approves, and approval is always an explicit call after the diff has been shown (`POST /api/changes/:id/approve`); filing never applies anything.
+- **An admin's own change file or manual edit** (`kind` `disruption` or `manual_edit`, filed as admin) may be approved by that admin. Loading change files and placing sessions are the Admin's own actions (problem statement §2.5, §2.9, §2.10), the demo has one admin account, and the judges use it for both; the request still stops at `pending` until that admin has reviewed the diff and approved it (`ADMIN_ACTION_KINDS`).
+- **An admin's own `faculty_request` or `unavailability`** (filed through the assistant or the request forms) is a request like anyone's: approving it gives `403 SELF_APPROVAL`.
+- A request filed by a coordinator or faculty member is never approved by its requester (`403 SELF_APPROVAL`). `requested_by_role` keeps this exact: if that account later becomes an admin, its old requests still can't be self-approved.
+- Requesters may withdraw (reject) their own requests; only an admin rejects anyone else's.
+- One applied change at a time per base: whenever a new version becomes active, every `pending` request built on another version is rejected, since its diff was computed against a timetable that is no longer live. After an approval the comment is "Superseded by CR-0001"; after a direct activation (`versions/:id/activate`, `generate` with `activate`) it is "The timetable changed (TT-0003 is active now); file it again." Both are best-effort and never fail the approval or activation. The requester files again and gets a fresh proposal.
+- A draft version belonging to a change request can only go live through that approval (never through `versions/:id/activate`), because approval also writes the request's changes into the dataset.
 
 ---
 
@@ -816,6 +895,11 @@ stateDiagram-v2
   | schedule runs       | `generate`, `activate`, `exams/generate`, `spectra/run` together: 30 per admin, 60 per IP      |
   | booking parser      | `bookings/parse`: 30 per user, 120 per IP                                                      |
   | booking writes      | submit, cancel, decide together: 30 per user, 120 per IP                                       |
+  | change runs         | `POST /api/changes`, `changes/preview`, `manual/place`, `changes/:id/approve` · `/reject` together: 30 per user, 120 per IP |
+  | assistant           | `POST /api/assistant`: 30 per user, 120 per IP (each turn may cost up to two LLM calls)         |
+  | explanations        | `POST /api/explain`: 60 per user. Model-phrased explanations (`bookings/:id`, `explain` for sessions, assistant replies) share 30 per user; past it the template is shown, never a 429 |
+
+  The role is checked before any quota: a club's `POST /api/changes` / `preview` and a non-admin's approve get `403` without using change-run quota.
 
 - **Error shape:** `login`, `signup`, `verify-otp` and `resend-otp` answer errors as `{ ok: false, error: "message", code, details? }` (the CIT Nexus forms show `error` as one line); everything else uses the §4.5 envelope. Codes added for accounts and data: `RATE_LIMITED` (429), `EMAIL_TAKEN` (409), `CONFLICT` (409), `MAIL_UNAVAILABLE` (503).
 
@@ -832,16 +916,24 @@ stateDiagram-v2
 | Generate timetable & exams, run Spectra decisions      |  ✅   |        —         |          —          |          —          |
 | Change priority order, toggle LLM                      |  ✅   |        —         |          —          |          —          |
 | View all timetables (group / faculty / room)           |  ✅   |        ✅        |      ✅ (read)      |      ✅ (read)      |
-| Request change to a session                            |  ✅   |     own dept     |    own sessions     |          —          |
+| Load a change file (`disruption` change request)       |  ✅   |   own dept only  |          —          |          —          |
+| Request change to a session (move, extra session)      |  ✅   |     own dept     |    own sessions     |          —          |
 | Mark unavailability                                    |  ✅   | own dept faculty |        self         |          —          |
 | Manual placement (hard-checked)                        |  ✅   |     own dept     |          —          |          —          |
-| Approve timetable changes / bookings that move a class | ✅\*  |        —         |          —          |          —          |
+| Preview a change (nothing stored)                      |  ✅   |     own dept     |    own sessions     |          —          |
+| See change requests                                    |  all  | own + touching own dept | own + touching them |   —    |
+| Approve (apply) timetable changes                      | ✅†   |        —         |          —          |          —          |
+| Reject a change request                                |  ✅   |  withdraw own    |    withdraw own     |          —          |
+| Approve bookings that move a class                     | ✅\*  |        —         |          —          |          —          |
 | Approve bookings of own dept's labs                    | ✅\*  |       ✅\*       |          —          |          —          |
 | Submit / cancel venue requests                         |  ✅   | ✅ (dept events) | ✅ (guest lectures) |  ✅ (club events)   |
-| Use AI assistant                                       |  ✅   |        ✅        |         ✅          | booking parser only |
+| Use AI assistant (move, unavailability, extra session, why?) |  ✅   |  ✅ (own dept)   |    ✅ (own sessions)  | booking parser only |
+| "Why?" explanations (`POST /api/explain`)              |  ✅   |  ✅ (any session; bookings and changes they may see) | ✅ (same) | ✅ (same) |
 | View Spectra decisions and reference data              |  ✅   |        ✅        |         ✅          |         ✅          |
 
 \* never their own request (`SELF_APPROVAL`).
+
+† only admins approve. An admin may approve their own request only when it is a change file or manual edit (`kind` `disruption` or `manual_edit`) they filed as admin, and only through an explicit approve after reviewing the diff. Their own `faculty_request` or `unavailability` (assistant or request forms), and anything filed under another role (`requested_by_role`), is `SELF_APPROVAL`. See §8.
 
 ---
 
@@ -873,8 +965,8 @@ NEXT_PUBLIC_APP_URL="https://<your-app>.vercel.app"  # optional; absolute public
 DEMO_LOGIN_ENABLED="true"          # one-click demo sign-in; false turns it off (403)
 # AI (Gemini)
 GEMINI_API_KEY="<your key>"
-GEMINI_MODEL_FAST="gemini-3.8-flash"   # booking parser (default when unset: gemini-3.8-flash)
-GEMINI_MODEL_SMART="gemini-3.8-flash"  # booking explanations (same default)
+GEMINI_MODEL_FAST="gemini-3.8-flash"   # booking parser, assistant intents (default when unset: gemini-3.8-flash)
+GEMINI_MODEL_SMART="gemini-3.8-flash"  # explanations, assistant replies (same default)
 LLM_ENABLED="true"                   # false = rule-based parser + template explanations (also off without a key)
 LLM_TIMEOUT_MS="8000"
 # Solver
@@ -908,11 +1000,12 @@ Empty values and `<placeholder>` values count as unset. All of these are validat
 | Test                 | Tool                                                                   | What it proves                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | -------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Validator parity** | `npm run parity` (`scripts/parity.ts` + the unmodified `validator.py`) | Our TS engine and the official validator produce identical reports (violations in order, soft penalties, booking stats, exam penalty, stability, warnings) on 78 cases: `schedule.example.json`, a synthetic full schedule with and without the fest week, edge cases, 50 seeded mutations, 10 disruption runs (sample change file + one covering all five change types) and 13 runs on a dataset variant. Runs in CI on every push. **This is the most important test.** |
-| Golden exports       | `npm run validate` in CI (official `validator.py`)                     | `exports/schedule.json` (from `npm run export`) → 0 hard, booking score logged; `--after` for `schedule_after.json` with `--disruption --baseline` (Phase 5). Service tests run the validator port on the export projection.                                                                                                                                                                                                                                              |
+| Golden exports       | `npm run validate` in CI (official `validator.py`)                     | `exports/schedule.json` (from `npm run export`) → 0 hard, booking score logged; `--after` for `schedule_after.json` (from `npm run export -- --after`) with `--disruption data/sample_disruption.json --baseline exports/schedule.json` → 0 hard, stability printed. Service tests run the validator port on the export projections, and the route test runs the official validator on the app's `schedule_after.json` when Python is available.                                                                                                                                                                                                                                              |
 | Engine units         | Vitest                                                                 | Each hard rule H1–H14 has a passing and a failing fixture. Basket and lunch-crossing edge cases are covered.                                                                                                                                                                                                                                                                                                                                                              |
 | Data and API         | Vitest + MongoDB                                                       | Repositories, import/reset, auth flows, guards, proxy rules and route handlers against throwaway databases (a local `mongod`, or the CI MongoDB service).                                                                                                                                                                                                                                                                                                                 |
 | Booking engine       | Vitest                                                                 | The dataset-trap table in [backend.md §4](./backend.md#4-dataset-traps--expected-handling) as assertions (Phase 4)                                                                                                                                                                                                                                                                                                                                                        |
-| AI eval              | `scripts/ai-eval.ts`                                                   | 25 `raw_text` → compare parsed fields to the dataset's structured fields. 8 `sample_requests.md` plus an adversarial set. Accuracy is printed per field. (Phase 4)                                                                                                                                                                                                                                                                                                        |
+| Rescheduler          | Vitest                                                                 | Every change type, pins, baskets, fixed slots and ejection chains; a seeded fuzz of 150 change lists on the public data (each feasible result has 0 hard violations, honoured pins and the validator's stability counts; each infeasible one has a conflict report); a basket fuzz of 30 seeded cases against a small exhaustive search (never more moves than a fix that moves only the broken sessions), plus three QA reproductions that now hit their lower bounds (2, 4 and 6 moves); the sample disruption end to end through the API (propose → approve → exports). |
+| AI eval              | `scripts/ai-eval.ts`                                                   | 25 `raw_text` → compare parsed fields to the dataset's structured fields. 8 `sample_requests.md` plus an adversarial set. Accuracy is printed per field. Plus 63 assistant messages (intent kind and 208 field checks).                                                                                                                                                                                                                                                                                                        |
 | Smoke (deployed)     | Manual checklist                                                       | All 4 demo logins work, reset works, LLM-off booking works, export downloads                                                                                                                                                                                                                                                                                                                                                                                              |
 
 CI (GitHub Actions, `.github/workflows/ci.yml`, with a `mongo:7` service container): `npm run lint` → `npm run typecheck` → `npm test` → `npm run build` → `npm run parity` → `npm run validate` and `npm run validate -- --after` when `exports/schedule.json` / `schedule_after.json` exist (`validate` runs the official `CrunchWeek_StarterPack/validator.py`).

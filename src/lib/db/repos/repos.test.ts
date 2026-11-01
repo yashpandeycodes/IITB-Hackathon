@@ -6,7 +6,7 @@ import type {
   StoredBookingDecision,
   StoredSessionOverride,
 } from "@/lib/contracts";
-import { COLLECTION_NAMES } from "../collections";
+import { COLLECTION_NAMES, COLLECTIONS } from "../collections";
 import { ensureIndexes, INDEXES } from "../indexes";
 import { appendAuditLog, listAuditLog } from "./audit-log";
 import {
@@ -18,9 +18,18 @@ import {
   upsertBookingDecision,
 } from "./booking-decisions";
 import {
+  BASELINE_ID,
+  deleteBaseline,
+  getBaseline,
+  insertBaselineIfMissing,
+} from "./baselines";
+import {
+  countChangeRequests,
   countChangeRequestsByStatus,
+  deleteChangeRequest,
   getChangeRequest,
   insertChangeRequest,
+  listAppliedChangeRequests,
   listChangeRequests,
   updateChangeRequest,
   type NewChangeRequest,
@@ -32,10 +41,17 @@ import {
 } from "./exam-schedules";
 import { nowIso, stripMeta } from "./meta";
 import {
+  deleteReferenceDocs,
+  findReferenceDocs,
   getRoom,
+  insertReferenceDocs,
   listRooms,
   listSessions,
+  markSessionsRemoved,
+  maxReferenceSeq,
   replaceReferenceData,
+  restoreReferenceDocs,
+  setFacultyUnavailable,
   type ReferenceDocs,
 } from "./reference";
 import {
@@ -50,10 +66,12 @@ import { clearSpectraState } from "./spectra";
 import { openTestDb } from "./test-db";
 import {
   activateTimetableVersion,
+  deleteDraftTimetableVersion,
   getActiveTimetableVersion,
   getTimetableVersion,
   insertTimetableVersion,
   listTimetableVersions,
+  pruneInactiveTimetableVersions,
   type NewTimetableVersion,
 } from "./timetable-versions";
 
@@ -123,24 +141,53 @@ const override: StoredSessionOverride = {
   timetable_version: "TT-0001",
 };
 
-const changeRequest = (requested_by = "u_coord"): NewChangeRequest => ({
+const changeRequest = (
+  requested_by = "u_coord",
+  overrides: Partial<NewChangeRequest> = {},
+): NewChangeRequest => ({
   kind: "disruption",
   requested_by,
+  requested_by_role: "department_coordinator",
   changes: [{ type: "remove_session", session_id: "S1" }],
+  placements: [],
+  description: null,
+  nl_prompt: null,
   base_version: "TT-0001",
   proposed_version: null,
   status: "pending",
+  feasible: true,
+  title: "remove S1",
+  warnings: [],
   diff: [],
   moved_count: 0,
   time_changed: 0,
   room_only_changed: 0,
+  soft_penalty: ZERO_SOFT,
   soft_delta: 0,
   hard_violation_count: 0,
   conflicts: [],
-  nl_prompt: null,
+  scope: {
+    session_ids: ["S1"],
+    faculty_ids: [],
+    group_ids: [],
+    room_ids: [],
+    departments: [],
+  },
+  baseline_stability: null,
+  engine: {
+    broken: 0,
+    evictions: 0,
+    depth: 0,
+    nodes: 0,
+    ms: 0,
+    stopped_by: "complete",
+    algorithm: "test",
+  },
   approved_by: null,
+  decided_by: null,
   decided_at: null,
   comment: null,
+  ...overrides,
 });
 
 describe("meta helpers", () => {
@@ -508,6 +555,173 @@ describe.skipIf(!testDb)("repositories (MongoDB)", () => {
     expect(
       (await listChangeRequests(db, { requested_by: "u_faculty" })).length,
     ).toBe(1);
+  });
+
+  it("filters change requests by base version, lists applied ones in apply order and deletes", async () => {
+    const a = await insertChangeRequest(db, changeRequest("u_a"));
+    const b = await insertChangeRequest(
+      db,
+      changeRequest("u_b", { base_version: "TT-0002" }),
+    );
+    const c = await insertChangeRequest(db, changeRequest("u_a"));
+    expect(
+      (await listChangeRequests(db, { base_version: "TT-0001" })).map(
+        (cr) => cr.id,
+      ),
+    ).toEqual([c.id, a.id]);
+    expect(
+      await countChangeRequests(db, { requested_by: "u_a", status: "pending" }),
+    ).toBe(2);
+
+    // Applied out of id order: the list follows the apply order, not the ids.
+    for (const id of [c.id, a.id]) {
+      await updateChangeRequest(
+        db,
+        id,
+        { status: "applied" },
+        { expectStatus: "pending", markApplied: true },
+      );
+    }
+    expect((await listAppliedChangeRequests(db)).map((cr) => cr.id)).toEqual([
+      c.id,
+      a.id,
+    ]);
+    // `applied_seq` is Mongo-only: reads still parse as the strict contract.
+    expect(await getChangeRequest(db, c.id)).toMatchObject({
+      id: c.id,
+      status: "applied",
+    });
+
+    await deleteChangeRequest(db, b.id);
+    expect(await getChangeRequest(db, b.id)).toBeNull();
+  });
+
+  it("never prunes the draft of a pending change request, and deletes only drafts", async () => {
+    const active = await insertTimetableVersion(db, draftVersion());
+    await activateTimetableVersion(db, active.id);
+    const proposal = await insertTimetableVersion(
+      db,
+      draftVersion({ source: "reschedule", change_request_id: "CR-0001" }),
+    );
+    await insertChangeRequest(
+      db,
+      changeRequest("u_a", { proposed_version: proposal.id }),
+    );
+    const others = [];
+    for (let i = 0; i < 3; i++) {
+      others.push(await insertTimetableVersion(db, draftVersion()));
+    }
+    // Keep one inactive version: the newest plain draft, plus the protected proposal.
+    expect(await pruneInactiveTimetableVersions(db, 1)).toBe(2);
+    expect((await listTimetableVersions(db)).map((v) => v.id).sort()).toEqual(
+      [active.id, proposal.id, others[2].id].sort(),
+    );
+
+    expect(await deleteDraftTimetableVersion(db, active.id)).toBe(false);
+    expect(await deleteDraftTimetableVersion(db, proposal.id)).toBe(true);
+    expect(await getTimetableVersion(db, proposal.id)).toBeNull();
+  });
+
+  it("stores one baseline and keeps the first", async () => {
+    const schedule = {
+      team: "T",
+      dataset_id: "d",
+      sessions: [],
+      fest_week: { bookings: [], session_overrides: [] },
+      exams: [],
+    };
+    const base = {
+      schedule,
+      version_id: "TT-0001",
+      dataset_id: "d",
+      change_request_id: "CR-0001",
+      captured_by: "u_admin",
+    };
+    expect(await getBaseline(db)).toBeNull();
+    expect(await insertBaselineIfMissing(db, base)).toBe(true);
+    expect(
+      await insertBaselineIfMissing(db, { ...base, version_id: "TT-0009" }),
+    ).toBe(false);
+    expect(await getBaseline(db)).toMatchObject({
+      schedule,
+      version_id: "TT-0001",
+      change_request_id: "CR-0001",
+      captured_at: expect.any(String),
+    });
+    // The whole document is parsed: only the baseline's own fields come back.
+    expect(Object.keys((await getBaseline(db)) ?? {}).sort()).toEqual([
+      "captured_at",
+      "captured_by",
+      "change_request_id",
+      "dataset_id",
+      "schedule",
+      "version_id",
+    ]);
+    // A malformed document fails loudly instead of being served.
+    await db
+      .collection<{ _id: string }>(COLLECTIONS.baselines)
+      .updateOne({ _id: BASELINE_ID }, { $set: { captured_at: "yesterday" } });
+    await expect(getBaseline(db)).rejects.toThrow();
+    await deleteBaseline(db);
+    expect(await getBaseline(db)).toBeNull();
+  });
+
+  it("writes and restores reference documents for applied changes", async () => {
+    const at = nowIso();
+    const meta = (id: string, seq: number) => ({
+      _id: id,
+      seq,
+      origin: "dataset" as const,
+      created_at: at,
+      updated_at: at,
+    });
+    const session = {
+      course_id: "C1",
+      kind: "lecture" as const,
+      groups: ["G1"],
+      faculty_id: "F1",
+      size: 10,
+      duration: 1,
+      room_types: ["classroom"],
+      needs_accessible: false,
+      basket_slot: null,
+      fixed_slot: null,
+      removed: false,
+    };
+    expect(await maxReferenceSeq(db, "sessions")).toBe(-1);
+    await insertReferenceDocs(db, "sessions", [
+      { ...session, id: "S1", ...meta("S1", 0) },
+      { ...session, id: "S2", ...meta("S2", 4) },
+    ]);
+    await insertReferenceDocs(db, "faculty", [
+      {
+        id: "F1",
+        name: "One",
+        department: "CSE",
+        max_hours_per_day: 4,
+        needs_accessible: false,
+        unavailable: [],
+        preferences: [],
+        ...meta("F1", 0),
+      },
+    ]);
+    expect(await maxReferenceSeq(db, "sessions")).toBe(4);
+    const [before] = await findReferenceDocs(db, "sessions", ["S1"]);
+
+    await markSessionsRemoved(db, ["S1"], "CR-0007");
+    await setFacultyUnavailable(db, "F1", [{ day: "MON", periods: [1] }]);
+    expect((await listSessions(db)).map((s) => s.id)).toEqual(["S2"]);
+    expect(await findReferenceDocs(db, "sessions", ["S1"])).toMatchObject([
+      { removed: true, removed_by: "CR-0007" },
+    ]);
+    expect(await findReferenceDocs(db, "faculty", ["F1"])).toMatchObject([
+      { unavailable: [{ day: "MON", periods: [1] }] },
+    ]);
+
+    await restoreReferenceDocs(db, "sessions", [before]);
+    expect(await findReferenceDocs(db, "sessions", ["S1"])).toEqual([before]);
+    await deleteReferenceDocs(db, "sessions", ["S2"]);
+    expect((await listSessions(db)).map((s) => s.id)).toEqual(["S1"]);
   });
 
   it("saves the settings singleton", async () => {

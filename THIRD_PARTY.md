@@ -6,7 +6,7 @@ Versions are the installed versions from `package-lock.json` / `node_modules`. L
 
 | Package                    | Version | License      | Purpose                                                              |
 | -------------------------- | ------- | ------------ | -------------------------------------------------------------------- |
-| `@google/genai`            | 2.32.0  | Apache-2.0   | Official Google Gemini SDK (booking parser, explanation phrasing)    |
+| `@google/genai`            | 2.32.0  | Apache-2.0   | Official Google Gemini SDK (booking parser, assistant, explanations) |
 | `@hookform/resolvers`      | 6.0.2   | MIT          | Connects Zod schemas to react-hook-form (`zodResolver`)              |
 | `@tanstack/react-query`    | 5.105.0 | MIT          | Server-state fetching, caching and mutations in the UI               |
 | `bcryptjs`                 | 3.0.3   | BSD-3-Clause | Password hashing for user accounts                                   |
@@ -79,14 +79,14 @@ Radix UI primitives they use (all MIT, via the `radix-ui` package):
 
 ## External services
 
-| Service                         | Purpose                                                                  |
-| ------------------------------- | ------------------------------------------------------------------------ |
-| MongoDB / MongoDB Atlas         | Database (local `mongod` or `mongo:7` Docker image in development)       |
-| Google Gemini API               | Parsing English/Hinglish requests and phrasing explanations              |
-| Vercel                          | Hosting                                                                  |
-| GitHub Actions                  | CI (lint, typecheck, test, build, export validation)                     |
-| Brevo (transactional email API) | Sends sign-up / login one-time passwords (account auth merged from main) |
-| Google Identity (OAuth 2.0)     | "Continue with Google" sign-in (planned; not wired yet)                  |
+| Service                         | Purpose                                                                                       |
+| ------------------------------- | --------------------------------------------------------------------------------------------- |
+| MongoDB / MongoDB Atlas         | Database (local `mongod` or `mongo:7` Docker image in development)                            |
+| Google Gemini API               | Booking-request parsing, timetable-assistant intent reading and replies, explanation phrasing |
+| Vercel                          | Hosting                                                                                       |
+| GitHub Actions                  | CI (lint, typecheck, test, build, export validation)                                          |
+| Brevo (transactional email API) | Sends sign-up / login one-time passwords (account auth merged from main)                      |
+| Google Identity (OAuth 2.0)     | "Continue with Google" sign-in (planned; not wired yet)                                       |
 
 ## Organisers' starter pack
 

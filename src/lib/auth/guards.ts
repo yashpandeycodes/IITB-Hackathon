@@ -102,3 +102,39 @@ export function requireBookingWriteQuota(
     "Too many booking changes. Try again in a few minutes.",
   );
 }
+
+/** One change run (propose, preview, manual placement, approve, reject) per the per-user and per-IP limits. */
+export function requireChangeRunQuota(
+  request: Request,
+  user: SessionUser,
+): void {
+  enforce(
+    [
+      [limits.changeRunUser, user.id],
+      [limits.changeRunIp, clientIp(request)],
+    ],
+    "Too many timetable change requests. Try again in a few minutes.",
+  );
+}
+
+/** One assistant turn (`POST /api/assistant`) per the per-user and per-IP limits. */
+export function requireAssistantQuota(
+  request: Request,
+  user: SessionUser,
+): void {
+  enforce(
+    [
+      [limits.assistantUser, user.id],
+      [limits.assistantIp, clientIp(request)],
+    ],
+    "Too many messages to the assistant. Try again in a few minutes.",
+  );
+}
+
+/** One `POST /api/explain` per the per-user limit. */
+export function requireExplainQuota(user: SessionUser): void {
+  enforce(
+    [[limits.explainUser, user.id]],
+    "Too many explanation requests. Try again in a few minutes.",
+  );
+}

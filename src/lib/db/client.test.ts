@@ -49,6 +49,7 @@ describe("COLLECTIONS", () => {
         "booking_decisions",
         "session_overrides",
         "change_requests",
+        "baselines",
         "users",
         "revoked_sessions",
         "settings",

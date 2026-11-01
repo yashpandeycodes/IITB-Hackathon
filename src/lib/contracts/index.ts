@@ -15,6 +15,8 @@ export * from "./timetable";
 export * from "./exam-schedule";
 export * from "./booking";
 export * from "./change";
+export * from "./explain";
+export * from "./assistant";
 export * from "./settings";
 export * from "./audit";
 export * from "./dashboard";

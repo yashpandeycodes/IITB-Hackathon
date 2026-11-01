@@ -9,21 +9,33 @@
  *   one text, scored against the union of its members' windows.
  * - Cases: the starter pack's sample requests and adversarial requests (`ai-eval-cases.ts`),
  *   each with its own checks. Reported, not gated.
+ * - Assistant intents: the faculty assistant's messages (`ASSISTANT_CASES`: English, Hinglish,
+ *   vague timings, conditions, out-of-scope and rule-bypass attempts) read by `extractIntent`
+ *   for the demo F06 / CSE coordinator / admin, scored on the intent kind and the fields each
+ *   case names (`scoreIntent`). Gated like the dataset texts: correct field checks over all.
  *
  * Exit code 1 when any evaluated parser's overall dataset accuracy (correct field checks over
- * all field checks, i.e. the mean of the six per-field accuracies) is below `--min` (default
- * 0.9). The weakest field is reported too, and room types are also scored as exact sets
+ * all field checks, i.e. the mean of the six per-field accuracies) or its assistant-intent
+ * accuracy is below `--min` (default 0.9). The weakest field is reported too, and room types are also scored as exact sets
  * (reported, not gated). `.env.local` is loaded when present; the LLM config comes from
  * `llmConfigFromEnv(parseEnv(process.env), "fast")`, the same defaults the app uses.
  */
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { LlmConfig, ParseContext, ParseOutcome } from "@/lib/ai";
-import type { Dataset } from "@/lib/contracts";
+import type {
+  AssistantContext,
+  LlmConfig,
+  ParseContext,
+  ParseOutcome,
+} from "@/lib/ai";
+import type { Assignment, Dataset, SessionUser } from "@/lib/contracts";
 
 import {
+  ASSISTANT_CASES,
   EVAL_CASES,
   runChecks,
+  type AssistantAsker,
+  type AssistantCase,
   type CaseSubject,
   type CheckResult,
   type EvalCase,
@@ -31,6 +43,8 @@ import {
 import {
   EVAL_FIELDS,
   accuracyOf,
+  intentAccuracyOf,
+  scoreIntent,
   datasetUnits,
   exactAccuracyOf,
   expandRepeatDays,
@@ -43,6 +57,8 @@ import {
   type EvalUnit,
   type ExactAccuracy,
   type FieldScores,
+  type IntentAccuracy,
+  type IntentCheck,
   type ParsedValues,
 } from "./ai-eval-scoring";
 
@@ -112,6 +128,19 @@ type CaseResult = {
   error?: string;
 };
 
+type AssistantCaseResult = {
+  id: string;
+  category: string;
+  who: AssistantAsker;
+  text: string;
+  pass: boolean;
+  checks: IntentCheck[];
+  source: string | null;
+  fallback_code: string | null;
+  fallback_reason: string | null;
+  error?: string;
+};
+
 type ParserReport = {
   parser: string;
   model: string | null;
@@ -125,6 +154,13 @@ type ParserReport = {
   cases: CaseResult[];
   /** Texts where an LLM was configured but the rule parser answered. */
   fallbacks: number;
+  assistant: {
+    accuracy: IntentAccuracy;
+    cases: AssistantCaseResult[];
+    /** Messages where an LLM was configured but the rule parser answered. */
+    fallbacks: number;
+    passed: boolean;
+  };
   passed: boolean;
 };
 
@@ -239,6 +275,46 @@ async function evalCase(
   }
 }
 
+async function evalAssistantCase(
+  c: AssistantCase,
+  parser: Parser,
+  ai: AiModule,
+  contexts: Record<AssistantAsker, AssistantContext>,
+): Promise<AssistantCaseResult> {
+  const base = { id: c.id, category: c.category, who: c.who, text: c.text };
+  try {
+    const outcome = await ai.extractIntent(c.text, contexts[c.who], {
+      llm: parser.llm,
+    });
+    const checks = scoreIntent(c.expect, outcome);
+    return {
+      ...base,
+      pass: checks.every((k) => k.pass),
+      checks,
+      source: outcome.source,
+      fallback_code: outcome.fallback_code,
+      fallback_reason: outcome.fallback_reason,
+    };
+  } catch (err) {
+    return {
+      ...base,
+      pass: false,
+      checks: [
+        {
+          field: "intent",
+          pass: false,
+          expected: c.expect.intent,
+          got: "crash",
+        },
+      ],
+      source: null,
+      fallback_code: null,
+      fallback_reason: null,
+      error: errorText(err),
+    };
+  }
+}
+
 async function evaluate(
   parser: Parser,
   ai: AiModule,
@@ -246,6 +322,7 @@ async function evaluate(
   units: readonly EvalUnit[],
   subjectOf: (outcome: ParseOutcome) => CaseSubject,
   min: number,
+  contexts: Record<AssistantAsker, AssistantContext>,
 ): Promise<ParserReport> {
   // No cache: every text is a fresh parse.
   const parse: Parse = (text) =>
@@ -263,6 +340,13 @@ async function evaluate(
   const fallbacks = parser.llm
     ? [...results, ...cases].filter((r) => r.source === "rules").length
     : 0;
+  const assistantCases: AssistantCaseResult[] = [];
+  for (const c of ASSISTANT_CASES)
+    assistantCases.push(await evalAssistantCase(c, parser, ai, contexts));
+  const assistantAccuracy = intentAccuracyOf(
+    assistantCases.map((c) => c.checks),
+  );
+  const assistantPassed = assistantAccuracy.checks.accuracy >= min;
   return {
     parser: parser.name,
     model: parser.llm?.model ?? null,
@@ -274,7 +358,15 @@ async function evaluate(
     },
     cases,
     fallbacks,
-    passed: accuracy.overall.accuracy >= min,
+    assistant: {
+      accuracy: assistantAccuracy,
+      cases: assistantCases,
+      fallbacks: parser.llm
+        ? assistantCases.filter((c) => c.source === "rules").length
+        : 0,
+      passed: assistantPassed,
+    },
+    passed: accuracy.overall.accuracy >= min && assistantPassed,
   };
 }
 
@@ -309,6 +401,7 @@ function markdown(
     `- Dataset \`${meta.dataset.dataset_id}\`, reference date ${REFERENCE_DATE} (${weekday(REFERENCE_DATE)}): ${meta.units.length} texts from ${requests} requests (each series parsed once).`,
     `- Parsers: ${reports.map((r) => r.parser).join(", ")}.`,
     `- Gate: overall dataset accuracy (correct field checks / all field checks) ≥ ${percent(meta.min)} for every parser, with room types scored by overlap (any shared type). The exact-set rows are reported, not gated.`,
+    `- Assistant: ${ASSISTANT_CASES.length} messages read as the demo faculty member (F06), CSE coordinator or admin, scored on the intent kind and the fields each case names; gated the same way (correct field checks / all field checks).`,
     ...meta.notes.map((n) => `- ${n}`),
     "",
   );
@@ -387,12 +480,45 @@ function markdown(
     );
   }
 
+  for (const report of reports) {
+    out.push(`## Assistant intents: ${report.parser}`, "");
+    out.push(row(["Case", "Category", "Asker", "Result", "Failed checks"]));
+    out.push(row(["---", "---", "---", "---", "---"]));
+    for (const c of report.assistant.cases) {
+      const failed = c.error
+        ? `crash: ${c.error}`
+        : c.checks
+            .filter((k) => !k.pass)
+            .map((k) => `${k.field}: expected ${k.expected}, got ${k.got}`)
+            .join("; ");
+      out.push(
+        row([c.id, c.category, c.who, c.pass ? "pass" : "FAIL", failed]),
+      );
+    }
+    const acc = report.assistant.accuracy;
+    out.push(
+      "",
+      `Assistant accuracy: field checks ${fmt(acc.checks)}, intent kind ${fmt(acc.intent)}, cases fully right ${fmt(acc.cases)}.` +
+        (report.model
+          ? ` Fell back to rules on ${report.assistant.fallbacks} messages.`
+          : ""),
+      "",
+    );
+  }
+
   const passed = reports.every((r) => r.passed);
   out.push("## Result", "");
   for (const r of reports) {
     const overall = r.dataset.accuracy.overall.accuracy;
+    const bookingPassed = overall >= meta.min;
     out.push(
-      `- ${r.parser}: ${percent(overall)} ${r.passed ? "≥" : "<"} ${percent(meta.min)} → ${r.passed ? "PASS" : "FAIL"} (room types as exact sets: ${percent(r.dataset.exact.overall.accuracy)}, not gated)`,
+      `- ${r.parser}: ${percent(overall)} ${bookingPassed ? "≥" : "<"} ${percent(meta.min)} → ${bookingPassed ? "PASS" : "FAIL"} (room types as exact sets: ${percent(r.dataset.exact.overall.accuracy)}, not gated)`,
+    );
+  }
+  for (const r of reports) {
+    const acc = r.assistant.accuracy.checks.accuracy;
+    out.push(
+      `- ${r.parser} assistant intents: ${percent(acc)} ${r.assistant.passed ? "≥" : "<"} ${percent(meta.min)} → ${r.assistant.passed ? "PASS" : "FAIL"} (${ASSISTANT_CASES.length} messages)`,
     );
   }
   out.push("", `Exit code ${passed ? 0 : 1}.`);
@@ -400,6 +526,51 @@ function markdown(
 }
 
 // ------------------------------------------------------------------------------------ main
+
+/** The demo accounts' identities the assistant cases are asked as. */
+const ASKERS: Record<AssistantAsker, SessionUser> = {
+  faculty: {
+    id: "u_faculty_f06",
+    email: "faculty@cit.demo",
+    name: "Dr. Arjun Mehta",
+    role: "faculty",
+    department: "CSE",
+    faculty_id: "F06",
+    club: null,
+  },
+  coordinator: {
+    id: "u_coord_cse",
+    email: "coord.cse@cit.demo",
+    name: "CSE Coordinator",
+    role: "department_coordinator",
+    department: "CSE",
+    faculty_id: null,
+    club: null,
+  },
+  admin: {
+    id: "u_admin",
+    email: "admin@cit.demo",
+    name: "Dean's Office",
+    role: "admin",
+    department: null,
+    faculty_id: null,
+    club: null,
+  },
+};
+
+/** `exports/schedule.json`'s placements, or none when it is missing or unreadable. */
+function committedAssignments(): Assignment[] {
+  const file = resolve(process.cwd(), "exports/schedule.json");
+  if (!existsSync(file)) return [];
+  try {
+    const data = JSON.parse(readFileSync(file, "utf8")) as {
+      sessions?: Assignment[];
+    };
+    return Array.isArray(data.sessions) ? data.sessions : [];
+  } catch {
+    return [];
+  }
+}
 
 /** The env keys the LLM config reads (the fallback below validates only these). */
 const LLM_ENV_KEYS = [
@@ -465,6 +636,7 @@ async function main(): Promise<void> {
   const { getBundledDataset } = await import("@/lib/dataset");
   const { buildParseContext, requestedRoomFor } =
     await import("@/lib/services/booking-parse");
+  const { buildAssistantContext } = await import("@/lib/services/assistant");
 
   const dataset = getBundledDataset();
   const ctx = buildParseContext(dataset, REFERENCE_DATE);
@@ -476,6 +648,15 @@ async function main(): Promise<void> {
     requested_room: requestedRoomFor(outcome, dataset.rooms),
   });
 
+  // The assistant reads the asker's sessions with where they are now: the committed export.
+  const assignments = committedAssignments();
+  const contexts = Object.fromEntries(
+    (Object.keys(ASKERS) as AssistantAsker[]).map((who) => [
+      who,
+      buildAssistantContext(dataset, ASKERS[who], assignments, REFERENCE_DATE),
+    ]),
+  ) as Record<AssistantAsker, AssistantContext>;
+
   const notes: string[] = [];
   const parsers: Parser[] = [{ name: "rules", llm: null }];
   if (args.llm) {
@@ -485,7 +666,9 @@ async function main(): Promise<void> {
 
   const reports: ParserReport[] = [];
   for (const parser of parsers) {
-    reports.push(await evaluate(parser, ai, ctx, units, subjectOf, args.min));
+    reports.push(
+      await evaluate(parser, ai, ctx, units, subjectOf, args.min, contexts),
+    );
   }
   const passed = reports.every((r) => r.passed);
 

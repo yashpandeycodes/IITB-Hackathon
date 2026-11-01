@@ -48,6 +48,13 @@ export const selfApproval = (message = "You can't approve your own request.") =>
 export const hardConstraint = (message: string, details?: unknown) =>
   new ApiError("HARD_CONSTRAINT", message, details);
 
+/**
+ * `409 CONFLICT`: the request can't be done in the current state (no dataset loaded, already
+ * decided, the lock is busy, …). `details` says what is in the way, when useful.
+ */
+export const conflict = (message: string, details?: unknown) =>
+  new ApiError("CONFLICT", message, details);
+
 /** `details` should be the conflict report. */
 export const infeasible = (message: string, details?: unknown) =>
   new ApiError("INFEASIBLE", message, details);

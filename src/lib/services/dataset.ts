@@ -52,6 +52,15 @@ export const DERIVED_COLLECTIONS = [
 
 export type DerivedCollection = (typeof DERIVED_COLLECTIONS)[number];
 
+/**
+ * Derived state cleared with {@link DERIVED_COLLECTIONS} but not counted in an import or reset
+ * report (`DerivedCleared` lists the collections above): the baseline `schedule.json` captured
+ * before the first applied change.
+ */
+export const UNREPORTED_DERIVED_COLLECTIONS = [
+  COLLECTIONS.baselines,
+] as const satisfies readonly CollectionName[];
+
 const MAX_REPORTED_ISSUES = 50;
 
 /**
@@ -171,14 +180,24 @@ export function buildReferenceDocs(
   return { docs, duplicate_cancellations };
 }
 
-/** Deletes every document in the derived working-state collections. */
+/**
+ * Deletes every document in the derived working-state collections (and the unreported ones,
+ * {@link UNREPORTED_DERIVED_COLLECTIONS}). Returns the reported counts.
+ */
 export async function clearDerivedState(db: Db): Promise<DerivedCleared> {
-  const entries = await Promise.all(
-    DERIVED_COLLECTIONS.map(async (name) => {
-      const result = await db.collection(name).deleteMany({});
-      return [name, result.deletedCount] as const;
-    }),
-  );
+  const [entries] = await Promise.all([
+    Promise.all(
+      DERIVED_COLLECTIONS.map(async (name) => {
+        const result = await db.collection(name).deleteMany({});
+        return [name, result.deletedCount] as const;
+      }),
+    ),
+    Promise.all(
+      UNREPORTED_DERIVED_COLLECTIONS.map((name) =>
+        db.collection(name).deleteMany({}),
+      ),
+    ),
+  ]);
   return Object.fromEntries(entries) as DerivedCleared;
 }
 
@@ -284,11 +303,15 @@ async function writeDataset(
 
 // --------------------------------------------------------------------------------- reading
 
-const RECORD_ONLY_KEYS = {
+/**
+ * Record fields that are not part of the dataset (derived, or bookkeeping for applied change
+ * requests); they never reach a `Dataset`.
+ */
+export const RECORD_ONLY_KEYS = {
   rooms: ["department"],
   room_unavailability: ["change_request_id"],
-  faculty: ["user_id"],
-  sessions: ["removed"],
+  faculty: ["user_id", "change_request_id"],
+  sessions: ["removed", "removed_by", "change_request_id"],
   booking_requests: [
     "state",
     "source",

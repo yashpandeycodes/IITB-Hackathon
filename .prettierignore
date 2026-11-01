@@ -21,21 +21,8 @@ src/components/brand
 src/components/landing
 src/lib/mock-data.ts
 src/lib/validation.ts
-src/app/admin
-src/app/dashboard
-src/app/club
-src/app/coordinator
-src/app/faculty
 src/app/unauthorized
 # CIT Nexus screens merged from main in Phase 3 (frontend team); same reason as above.
-src/app/approvals
-src/app/assistant
-src/app/bookings
-src/app/changes
-src/app/exams
-src/app/rooms
-src/app/spectra
-src/app/timetable
 src/app/not-found.tsx
 src/components/layout/app-shell.tsx
 src/components/layout/command-palette.tsx
@@ -44,3 +31,9 @@ src/components/timetable
 src/lib/contracts/ui.ts
 src/lib/dataset
 src/lib/format.ts
+# Frontend screens moved into the (app) route group on main (PR #11), plus its new providers,
+# route config and hooks; same reason as above.
+src/app/(app)
+src/components/providers
+src/config/routes.ts
+src/hooks

@@ -15,7 +15,7 @@
 
 ## 0. Set up
 
-1. **Start from the latest `main`** once the integration-support pull request is merged. It has everything built so far: Phases 2–3 plus this support work. Bookings, AI and rescheduling come later (see §2).
+1. **Start from the latest `main`** once the backend pull request is merged. It has everything built so far: Phases 2–5 (generation, exams, Spectra, bookings and the AI booking parser, change requests and rescheduling, the assistant, explanations, both exports).
    ```bash
    git fetch origin && git switch lakshay && git merge origin/main
    ```
@@ -119,18 +119,18 @@ const reference = useQuery({
 
 After a reset or a dataset import, invalidate `["reference"]` along with everything else.
 
-It replaces the **names and lists** in `cit-data.ts` (`CAMPUS_ROOMS`, `TIMETABLE_SESSIONS`, …). Placements, exams, Spectra decisions and the validator report come from their own endpoints (§2). `MOCK_CHANGE_REQUESTS` stays behind a "Preview" banner until Phase 5.
+It replaces the **names and lists** in `cit-data.ts` (`CAMPUS_ROOMS`, `TIMETABLE_SESSIONS`, …). Placements, exams, Spectra decisions, change requests and the validator report come from their own endpoints (§2). `MOCK_CHANGE_REQUESTS` can go now: change requests come from `GET /api/changes`.
 
 ## 2. Screen by screen
 
 | Screen | Call | Contract (`@/lib/contracts`) | Notes |
 |---|---|---|---|
 | **Admin › Generate** | `streamTimetableGeneration(body, onProgress)` from `@/lib/api-client` (wraps `POST /api/timetable/generate` with the progress stream) | `GenerateTimetableRequest`, `SolverProgress`, `GenerateTimetableResult` | Show `phase`, `hard`, `soft`, `fest`, `iteration`, `ms` live, then the result. Send `{ activate: true }` to make it live. Handle errors (see §3). |
-| **Admin › Versions** | `GET /api/timetable/versions`, `POST /api/timetable/versions/{id}/activate` | `TimetableVersionSummary`, `ActivateTimetableResult` | `409 STALE_VERSION` = built for another dataset; `409 HARD_CONSTRAINT` = breaks a rule now. |
+| **Admin › Versions** | `GET /api/timetable/versions`, `POST /api/timetable/versions/{id}/activate` | `TimetableVersionSummary`, `ActivateTimetableResult` | `409 STALE_VERSION` = built for another dataset; `409 HARD_CONSTRAINT` = breaks a rule now; `409 CONFLICT` on a change request's draft (approve the request instead). Activating rejects every pending change request built on another version: warn in the confirm dialog and refetch `["changes"]`. |
 | **Admin › Reset / Load dataset** | `POST /api/admin/reset` (optional `{"from":"stored"}`), `POST /api/admin/dataset` (send the file's text as the body) | `ResetReport`, `ImportReport` | Confirm dialog plus spinner (about 1 s). On `400`, list `error.details.issues` (`{ path, message }`). |
 | **Admin › Exams / Spectra buttons** | `POST /api/exams/generate`, `POST /api/spectra/run` | `ExamSchedule`, `SpectraRunResult` | Disable while running. All schedule runs share a quota (30 per 10 minutes). |
-| **Admin › Validator panel** | `GET /api/validate` | `ValidatorReport` | `hard_violation_count`, `hard_by_rule`, `hard_violations[]` (`rule`, `where`, `detail`), `soft_penalties` S1–S6, `soft_total`, `bookings`, `exam_soft_penalty`, `warnings`. Rule names come from the report; don't hard-code them. |
-| **Admin › Export** | `EXPORT_SCHEDULE_URL` as `<a href={EXPORT_SCHEDULE_URL} download>` | — | Enable only when `canExport()` says `ok`: no hard violation, and a decision for every Spectra request (`missing_decisions` lists the request ids without one; `POST /api/spectra/run` fixes them). Delete the fake JSON builders and the fake `schedule_after.json` (that one comes in Phase 5). |
+| **Admin › Validator panel** | `GET /api/validate` (`?file=schedule_after` after a change) | `ValidatorReport` | `hard_violation_count`, `hard_by_rule`, `hard_violations[]` (`rule`, `where`, `detail`), `soft_penalties` S1–S6, `soft_total`, `bookings`, `exam_soft_penalty`, `warnings`. Rule names come from the report; don't hard-code them. |
+| **Admin › Export** | `EXPORT_SCHEDULE_URL` as `<a href={EXPORT_SCHEDULE_URL} download>`; after a change, `EXPORT_SCHEDULE_AFTER_URL` and `EXPORT_DISRUPTION_URL` | — | Enable each only when `canExport()` / `canExport("schedule_after")` / `canExport("disruption")` says `ok`: no hard violation, and a decision for every Spectra request (`missing_decisions` lists the request ids without one; `POST /api/spectra/run` fixes them). `schedule_after` and `disruption` exist only after an applied change (`canExport("schedule_after")` rejects with `409 CONFLICT` before that: hide the button). Delete the fake JSON builders, including the fake `schedule_after.json`. |
 | **Admin › Settings** | `GET /api/settings`, `PATCH /api/settings` | `Settings`, `SettingsPatch` | Show `details.fieldErrors` inline on `400`. |
 | **Dashboard** (all roles) | `GET /api/dashboard` | `Dashboard` | Role-aware already. `bookings.booking_score` / `booking_score_max_if_all_approved` give the Spectra score (`null` before decisions exist). `utilisation.rooms[].busy[d][p]` drives the heat map. |
 | **Timetable** | `GET /api/timetable?view=group\|faculty\|room&id=…&week=regular\|spectra` | `TimetableView` (`cells[]`, `bookings[]`) | Picker over `reference.student_groups`, `reference.faculty` and `reference.rooms`. A faculty user's default is `/timetable/faculty/{user.faculty_id}`. `404` → `notFound()`. The grid must take `TimetableCell[]`, span `duration` periods and stack cells that share a slot (basket electives run in parallel). Week 7 marks moved classes with `override.displaced_by`. |
@@ -190,9 +190,20 @@ If the user leaves mid-run, the server still finishes and saves the run (and rel
 | **Week-7 views** | `GET /api/timetable?week=spectra`, `GET /api/rooms/available` | `TimetableView`, `RoomAvailability[]` | Show `pending_approval` bookings and moved classes as tentative. Another user's live booking arrives titled "Booked". |
 | **Approvals › Bookings** | `GET /api/bookings?scope=approvals`; `POST /api/bookings/{id}/decide` `{ decision, comment? }` | `BookingView` | Admin: class moves and labs; coordinator: their department's labs. Never the user's own (`403 SELF_APPROVAL`). |
 
-**Screens whose backend isn't built yet** (changes, change approvals, the assistant and session explanations in Phase 5):
-- Show a clear "Preview, not connected yet" banner.
-- Never show an "applied" or "verified" message the server didn't send.
+**Changes, approvals, assistant and explanations (live since Phase 5).** Helpers from `@/lib/api-client`: `listChanges`, `getChange`, `proposeChange`, `previewChange`, `approveChange`, `rejectChange`, `placeManually`, `askAssistant`, `explain`. Each validates the response against its contract and throws `ApiClientError` like `apiGet`.
+
+| Screen | Call | Contract | Notes |
+|---|---|---|---|
+| **Changes › list** | `listChanges({ scope, status })` → `GET /api/changes` | `ChangeRequest[]` | Admin, coordinator, faculty (hide the page for clubs). Tabs: `scope: "pending"` (waiting for approval), `"mine"`, `"all"`. Show `title`, `status`, `moved_count` ("9 moved: 0 time, 9 room only"), `requested_by_role`, `created_at`. The server returns the newest 100 the user may see. |
+| **Changes › detail / diff view** | `getChange(id)` → `GET /api/changes/{id}` | `ChangeRequest` | One row per `diff[]` item: `session_id`, `from` → `to` (`null` = added / removed), a chip for `move` (`room_only`, `time_only`, `time_and_room`, `added`, `removed`) and `cause` (`broken`, `evicted` + `displaced_by`, `requested`), and `reason`. Header: `moved_count`, `time_changed`, `room_only_changed` (against the timetable it was built on), `soft_delta` (negative is better), `warnings`. Once a change has been applied, also show `baseline_stability` (`sessions_moved`, `time_changed`, `room_only_changed`): the counts against `schedule.json` that the validator will report for `schedule_after.json`; it is `null` before the first applied change (then `moved_count` is that number) and when infeasible. `nl_prompt` is `null` unless you filed it or are an admin. `infeasible`: show `conflicts[]` (`summary`, `contradictions`, and the `blocking` tallies as "H3 × 20: CSE-2 already in class"). `404` = unknown or not visible. |
+| **Changes › load a change file** | `proposeChange(file)` → `POST /api/changes` | `ChangeProposalRequestInput` → `ChangeRequest` (201) | `const file = JSON.parse(await upload.text())` and send it as it is: `kind` defaults to `disruption` and the file's `id` is ignored (any other extra key is a `400`, the body is strict). Admin, or a coordinator for their department. Then open the detail view. `400`: list `error.details` as `PathIssue[]` (`[{ path, message }]`, e.g. `changes[0].faculty_id`: "Unknown faculty F99."; at most 20, then one with an empty `path`: "… and N more problems like these.") for unknown ids, the wrong kind or the [request limits](./api.md#request-limits) (ids ≤ 64 characters, text ≤ 500, …); only a malformed body is Zod's flattened error (`fieldErrors`, `formErrors`). `403`: `error.details.issues`. `409`: no timetable yet, 20 open (pending or infeasible) requests already, or busy. |
+| **Changes › preview** | `previewChange(body)` → `POST /api/changes/preview` | `ChangePreview` | Same body; nothing stored. Use it for a "Check" button before "File request". |
+| **Approvals › changes** | `approveChange(id, { comment })` / `rejectChange(id, { comment })` | `ChangeApplyResult` / `ChangeRequest` | Approve: admins only. On the admin's own request, show Approve only when `kind` is `disruption` or `manual_edit` and `requested_by_role` is `admin` (a change file or manual edit); their own `faculty_request` or `unavailability` is `403 SELF_APPROVAL`. Reject: admins; the requester sees "Withdraw" (same call). After approve, invalidate `["changes"]`, the timetable, dashboard, Spectra and export queries: a new version is active and `superseded` lists requests that were closed. `409 STALE_VERSION`: "The timetable changed; file the change again" (the request is already rejected). `409 HARD_CONSTRAINT`: show `details` (it stays pending). `409 CONFLICT` "Make schedule.json exportable first …" on the first approval: generate exams / run Spectra, then approve again (it stays pending). Activating another version from the versions list rejects every pending change request ("The timetable changed (…); file it again."): refetch `["changes"]` after an activation too. |
+| **Manual placement** | `placeManually({ session_id, day, start_period, room_id, repair })` → `POST /api/manual/place` | `ManualPlacementInput` → `ChangeRequest` (201) | Admin, coordinator (own department). Without `repair`, a busy slot is `409 HARD_CONSTRAINT` with `details` = violations (use `POST /api/timetable/check` for live hints while dragging); offer "Move what's in the way" = the same call with `repair: true`. The result is a pending `manual_edit` request, not a live change. |
+| **Assistant** | `askAssistant({ message, session_id? })` → `POST /api/assistant` | `AssistantRequest` → `AssistantReply` | Admin, coordinator, faculty. Render `text`, `assumptions` (chips), `follow_up` (question). `options[]` → cards with `label`, the counts and `diff`; **Submit** = `proposeChange(option.proposal)` (send it unchanged; the server recomputes it), then show the stored request. `candidates[]` → buttons; on click resend the same `message` with `session_id`. `conflicts[]` → "why not". Show "Verified by constraint engine" only when `verified` is true, and "AI phrased" only when `text_source === "llm"`. Nothing is stored by a turn. |
+| **"Why?" buttons** | `explain({ subject, id })` → `POST /api/explain` | `ExplainRequest` → `ExplainResult` | `subject`: `"session"` (timetable cell), `"booking"` (Spectra or booking row), `"change"` (change detail). Show `text`; `facts` holds the numbers and is typed by `subject` (narrow on it: `SessionFacts`, the booking's facts or `{}`, `ChangeFacts`; for a session: `alternatives.blocked` tallies, `alternatives.best` free slots, `room.fill_percent`). A change's text is always the template (`source: "template"`). `404` = not visible to you (dataset booking requests are admin-only). |
+
+Never show an "applied" or "verified" message the server didn't send: a filed change is `pending` until an admin approves it.
 
 ## 3. Errors you'll meet
 
@@ -201,16 +212,16 @@ If the user leaves mid-run, the server still finishes and saves the run (and rel
 | `401 UNAUTHENTICATED` | Signed out or token revoked | Go to `/api/auth/session-expired?redirect=…` (`SESSION_EXPIRED_PATH`) |
 | `403 FORBIDDEN` | Role not allowed | Hide the action for that role |
 | `404 NOT_FOUND` | Unknown id; no active timetable for Spectra runs | Empty state or `notFound()` |
-| `403 SELF_APPROVAL` | Approving or rejecting your own booking | Hide approve/reject on the user's own requests |
-| `409 CONFLICT` | Another reset, import, run or booking change is in progress; (export) Spectra decisions missing; a booking write that can't apply (20 open requests already, cancelling a dataset request, deciding one that isn't pending) | "Busy, try again"; run Spectra; show the message |
-| `409 HARD_CONSTRAINT` | Export or activation would break a rule; `details` = violations | List them (`rule`, `detail`) |
-| `409 STALE_VERSION` | Version built for another dataset | "Generate a new timetable" |
+| `403 SELF_APPROVAL` | Approving your own booking, or your own change request (the one exception: an admin's own change file or manual edit filed as admin) | Hide Approve on the user's own requests; for an admin's own request, show it only when `kind` is `disruption` or `manual_edit` |
+| `409 CONFLICT` | Another reset, import, run, booking or timetable change is in progress; (export) Spectra decisions missing, or `schedule_after` / `disruption` before any applied change; a booking write that can't apply (20 open requests already, cancelling a dataset request, deciding one that isn't pending); a change that isn't pending, 20 open change requests already, no timetable yet, the first change approval while `schedule.json` isn't exportable; activating a change request's draft from the versions list | "Busy, try again"; run Spectra; show the message |
+| `409 HARD_CONSTRAINT` | Export, activation, a manual placement without `repair` or a change approval would break a rule; `details` = violations | List them (`rule`, `detail`) |
+| `409 STALE_VERSION` | Version built for another dataset; a change approved after another timetable became active (the request is rejected) | "Generate a new timetable" / "File the change again" |
 | `422 INFEASIBLE` | Can't place everything; `details.unplaced`, `details.violations` | Say what couldn't be placed |
-| `429 RATE_LIMITED` | Too many runs, parses or booking changes; `details.retry_after_seconds` | Disable the button for that long |
+| `429 RATE_LIMITED` | Too many runs, parses, booking changes, change requests, assistant turns or explanations; `details.retry_after_seconds` | Disable the button for that long |
 
 ## 4. Remove the fakes (checklist)
 
-- [ ] `git grep -n "cit-data" src` returns only the Phase-5 preview data (`MOCK_CHANGE_REQUESTS`). Move that into the preview screens, then delete `src/lib/dataset/cit-data.ts`.
+- [ ] `git grep -n "cit-data" src` returns nothing: `MOCK_CHANGE_REQUESTS` is replaced by `GET /api/changes`, so `src/lib/dataset/cit-data.ts` can be deleted.
 - [ ] No `alert(`/`confirm(` and no `setTimeout` pretending to work: `git grep -nE "alert\(|confirm\(|setTimeout\(" src/app src/components`.
 - [ ] No invented results or claims. Search for:
   - `64 / 70`, `soft 48`, `48 pts`, `91.4`;
@@ -228,6 +239,8 @@ If the user leaves mid-run, the server still finishes and saves the run (and rel
    2. As admin: Reset → Generate (watch the live progress) → Validator panel shows 0 hard violations → Export downloads `schedule.json`.
    3. `npm run validate` on that file prints `Hard violations: 0`.
    4. Timetable, rooms, exams and Spectra show the same numbers as `GET /api/validate` and the dashboard.
-   5. Signing in from `/login?redirect=https://evil.example` (or `//evil.example`, `javascript:alert(1)`) lands on `/dashboard`; from `/login?redirect=/rooms` it lands on `/rooms`.
-   6. Log out in one tab, then reload an app page in another: you reach `/login`, not a redirect loop.
+   5. As admin after a reset: Changes › load `data/sample_disruption.json` → the diff shows 9 moved (0 time, 9 room only) and CS202-T2 added → Approve → the timetable shows CS202-T2 at MON P7 in CR-103 → the `schedule_after.json` download is enabled; `npm run export -- --after && npm run validate -- --after` prints `Hard violations: 0` and "Stability: 9 sessions moved (0 changed time, 9 room only)".
+   6. As faculty: the assistant answers "Can I move my Friday CS202 lecture to Thursday morning?" with verified options; Submit one → it appears as pending under Changes; Approve is not offered to the faculty user. As admin, approve it.
+   7. Signing in from `/login?redirect=https://evil.example` (or `//evil.example`, `javascript:alert(1)`) lands on `/dashboard`; from `/login?redirect=/rooms` it lands on `/rooms`.
+   8. Log out in one tab, then reload an app page in another: you reach `/login`, not a redirect loop.
 4. Tell Aryan when a batch lands on `main`. He re-runs the reviews and updates [project-status.md](./project-status.md).

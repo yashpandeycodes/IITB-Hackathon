@@ -1,29 +1,64 @@
 /**
- * Downloads `exports/schedule.json` from the running app, over HTTP only (nothing is computed
- * here, so the file is exactly what `GET /api/export` serves).
+ * Downloads `exports/schedule.json` (or, with `--after`, `exports/schedule_after.json`; with
+ * `--disruption`, `exports/disruption.json`) from the running app, over HTTP only (nothing is
+ * computed here, so the file is exactly what `GET /api/export` serves).
  *
  *   npm run export                                  # app at http://localhost:3000
  *   npm run export -- --url http://localhost:3200   # or APP_URL=… npm run export
+ *   npm run export -- --after                       # the timetable after the applied changes
+ *   npm run export -- --disruption                  # the applied changes as one change file
  *
  * Steps: signs in as an admin, downloads `GET /api/export?file=schedule` byte for byte into
  * `exports/schedule.json`, prints the in-app validator summary (`GET /api/validate`), then signs
- * out (the session token is revoked). Run `npm run validate` afterwards for the official
- * validator. Loads `.env.local` first when it exists (for `APP_URL` and the optional
- * `EXPORT_EMAIL` / `EXPORT_PASSWORD`).
+ * out (the session token is revoked). With `--after` it downloads `file=schedule_after` into
+ * `exports/schedule_after.json` instead and prints `GET /api/validate?file=schedule_after`
+ * (which adds the stability counts). With `--disruption` it downloads `file=disruption` (every
+ * applied change, in apply order, as one starter-pack change file) into
+ * `exports/disruption.json` and prints how many changes it holds (there is no validator report
+ * for a change file). Once a change has been applied, `schedule.json` is the timetable from
+ * before the first one, so the three files together are what
+ * `validator.py --schedule exports/schedule_after.json --disruption exports/disruption.json
+ * --baseline exports/schedule.json` checks. Run `npm run validate` afterwards for the official
+ * validator. Loads `.env.local` first when it exists (for `APP_URL`
+ * and the optional `EXPORT_EMAIL` / `EXPORT_PASSWORD`).
  *
  * Sign-in: `EXPORT_EMAIL` + `EXPORT_PASSWORD` (an admin account) through `POST /api/auth/login`
  * when both are set, otherwise the demo admin (`POST /api/auth/demo-login`). Plain `http:` is
  * only allowed for localhost; any other host must use `https:`. Redirects are never followed.
  *
  * Exits 1 when the app can't be reached, the sign-in fails, or the app refuses the export
- * (e.g. `409 HARD_CONSTRAINT`, whose first violations are printed).
+ * (e.g. `409 HARD_CONSTRAINT`, whose first violations are printed, or `409 CONFLICT` for
+ * `--after` or `--disruption` before any change is applied). `--after` and `--disruption`
+ * together are a usage error.
  */
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const DEFAULT_URL = "http://localhost:3000";
-const OUTPUT = "exports/schedule.json";
-const USAGE = "Usage: npm run export [-- --url <app-url>]";
+const USAGE =
+  "Usage: npm run export [-- [--url <app-url>] [--after | --disruption]]";
+
+/**
+ * What one run downloads: `schedule.json` by default, `schedule_after.json` with `--after`,
+ * `disruption.json` with `--disruption` (no validator report: `validatePath` is null).
+ */
+const TARGETS = {
+  schedule: {
+    output: "exports/schedule.json",
+    exportPath: "/api/export?file=schedule",
+    validatePath: "/api/validate",
+  },
+  schedule_after: {
+    output: "exports/schedule_after.json",
+    exportPath: "/api/export?file=schedule_after",
+    validatePath: "/api/validate?file=schedule_after",
+  },
+  disruption: {
+    output: "exports/disruption.json",
+    exportPath: "/api/export?file=disruption",
+    validatePath: null,
+  },
+} as const;
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 /** Error envelope (`error` object) or account-form shape (`error` string + `code`). */
@@ -156,23 +191,40 @@ async function signOut(base: string, cookie: string): Promise<void> {
 async function main(): Promise<void> {
   const envFile = resolve(process.cwd(), ".env.local");
   if (existsSync(envFile)) process.loadEnvFile(envFile);
-  const base = baseUrl(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  const base = baseUrl(argv);
+  const after = argv.includes("--after");
+  const disruption = argv.includes("--disruption");
+  if (after && disruption) {
+    console.error(`Pick one of --after and --disruption.\n${USAGE}`);
+    process.exit(1);
+  }
+  const target =
+    TARGETS[disruption ? "disruption" : after ? "schedule_after" : "schedule"];
 
   const cookie = await signIn(base);
   try {
-    const res = await fetch(`${base}/api/export?file=schedule`, {
+    const res = await fetch(`${base}${target.exportPath}`, {
       headers: { cookie },
       redirect: "error",
     });
     if (res.status !== 200) await failWith("Export", res);
     const body = await res.text();
     JSON.parse(body); // Sanity check only; the file is written exactly as served.
-    const output = resolve(process.cwd(), OUTPUT);
+    const output = resolve(process.cwd(), target.output);
     mkdirSync(resolve(output, ".."), { recursive: true });
     writeFileSync(output, body);
-    console.log(`[export] Wrote ${OUTPUT} (${body.length} bytes) from ${base}`);
+    console.log(
+      `[export] Wrote ${target.output} (${Buffer.byteLength(body)} bytes) from ${base}`,
+    );
 
-    const check = await fetch(`${base}/api/validate`, {
+    if (target.validatePath === null) {
+      const { changes } = JSON.parse(body) as { changes?: unknown[] };
+      const n = changes?.length ?? 0;
+      console.log(`  changes         : ${n} ${n === 1 ? "change" : "changes"}`);
+      return;
+    }
+    const check = await fetch(`${base}${target.validatePath}`, {
       headers: { cookie },
       redirect: "error",
     });
@@ -186,17 +238,28 @@ async function main(): Promise<void> {
           booking_score_max_if_all_approved: number;
         };
         exam_soft_penalty?: number;
+        stability?: {
+          sessions_moved: number;
+          time_changed: number;
+          room_only_changed: number;
+        };
       };
     };
     const bookings = report.bookings
       ? `${report.bookings.booking_score} / ${report.bookings.booking_score_max_if_all_approved}`
       : "n/a";
+    const { stability } = report;
     console.log(
       [
         `  hard violations : ${report.hard_violation_count}`,
         `  soft penalty    : ${report.soft_total}`,
         `  booking score   : ${bookings}`,
         `  exam penalty    : ${report.exam_soft_penalty ?? "n/a"}`,
+        ...(stability
+          ? [
+              `  stability       : ${stability.sessions_moved} sessions moved (${stability.time_changed} changed time, ${stability.room_only_changed} room only)`,
+            ]
+          : []),
       ].join("\n"),
     );
   } finally {

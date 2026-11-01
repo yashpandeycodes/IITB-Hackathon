@@ -13,23 +13,24 @@ import {
 } from "@/lib/contracts";
 
 import { cacheKey } from "./cache";
-import {
-  LlmAbortedError,
-  describeError,
-  isTimeout,
-  redactSecrets,
-  withTimeout,
-} from "./call";
 import { PARSE_PROMPT_ID } from "./constants";
 import { postProcess } from "./postprocess";
-import { buildParsePrompt, buildRepairPrompt, readPrompt } from "./prompts";
+import { buildParsePrompt, readPrompt } from "./prompts";
 import { extractRaw } from "./rules";
+import {
+  generateStructured,
+  validateJson,
+  type StructuredAttempt,
+  type Validation,
+} from "./structured";
 import type {
   LlmConfig,
   ParseContext,
   ParseOptions,
   ParseOutcome,
 } from "./types";
+
+export { MIN_REPAIR_MS, MIN_REPAIR_SHARE } from "./structured";
 
 /** The rule extraction after post-processing (resolved ids, derived fields, chips). */
 export function rulesExtraction(
@@ -46,58 +47,9 @@ export function parseJsonSchema(): unknown {
   return jsonSchema;
 }
 
-type Validation =
-  { ok: true; value: BookingDraftLLM } | { ok: false; error: string };
-
 /** JSON text (optionally in a ```json fence) → a schema-valid extraction, or the error. */
-export function validateExtraction(raw: string): Validation {
-  const body = raw
-    .trim()
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/, "");
-  let data: unknown;
-  try {
-    data = JSON.parse(body);
-  } catch (err) {
-    return { ok: false, error: `Not valid JSON: ${describeError(err)}` };
-  }
-  const result = BookingDraftLLMSchema.safeParse(data);
-  return result.success
-    ? { ok: true, value: result.data }
-    : { ok: false, error: z.prettifyError(result.error).slice(0, 1200) };
-}
-
-type LlmAttempt =
-  | { ok: true; extraction: BookingDraftLLM; raw: string; repaired: boolean }
-  | { ok: false; code: FallbackCode; reason: string; raw: string | null };
-
-/** The repair retry needs at least this long, and at least this share of the call timeout. */
-export const MIN_REPAIR_MS = 1500;
-export const MIN_REPAIR_SHARE = 0.25;
-
-/** `code: detail`, API keys redacted, bounded (for `ai_logs`, never for the response). */
-function fallbackReason(code: FallbackCode, detail: string): string {
-  return redactSecrets(`${code}: ${detail}`)
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 400);
-}
-
-function failure(err: unknown, raw: string | null): LlmAttempt {
-  if (err instanceof LlmAbortedError)
-    return {
-      ok: false,
-      code: "timeout",
-      reason: fallbackReason("timeout", describeError(err)),
-      raw,
-    };
-  const code: FallbackCode = isTimeout(err) ? "timeout" : "llm_error";
-  return {
-    ok: false,
-    code,
-    reason: fallbackReason(code, describeError(err)),
-    raw,
-  };
+export function validateExtraction(raw: string): Validation<BookingDraftLLM> {
+  return validateJson(BookingDraftLLMSchema, raw);
 }
 
 /**
@@ -105,70 +57,21 @@ function failure(err: unknown, raw: string | null): LlmAttempt {
  * `budgetMs` (default: the call timeout). The repair is skipped when too little of the budget
  * is left for it, and the caller's `signal` aborts either call.
  */
-async function extractWithLlm(
+function extractWithLlm(
   text: string,
   ctx: ParseContext,
   llm: NonNullable<LlmConfig>,
   options: Pick<ParseOptions, "budgetMs" | "signal">,
-): Promise<LlmAttempt> {
-  const budget = Math.max(1, Math.floor(options.budgetMs ?? llm.timeoutMs));
-  const started = performance.now();
-  const left = () => Math.floor(budget - (performance.now() - started));
-  let raw: string | null = null;
-  try {
-    const system = readPrompt(PARSE_PROMPT_ID);
-    const prompt = buildParsePrompt(text, ctx);
-    const call = (userPrompt: string, ms: number) =>
-      withTimeout(
-        (signal) =>
-          llm.client.generateJson({
-            model: llm.model,
-            system,
-            prompt: userPrompt,
-            jsonSchema: parseJsonSchema(),
-            timeoutMs: ms,
-            signal,
-          }),
-        ms,
-        options.signal,
-      );
-
-    raw = await call(prompt, Math.min(llm.timeoutMs, budget));
-    const first = validateExtraction(raw);
-    if (first.ok)
-      return { ok: true, extraction: first.value, raw, repaired: false };
-
-    const remaining = left();
-    const needed = Math.max(MIN_REPAIR_MS, MIN_REPAIR_SHARE * llm.timeoutMs);
-    if (remaining < needed)
-      return {
-        ok: false,
-        code: "timeout",
-        reason: fallbackReason(
-          "timeout",
-          `no time left for the repair retry (${Math.max(0, remaining)} of ${budget} ms left, ${Math.ceil(needed)} needed); first output: ${first.error.slice(0, 200)}`,
-        ),
-        raw,
-      };
-    raw = await call(
-      buildRepairPrompt(prompt, raw, first.error),
-      Math.min(llm.timeoutMs, remaining),
-    );
-    const second = validateExtraction(raw);
-    if (second.ok)
-      return { ok: true, extraction: second.value, raw, repaired: true };
-    return {
-      ok: false,
-      code: "invalid_output",
-      reason: fallbackReason(
-        "invalid_output",
-        `failed the schema twice: ${second.error.slice(0, 300)}`,
-      ),
-      raw,
-    };
-  } catch (err) {
-    return failure(err, raw);
-  }
+): Promise<StructuredAttempt<BookingDraftLLM>> {
+  return generateStructured({
+    llm,
+    system: () => readPrompt(PARSE_PROMPT_ID),
+    prompt: () => buildParsePrompt(text, ctx),
+    jsonSchema: parseJsonSchema(),
+    validate: validateExtraction,
+    budgetMs: options.budgetMs,
+    signal: options.signal,
+  });
 }
 
 export async function runParse(
@@ -203,7 +106,7 @@ export async function runParse(
     const attempt = await extractWithLlm(text, ctx, llm, options);
     rawOutput = attempt.raw;
     if (attempt.ok) {
-      extraction = attempt.extraction;
+      extraction = attempt.value;
       repaired = attempt.repaired;
     } else {
       fallbackCode = attempt.code;

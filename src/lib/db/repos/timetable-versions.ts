@@ -104,23 +104,56 @@ export async function activateTimetableVersion(
 }
 
 /**
+ * Drafts and superseded versions kept for history; older ones are deleted after each schedule
+ * run and each stored change proposal (the drafts of pending change requests are always kept on
+ * top). The usual `keep` for {@link pruneInactiveTimetableVersions}.
+ */
+export const KEEP_INACTIVE_VERSIONS = 20;
+
+/**
  * Deletes all but the newest `keep` non-active versions (the active one is always kept), so
- * repeated runs can't grow the collection without bound. Returns how many were deleted.
+ * repeated runs can't grow the collection without bound. The draft of a `pending` change request
+ * is never deleted (nor counted against `keep`): approving the request activates it. Returns how
+ * many were deleted.
  */
 export async function pruneInactiveTimetableVersions(
   db: Db,
   keep: number,
 ): Promise<number> {
+  const pending = await db
+    .collection<{ _id: string; proposed_version: string | null }>(
+      COLLECTIONS.change_requests,
+    )
+    .find(
+      { status: "pending", proposed_version: { $type: "string" } },
+      { projection: { proposed_version: 1 } },
+    )
+    .toArray();
+  const protectedIds = pending.flatMap((cr) =>
+    cr.proposed_version ? [cr.proposed_version] : [],
+  );
   // Newest first by creation time (ids sort as text, so TT-10000 would precede TT-9999).
   const keepIds = await collection(db)
-    .find({ status: { $ne: "active" } }, { projection: { _id: 1 } })
+    .find(
+      { status: { $ne: "active" }, _id: { $nin: protectedIds } },
+      { projection: { _id: 1 } },
+    )
     .sort({ created_at: -1, _id: -1 })
     .limit(keep)
     .map((doc) => doc._id)
     .toArray();
   const result = await collection(db).deleteMany({
     status: { $ne: "active" },
-    _id: { $nin: keepIds },
+    _id: { $nin: [...keepIds, ...protectedIds] },
   });
   return result.deletedCount;
+}
+
+/** Deletes version `id` if it is still a draft (a rejected or superseded proposal). */
+export async function deleteDraftTimetableVersion(
+  db: Db,
+  id: string,
+): Promise<boolean> {
+  const result = await collection(db).deleteOne({ _id: id, status: "draft" });
+  return result.deletedCount === 1;
 }

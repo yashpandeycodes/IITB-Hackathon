@@ -276,7 +276,8 @@ describe.skipIf(!available)("auth routes (throwaway DB)", () => {
         );
         expect(res.status).toBe(200);
       }
-    });
+      // 25 bcrypt checks: give a busy machine (the full suite runs files in parallel) time.
+    }, 30_000);
   });
 
   describe("POST /api/auth/demo-login", () => {
@@ -346,7 +347,8 @@ describe.skipIf(!available)("auth routes (throwaway DB)", () => {
         ok: false,
         error: { code: "RATE_LIMITED" },
       });
-    });
+      // 31 sign-ins, each reading and writing the database: room for a busy machine.
+    }, 30_000);
 
     it("is refused when DEMO_LOGIN_ENABLED=false", async () => {
       vi.stubEnv("DEMO_LOGIN_ENABLED", "false");
