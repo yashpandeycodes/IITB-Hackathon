@@ -34,6 +34,7 @@ import { useReferenceData } from '@/hooks/use-reference-data';
 import { apiGet } from '@/lib/api-client';
 import { DashboardSchema } from '@/lib/contracts/dashboard';
 import { SpectraStateSchema } from '@/lib/contracts/booking';
+import { NotificationsResponseSchema } from '@/lib/contracts/notifications';
 
 function formatTimeAgo(isoString: string): string {
   try {
@@ -94,6 +95,15 @@ export const NotificationBell: React.FC<{ className?: string }> = ({ className =
   const [liveEventTick, setLiveEventTick] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // 0. Dedicated Real Notifications Endpoint GET /api/notifications
+  const { data: serverNotifications } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => apiGet('/api/notifications', NotificationsResponseSchema),
+    enabled: isClient && !!sessionUser,
+    staleTime: 5_000,
+    refetchInterval: 10_000,
+  });
+
   // 1. Fetch Real Dashboard State
   const { data: dashboardData } = useQuery({
     queryKey: ['dashboard'],
@@ -145,9 +155,10 @@ export const NotificationBell: React.FC<{ className?: string }> = ({ className =
       dashboardData,
       spectraData,
       referenceData,
-      sessionUser.role
+      sessionUser.role,
+      serverNotifications
     );
-  }, [isClient, sessionUser, dashboardData, spectraData, referenceData, liveEventTick]);
+  }, [isClient, sessionUser, dashboardData, spectraData, referenceData, liveEventTick, serverNotifications]);
 
   // If SSR or user is not logged in, NEVER render the notification bell
   if (!isClient || !sessionUser) {

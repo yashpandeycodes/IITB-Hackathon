@@ -152,13 +152,26 @@ export function deriveRealTimeNotifications(
   dashboardData: Dashboard | undefined | null,
   spectraData: SpectraState | undefined | null,
   referenceData: ReferenceData | undefined | null,
-  userRole: Role | null | undefined
+  userRole: Role | null | undefined,
+  serverNotifications?: AppNotification[] | null
 ): AppNotification[] {
   if (!userRole) return [];
 
   const readIds = getReadNotificationIds();
   const dismissedIds = getDismissedNotificationIds();
   const realNotifications: AppNotification[] = [];
+
+  // 0. REAL NOTIFICATIONS DIRECTLY RETURNED FROM /api/notifications
+  if (serverNotifications && Array.isArray(serverNotifications)) {
+    for (const notif of serverNotifications) {
+      if (!dismissedIds.has(notif.id) && isCategoryAllowedForRole(notif.category, userRole)) {
+        realNotifications.push({
+          ...notif,
+          read: notif.read || readIds.has(notif.id),
+        });
+      }
+    }
+  }
 
   // 1. REAL LIVE PENDING APPROVALS NOTIFICATION (Admin & Department Coordinator)
   if (

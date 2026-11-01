@@ -17,6 +17,7 @@ export const BOOKING_QUERY_KEYS = [
   ["spectra"],
   ["rooms"],
   ["timetable"],
+  ["notifications"],
 ] as const;
 
 /** Two-step cancel (click, then confirm) for a live request. */

@@ -149,4 +149,5 @@ export const AFTER_BOOKING_KEYS = [
   ["dashboard"],
   ["spectra"],
   ["timetable"],
+  ["notifications"],
 ] as const;

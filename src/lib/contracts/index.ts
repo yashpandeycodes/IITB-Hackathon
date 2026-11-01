@@ -23,6 +23,7 @@ export * from "./dashboard";
 export * from "./admin";
 export * from "./reference";
 export * from "./ai";
+export * from "./notifications";
 
 // Frontend view-model types (`ui.ts`, owned by the frontend team). Its `BookingDraft` and
 // `bookingDraftSchema` are not re-exported here: `BookingDraft` from this index is the API
