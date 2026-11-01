@@ -25,6 +25,13 @@ export const metadata: Metadata = {
     "Room Scheduling",
     "Exam Scheduling",
   ],
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
