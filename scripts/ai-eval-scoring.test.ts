@@ -7,7 +7,12 @@ import type { ParseOutcome } from "@/lib/ai";
 import type { ParsedBookingDraft } from "@/lib/contracts";
 import { getBundledDataset } from "@/lib/dataset";
 
-import { EVAL_CASES, parseWindowSpec, runChecks } from "./ai-eval-cases";
+import {
+  ASSISTANT_CASES,
+  EVAL_CASES,
+  parseWindowSpec,
+  runChecks,
+} from "./ai-eval-cases";
 import {
   EVAL_FIELDS,
   accuracyOf,
@@ -16,6 +21,9 @@ import {
   exactAccuracyOf,
   expandRepeatDays,
   fieldLabel,
+  intentAccuracyOf,
+  scoreIntent,
+  type IntentLike,
   roomTypesExact,
   sameSet,
   sameWindows,
@@ -283,5 +291,84 @@ describe("eval cases", () => {
       { name: "attendance 100", pass: false, got: 90 },
       { name: "windows TUE 10-11", pass: false, got: "WED P10–P11" },
     ]);
+  });
+});
+
+describe("assistant intent scoring", () => {
+  const got: IntentLike = {
+    intent: "move_session",
+    session: {
+      course_id: "CS202",
+      kind: "lecture",
+      day: "FRI",
+      start_period: 7,
+      session_id: null,
+    },
+    target: { days: ["THU"], periods: [1, 2, 3, 4, 5], room_id: null },
+    new_session: { course_id: null, kind: null },
+    faculty_hint: null,
+  };
+  const signals = { bypass: false, outsideHours: null };
+
+  it("scores the intent kind always and only the fields a case names", () => {
+    const checks = scoreIntent(
+      { intent: "move_session", day: "FRI", periods: [5, 4, 3, 2, 1] },
+      { intent: got, signals },
+    );
+    expect(checks.map((c) => [c.field, c.pass])).toEqual([
+      ["intent", true],
+      ["day", true],
+      ["target.periods", true],
+    ]);
+  });
+
+  it("reports what was expected and what came back for a miss", () => {
+    const [kind, days, bypass, outside] = scoreIntent(
+      {
+        intent: "mark_unavailable",
+        days: ["MON"],
+        bypass: true,
+        outside_hours: false,
+      },
+      { intent: got, signals },
+    );
+    expect(kind).toEqual({
+      field: "intent",
+      pass: false,
+      expected: "mark_unavailable",
+      got: "move_session",
+    });
+    expect(days).toMatchObject({ pass: false, expected: "MON", got: "THU" });
+    expect(bypass).toMatchObject({ pass: false });
+    expect(outside).toMatchObject({ pass: true });
+  });
+
+  it("tallies checks, intent kinds and fully right cases", () => {
+    const pass = { field: "intent", pass: true, expected: "", got: "" };
+    const fail = { ...pass, field: "day", pass: false };
+    const acc = intentAccuracyOf([
+      [pass, fail],
+      [pass],
+      [{ ...pass, pass: false }],
+    ]);
+    expect(acc.checks).toEqual({ correct: 2, total: 4, accuracy: 0.5 });
+    expect(acc.intent).toMatchObject({ correct: 2, total: 3 });
+    expect(acc.cases).toMatchObject({ correct: 1, total: 3 });
+  });
+
+  it("has about 30 well-formed assistant cases with unique ids", () => {
+    expect(ASSISTANT_CASES.length).toBeGreaterThanOrEqual(25);
+    expect(new Set(ASSISTANT_CASES.map((c) => c.id)).size).toBe(
+      ASSISTANT_CASES.length,
+    );
+    const kinds = new Set(ASSISTANT_CASES.map((c) => c.expect.intent));
+    for (const kind of [
+      "move_session",
+      "mark_unavailable",
+      "add_session",
+      "explain_session",
+      "unsupported",
+    ])
+      expect(kinds.has(kind)).toBe(true);
   });
 });
