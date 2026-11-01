@@ -36,7 +36,7 @@ export function neutralise(text: string): string {
 }
 
 /** `<<<LABEL`, the neutralised text, `LABEL>>>`. */
-function fenced(text: string, label = "REQUEST_TEXT"): string {
+export function fenced(text: string, label = "REQUEST_TEXT"): string {
   return `<<<${label}\n${neutralise(text)}\n${label}>>>`;
 }
 

@@ -1,6 +1,6 @@
 /**
  * The Gemini adapter with the SDK mocked: request shape (structured output, temperature 0,
- * timeout, abort signal), empty responses, and the schema reduction.
+ * output-token cap, timeout, abort signal), empty and cut-off responses, and the schema reduction.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -22,7 +22,7 @@ vi.mock("@google/genai", () => ({
 }));
 
 const { createGeminiClient } = await import("./index");
-const { toGeminiSchema } = await import("./gemini");
+const { MAX_OUTPUT_TOKENS, toGeminiSchema } = await import("./gemini");
 
 beforeEach(() => {
   sdk.generateContent.mockReset();
@@ -54,6 +54,7 @@ describe("createGeminiClient", () => {
       config: {
         systemInstruction: "SYSTEM",
         temperature: 0,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
         responseMimeType: "application/json",
         httpOptions: { timeout: 1234 },
       },
@@ -79,6 +80,35 @@ describe("createGeminiClient", () => {
     expect(request.config).not.toHaveProperty("responseMimeType");
     expect(request.config).not.toHaveProperty("responseJsonSchema");
     expect(request.config.temperature).toBe(0);
+    expect(request.config.maxOutputTokens).toBe(MAX_OUTPUT_TOKENS);
+  });
+
+  it("throws on a reply cut off at the output-token limit", async () => {
+    sdk.generateContent.mockResolvedValue({
+      text: '{"title": "Half a dra',
+      candidates: [{ finishReason: "MAX_TOKENS" }],
+    });
+    const client = createGeminiClient("k");
+    await expect(
+      client.generateText({
+        model: "m",
+        system: "s",
+        prompt: "p",
+        timeoutMs: 500,
+      }),
+    ).rejects.toThrow(/output-token limit/);
+    sdk.generateContent.mockResolvedValue({
+      text: "Fine.",
+      candidates: [{ finishReason: "STOP" }],
+    });
+    await expect(
+      client.generateText({
+        model: "m",
+        system: "s",
+        prompt: "p",
+        timeoutMs: 500,
+      }),
+    ).resolves.toBe("Fine.");
   });
 
   it("throws on an empty response", async () => {
