@@ -22,6 +22,7 @@ import {
 import { CategoryChip, StatusBadge } from '@/components/semantic/badges';
 import { TimetableGrid } from '@/components/timetable/timetable-grid';
 import { formatDay } from '@/lib/format';
+import { dispatchNotification } from '@/components/notifications/notification-store';
 import {
   Sparkles,
   Zap,
@@ -124,6 +125,18 @@ export default function SpectraBoardPage() {
     onSuccess: (result) => {
       toast.success(
         `Spectra engine re-run complete: ${result.approved} approved, ${result.alternatives} alternative, ${result.rejected} rejected.`
+      );
+      dispatchNotification(
+        {
+          title: 'Spectra Allocation Complete',
+          message: `Spectra allocated rooms: ${result.approved} approved, ${result.alternatives} alternatives, ${result.rejected} rejected.`,
+          category: 'spectra',
+          type: 'success',
+          badge: 'SPECTRA',
+          href: '/spectra',
+        },
+        sessionUser.role,
+        sessionUser.id
       );
       refetchSpectra();
       queryClient.invalidateQueries({ queryKey: ['spectra'] });
