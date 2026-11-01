@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { BrandMark } from "@/components/layout/brand-mark";
 import { RoleBadge } from "@/components/layout/role-badge";
 import { SearchButton } from "@/components/layout/search-button";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { UserMenu, type ShellUser } from "@/components/layout/user-menu";
 import { findActiveNavItem } from "@/config/nav";
 import { siteConfig } from "@/config/site";
@@ -50,6 +51,7 @@ export function AppTopbar({ role, user }: { role: Role; user: ShellUser }) {
 
       <div className="flex shrink-0 items-center gap-2">
         <SearchButton />
+        <NotificationBell />
         <RoleBadge role={role} compactOnPhone />
         <UserMenu user={user} role={role} />
       </div>

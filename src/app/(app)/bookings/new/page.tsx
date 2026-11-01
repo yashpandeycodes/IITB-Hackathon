@@ -24,6 +24,7 @@ import { BookingResult } from '@/components/bookings/booking-result';
 import { ParseResultPanel } from '@/components/bookings/parse-result-panel';
 import { VenueAudit } from '@/components/bookings/venue-audit';
 import { BOOKING_QUERY_KEYS } from '@/components/bookings/cancel-booking-button';
+import { dispatchNotification } from '@/components/notifications/notification-store';
 import {
   allowedGroups,
   calendarDays,
@@ -143,6 +144,77 @@ function BookingWorkspace({
         toast.warning('Submitted, but the engine could not give it a room. See why below.');
       } else {
         toast.success('Submitted. It will be decided once a timetable is active.');
+      }
+
+      for (const b of result.bookings) {
+        const reqTitle = b.request.title || `Booking ${b.request.id}`;
+        const dec = b.decision;
+        if (b.request.state === 'pending_approval') {
+          dispatchNotification(
+            {
+              id: `live-booking-pending-${b.request.id}-${Date.now()}`,
+              title: `${reqTitle} — Awaiting Approval`,
+              message: `Venue request held${where}, awaiting department coordinator / admin sign-off.`,
+              category: 'booking',
+              type: 'warning',
+              badge: 'PENDING',
+              href: `/bookings/${b.request.id}`,
+            },
+            user.role
+          );
+        } else if (dec?.status === 'approved') {
+          dispatchNotification(
+            {
+              id: `live-booking-approved-${b.request.id}-${Date.now()}`,
+              title: `${reqTitle} — Booking Confirmed`,
+              message: `Assigned venue${where}.`,
+              category: 'booking',
+              type: 'success',
+              badge: 'APPROVED',
+              href: `/bookings/${b.request.id}`,
+            },
+            user.role
+          );
+        } else if (dec?.status === 'alternative_offered') {
+          dispatchNotification(
+            {
+              id: `live-booking-alt-${b.request.id}-${Date.now()}`,
+              title: `${reqTitle} — Alternative Offered`,
+              message: `Alternative slot allocated (${where.trim()}).`,
+              category: 'booking',
+              type: 'warning',
+              badge: 'ALTERNATIVE',
+              href: `/bookings/${b.request.id}`,
+            },
+            user.role
+          );
+        } else if (dec?.status === 'rejected') {
+          dispatchNotification(
+            {
+              id: `live-booking-rej-${b.request.id}-${Date.now()}`,
+              title: `${reqTitle} — Venue Request Denied`,
+              message: dec.reason || `Denied: ${dec.reason_code}`,
+              category: 'booking',
+              type: 'error',
+              badge: 'DENIED',
+              href: `/bookings/${b.request.id}`,
+            },
+            user.role
+          );
+        } else {
+          dispatchNotification(
+            {
+              id: `live-booking-sub-${b.request.id}-${Date.now()}`,
+              title: `${reqTitle} — Booking Submitted`,
+              message: 'Request submitted successfully. It will be decided once a timetable is active.',
+              category: 'booking',
+              type: 'info',
+              badge: 'SUBMITTED',
+              href: `/bookings/${b.request.id}`,
+            },
+            user.role
+          );
+        }
       }
       if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
     },

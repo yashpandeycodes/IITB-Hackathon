@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { AppShell } from '@/components/layout/app-shell';
 import { useSessionUser } from '@/components/providers/session-provider';
+import { dispatchNotification } from '@/components/notifications/notification-store';
 import {
   apiGet,
   apiPost,
@@ -589,6 +590,18 @@ export default function AdminConsolePage() {
       apiPost(`/api/timetable/versions/${versionId}/activate`, {}, ActivateTimetableResultSchema),
     onSuccess: (res) => {
       toast.success(`Timetable version ${res.version.id} is now active!`);
+      dispatchNotification(
+        {
+          title: 'Timetable Version Activated',
+          message: `Version ${res.version.id} is now the active operational schedule.`,
+          category: 'timetable',
+          type: 'success',
+          badge: 'ACTIVE',
+          href: '/timetable',
+        },
+        sessionUser.role,
+        sessionUser.id
+      );
       invalidateAllDatasetQueries();
       refetchVersions();
     },
@@ -761,6 +774,18 @@ export default function AdminConsolePage() {
 
       setGenerationResult(result);
       toast.success(`Timetable ${result.version.id} generated and activated successfully!`);
+      dispatchNotification(
+        {
+          title: 'New Timetable Generated',
+          message: `Version ${result.version.id} produced with soft penalty ${result.version.soft_penalty.total} and ${result.version.hard_violation_count} hard clashes.`,
+          category: 'timetable',
+          type: 'success',
+          badge: 'NEW VERSION',
+          href: '/timetable',
+        },
+        sessionUser.role,
+        sessionUser.id
+      );
 
       // Invalidate relevant queries
       invalidateAllDatasetQueries();

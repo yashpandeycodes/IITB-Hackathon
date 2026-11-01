@@ -25,6 +25,8 @@ import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api-client';
 import { DashboardSchema } from '@/lib/contracts/dashboard';
 import { formatNavCount } from '@/components/layout/nav-count';
+import { NotificationBell } from '@/components/notifications/notification-bell';
+import { dispatchNotification } from '@/components/notifications/notification-store';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -57,7 +59,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   children,
   userRole,
   userName,
-  userEmail,
+  userEmail: _userEmail,
   pageTitle,
   breadcrumbs = [],
 }) => {
@@ -80,6 +82,24 @@ export const AppShell: React.FC<AppShellProps> = ({
   });
 
   const pendingApprovalsCount = dashboardData?.pending_approvals?.total ?? 0;
+
+  React.useEffect(() => {
+    if (pendingApprovalsCount > 0 && sessionUser) {
+      dispatchNotification(
+        {
+          id: `pending-approvals-${pendingApprovalsCount}`,
+          title: 'Pending Approvals',
+          message: `You have ${pendingApprovalsCount} venue booking request${pendingApprovalsCount > 1 ? 's' : ''} awaiting coordinator sign-off.`,
+          category: 'booking',
+          type: 'warning',
+          badge: 'ACTION REQ',
+          href: '/approvals',
+        },
+        sessionUser.role,
+        sessionUser.id
+      );
+    }
+  }, [pendingApprovalsCount, sessionUser]);
 
   const handleLogout = async () => {
     try {
@@ -223,6 +243,9 @@ export const AppShell: React.FC<AppShellProps> = ({
               <Search className="w-3.5 h-3.5 text-[#66E3F0]" />
               <span>⌘K Jump</span>
             </button>
+
+            {/* In-App Real-Time Notification Bell */}
+            <NotificationBell />
 
             <Link
               href="/rooms"
